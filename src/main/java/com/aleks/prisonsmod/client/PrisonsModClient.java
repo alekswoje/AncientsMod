@@ -26,6 +26,8 @@ public final class PrisonsModClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        FeatureToggles.load();
+        KeyBinds.register();
         NetworkHandler.register();
 
         // Server allowlist: flip on/off as the player joins/leaves servers.

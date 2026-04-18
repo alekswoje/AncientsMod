@@ -1,6 +1,7 @@
 package com.aleks.prisonsmod.render;
 
 import com.aleks.prisonsmod.PrisonsMod;
+import com.aleks.prisonsmod.client.FeatureToggles;
 import com.aleks.prisonsmod.net.payload.MineStartPayload;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.world.ClientWorld;
@@ -48,6 +49,11 @@ public final class MinePredictRenderer {
     private static int nextEntityId = BASE_ENTITY_ID;
 
     public static void onMineStart(MineStartPayload payload) {
+        // Feature toggle: when off, we still accept the packet (so the rate limiter
+        // accounting stays honest) but don't render anything — the server's real
+        // progress packets will drive the crack animation with the natural latency.
+        if (!FeatureToggles.isMinePredictEnabled()) return;
+
         MinecraftClient client = MinecraftClient.getInstance();
         ClientWorld world = client.world;
         if (world == null) return;
