@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "prisonsmod",
+  "version": "${version}",
+  "name": "PrisonsMod",
+  "description": "Client-side companion mod for the RooPrisons Minecraft server. Renders HUD, floating point numbers, and cascade effects for the Tartarus Rift event. Purely cosmetic — server remains authoritative for all gameplay.",
+  "authors": ["Aleks"],
+  "contact": {
+    "homepage": "https://rooprisons.com",
+    "sources": "https://github.com/alekswoje/PrisonsMod",
+    "issues": "https://github.com/alekswoje/PrisonsMod/issues"
+  },
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.aleks.prisonsmod.client.PrisonsModClient"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "~1.21.11",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
