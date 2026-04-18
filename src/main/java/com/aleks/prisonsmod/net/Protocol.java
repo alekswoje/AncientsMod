@@ -50,6 +50,13 @@ public final class Protocol {
     public static final byte PKT_POINT_GAIN = 1;
     public static final byte PKT_CASCADE    = 2;
     public static final byte PKT_HUD_UPDATE = 3;
+    /**
+     * Low-latency "you are now mining this block" hint. Emitted by the server the
+     * same tick as {@code BlockDamageEvent} so the mod can begin a predicted
+     * break-crack animation ~100ms before the server's normal progress packets
+     * would arrive.
+     */
+    public static final byte PKT_MINE_START = 4;
 
     // --- Packet type ids (C2S) ---
     /** One-shot handshake sent on login so the server can flag mod presence. Has no effect on gameplay. */
@@ -69,10 +76,14 @@ public final class Protocol {
     public static final int RATE_POINT_GAIN_PER_SEC = 100;
     public static final int RATE_CASCADE_PER_SEC    = 10;
     public static final int RATE_HUD_UPDATE_PER_SEC = 5;
+    public static final int RATE_MINE_START_PER_SEC = 40;   // theoretical max mining speed
 
     // --- Renderer caps (memory bounds) ---
     public static final int MAX_FLOATING_NUMBERS_ON_SCREEN = 200;
     public static final int MAX_CASCADE_EFFECTS_QUEUED = 8;
+
+    // --- Mining predict bounds ---
+    public static final int MAX_MINE_DURATION_MS = 30_000;
 
     private Protocol() {}
 }
