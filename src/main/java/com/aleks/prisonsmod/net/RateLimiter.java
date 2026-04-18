@@ -18,7 +18,8 @@ public final class RateLimiter {
         POINT_GAIN(Protocol.RATE_POINT_GAIN_PER_SEC),
         CASCADE(Protocol.RATE_CASCADE_PER_SEC),
         HUD_UPDATE(Protocol.RATE_HUD_UPDATE_PER_SEC),
-        MINE_START(Protocol.RATE_MINE_START_PER_SEC);
+        MINE_START(Protocol.RATE_MINE_START_PER_SEC),
+        MINE_CANCEL(Protocol.RATE_MINE_CANCEL_PER_SEC);
 
         final int perSecond;
         Kind(int perSecond) { this.perSecond = perSecond; }

@@ -4,6 +4,7 @@ import com.aleks.prisonsmod.PrisonsMod;
 import com.aleks.prisonsmod.client.ServerAllowlist;
 import com.aleks.prisonsmod.net.payload.CascadePayload;
 import com.aleks.prisonsmod.net.payload.HudUpdatePayload;
+import com.aleks.prisonsmod.net.payload.MineCancelPayload;
 import com.aleks.prisonsmod.net.payload.MineStartPayload;
 import com.aleks.prisonsmod.net.payload.PointGainPayload;
 import com.aleks.prisonsmod.render.CascadeEffectRenderer;
@@ -72,6 +73,11 @@ public final class NetworkHandler {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.MINE_START)) return;
                     MineStartPayload p = MineStartPayload.decode(buf);
                     MinePredictRenderer.onMineStart(p);
+                }
+                case Protocol.PKT_MINE_CANCEL -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.MINE_CANCEL)) return;
+                    MineCancelPayload p = MineCancelPayload.decode(buf);
+                    MinePredictRenderer.onMineCancel(p.pos());
                 }
                 default -> {
                     // Unknown type — silently ignore. A future server may emit

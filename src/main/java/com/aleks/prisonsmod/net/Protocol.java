@@ -58,6 +58,14 @@ public final class Protocol {
      */
     public static final byte PKT_MINE_START = 4;
 
+    /**
+     * "Forget the in-flight prediction at (x, y, z)" — emitted on {@code
+     * BlockDamageAbortEvent} when the player releases mining before completion.
+     * Mod clears the predicted crack so a single tap doesn't briefly show a
+     * full break animation.
+     */
+    public static final byte PKT_MINE_CANCEL = 5;
+
     // --- Packet type ids (C2S) ---
     /** One-shot handshake sent on login so the server can flag mod presence. Has no effect on gameplay. */
     public static final byte PKT_HANDSHAKE  = 101;
@@ -77,6 +85,7 @@ public final class Protocol {
     public static final int RATE_CASCADE_PER_SEC    = 10;
     public static final int RATE_HUD_UPDATE_PER_SEC = 5;
     public static final int RATE_MINE_START_PER_SEC = 40;   // theoretical max mining speed
+    public static final int RATE_MINE_CANCEL_PER_SEC = 40;  // one per start at most
 
     // --- Renderer caps (memory bounds) ---
     public static final int MAX_FLOATING_NUMBERS_ON_SCREEN = 200;
@@ -84,6 +93,8 @@ public final class Protocol {
 
     // --- Mining predict bounds ---
     public static final int MAX_MINE_DURATION_MS = 30_000;
+    /** Predictions below this duration skip the crack ladder and fire an "insta-break" flash instead. */
+    public static final int INSTA_BREAK_THRESHOLD_MS = 100;
 
     private Protocol() {}
 }

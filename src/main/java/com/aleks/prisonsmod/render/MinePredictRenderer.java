@@ -2,9 +2,13 @@ package com.aleks.prisonsmod.render;
 
 import com.aleks.prisonsmod.PrisonsMod;
 import com.aleks.prisonsmod.client.FeatureToggles;
+import com.aleks.prisonsmod.net.Protocol;
 import com.aleks.prisonsmod.net.payload.MineStartPayload;
+import net.minecraft.block.BlockState;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.world.ClientWorld;
+import net.minecraft.util.hit.BlockHitResult;
+import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
 
 import java.util.HashMap;
@@ -12,16 +16,29 @@ import java.util.Iterator;
 import java.util.Map;
 
 /**
- * Latency-mitigation renderer for mining. When the server emits
- * {@link com.aleks.prisonsmod.net.Protocol#PKT_MINE_START}, the mod starts a
- * local {@code ClientWorld#setBlockBreakingInfo} animation immediately —
- * roughly 100ms earlier than waiting for the server's first
- * {@code BlockDestructionPacket} to round-trip back. The server remains
- * authoritative for the real break; this is purely cosmetic anticipation.
+ * Latency-mitigation renderer for mining. Two behaviors depending on predicted
+ * duration:
  *
- * <p>Each predicted animation is keyed by a synthetic entity id high enough
- * to never collide with real players' breaking indicators. Entries self-expire
- * once their predicted duration elapses, or when a new hint replaces them.
+ * <ul>
+ *   <li><b>Normal break</b> ({@code duration >= INSTA_BREAK_THRESHOLD_MS}):
+ *       draws an accelerating {@code setBlockBreakingInfo} crack animation so
+ *       the player sees progress ~100ms earlier than waiting for the server's
+ *       real {@code BlockDestructionPacket}.</li>
+ *   <li><b>Insta-break</b> ({@code duration < INSTA_BREAK_THRESHOLD_MS}):
+ *       fires the vanilla block-break world event (particles + sound) at the
+ *       block so the disappearance feels snappy instead of muted. No crack
+ *       ladder — there'd be no time to see it.</li>
+ * </ul>
+ *
+ * <p>Three cancellation paths keep a single tap from showing a full break:
+ * <ol>
+ *   <li>Server-origin {@link #onMineCancel}, fired on
+ *       {@code BlockDamageAbortEvent}. Authoritative.</li>
+ *   <li>Client-side: if the player isn't holding attack OR their crosshair
+ *       has moved off the predicted block, the entry is dropped inside
+ *       {@link #tick}. Responsive — no round-trip.</li>
+ *   <li>Self-expiry when predicted duration elapses.</li>
+ * </ol>
  */
 public final class MinePredictRenderer {
 
@@ -30,6 +47,9 @@ public final class MinePredictRenderer {
 
     /** Hard cap on concurrent predicted animations. */
     private static final int MAX_ENTRIES = 16;
+
+    /** Vanilla world-event id for "block broken" — spawns particles and plays the sound. */
+    private static final int WE_BLOCK_BROKEN = 2001;
 
     private static final Map<BlockPos, Entry> ACTIVE = new HashMap<>();
 
@@ -49,16 +69,27 @@ public final class MinePredictRenderer {
     private static int nextEntityId = BASE_ENTITY_ID;
 
     public static void onMineStart(MineStartPayload payload) {
-        // Feature toggle: when off, we still accept the packet (so the rate limiter
-        // accounting stays honest) but don't render anything — the server's real
-        // progress packets will drive the crack animation with the natural latency.
+        // Feature toggle: when off, we accept the packet (rate limiter accounting
+        // stays honest) but don't render anything — the server's real progress
+        // packets will drive the crack animation with the natural latency.
         if (!FeatureToggles.isMinePredictEnabled()) return;
 
         MinecraftClient client = MinecraftClient.getInstance();
         ClientWorld world = client.world;
         if (world == null) return;
 
-        // Cap memory footprint; drop the oldest if at the limit.
+        // Insta-break path: no time for a crack ladder. Play vanilla block-break
+        // world event (particles + sound) so the disappearance isn't muted.
+        if (payload.durationMs() < Protocol.INSTA_BREAK_THRESHOLD_MS) {
+            BlockState state = world.getBlockState(payload.pos());
+            if (!state.isAir()) {
+                int rawId = net.minecraft.block.Block.getRawIdFromState(state);
+                world.syncWorldEvent(WE_BLOCK_BROKEN, payload.pos(), rawId);
+            }
+            return;
+        }
+
+        // Normal break path: crack-animation prediction.
         if (ACTIVE.size() >= MAX_ENTRIES) {
             Iterator<Map.Entry<BlockPos, Entry>> it = ACTIVE.entrySet().iterator();
             if (it.hasNext()) {
@@ -68,7 +99,6 @@ public final class MinePredictRenderer {
             }
         }
 
-        // If we already had a prediction for this block, clear it first.
         Entry existing = ACTIVE.remove(payload.pos());
         if (existing != null) {
             world.setBlockBreakingInfo(existing.entityId, payload.pos(), -1);
@@ -81,7 +111,16 @@ public final class MinePredictRenderer {
         ACTIVE.put(payload.pos(), entry);
     }
 
-    /** Tick every client frame to advance stages and expire finished entries. */
+    /** Server-origin cancel — authoritative. */
+    public static void onMineCancel(BlockPos pos) {
+        clearOne(pos);
+    }
+
+    /**
+     * Tick every client frame: advance stages, expire finished entries, and
+     * cancel any prediction the player is no longer committing to (attack key
+     * released or crosshair moved off the block).
+     */
     public static void tick() {
         if (ACTIVE.isEmpty()) return;
         MinecraftClient client = MinecraftClient.getInstance();
@@ -91,16 +130,37 @@ public final class MinePredictRenderer {
             return;
         }
 
+        boolean attacking = client.options.attackKey.isPressed();
+        BlockPos targeted = null;
+        HitResult hit = client.crosshairTarget;
+        if (hit instanceof BlockHitResult bhr && bhr.getType() == HitResult.Type.BLOCK) {
+            targeted = bhr.getBlockPos();
+        }
+
         long now = System.currentTimeMillis();
         Iterator<Map.Entry<BlockPos, Entry>> it = ACTIVE.entrySet().iterator();
         while (it.hasNext()) {
             Map.Entry<BlockPos, Entry> e = it.next();
             Entry entry = e.getValue();
             long elapsed = now - entry.startMs;
+            BlockPos pos = e.getKey();
+
+            // Self-cancel: the player stopped mining this block. Drop the prediction
+            // within the first ~30ms of a click so a tap doesn't flash the full ladder.
+            // We give a tiny grace window (40ms) to absorb the BlockDamageEvent → tick
+            // race where attackKey may not register pressed on the very first frame.
+            if (elapsed > 40) {
+                boolean stillTargeting = pos.equals(targeted);
+                if (!attacking || !stillTargeting) {
+                    world.setBlockBreakingInfo(entry.entityId, pos, -1);
+                    it.remove();
+                    continue;
+                }
+            }
 
             // Past the predicted duration? Clear — the server's real packets take over.
             if (elapsed >= entry.durationMs) {
-                world.setBlockBreakingInfo(entry.entityId, e.getKey(), -1);
+                world.setBlockBreakingInfo(entry.entityId, pos, -1);
                 it.remove();
                 continue;
             }
@@ -108,13 +168,13 @@ public final class MinePredictRenderer {
             // 10 stages (0-9); -1 clears.
             int stage = (int) Math.min(9, (elapsed * 10) / entry.durationMs);
             if (stage != entry.lastStageSent) {
-                world.setBlockBreakingInfo(entry.entityId, e.getKey(), stage);
+                world.setBlockBreakingInfo(entry.entityId, pos, stage);
                 entry.lastStageSent = stage;
             }
         }
     }
 
-    /** Called when the mod is disabled (leaving an allowlisted server). */
+    /** Called when the mod is disabled (leaving an allowlisted server) or toggled off. */
     public static void reset() {
         MinecraftClient client = MinecraftClient.getInstance();
         ClientWorld world = client.world;
@@ -125,6 +185,16 @@ public final class MinePredictRenderer {
         }
         ACTIVE.clear();
         PrisonsMod.LOGGER.debug("MinePredictRenderer reset");
+    }
+
+    private static void clearOne(BlockPos pos) {
+        Entry entry = ACTIVE.remove(pos);
+        if (entry == null) return;
+        MinecraftClient client = MinecraftClient.getInstance();
+        ClientWorld world = client.world;
+        if (world != null) {
+            world.setBlockBreakingInfo(entry.entityId, pos, -1);
+        }
     }
 
     private MinePredictRenderer() {}
