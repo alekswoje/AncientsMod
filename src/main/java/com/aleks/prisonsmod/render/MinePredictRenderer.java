@@ -7,9 +7,14 @@ import com.aleks.prisonsmod.net.payload.MineStartPayload;
 import net.minecraft.block.BlockState;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.world.ClientWorld;
+import net.minecraft.particle.BlockStateParticleEffect;
+import net.minecraft.particle.ParticleTypes;
+import net.minecraft.sound.SoundCategory;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
+
+import java.util.concurrent.ThreadLocalRandom;
 
 import java.util.HashMap;
 import java.util.Iterator;
@@ -48,8 +53,9 @@ public final class MinePredictRenderer {
     /** Hard cap on concurrent predicted animations. */
     private static final int MAX_ENTRIES = 16;
 
-    /** Vanilla world-event id for "block broken" — spawns particles and plays the sound. */
-    private static final int WE_BLOCK_BROKEN = 2001;
+    /** Number of block particles to spawn on insta-break. Vanilla world-event 2001
+     *  spawns ~30 which is visual noise in the rift where stone is mined rapidly. */
+    private static final int INSTA_BREAK_PARTICLES = 5;
 
     private static final Map<BlockPos, Entry> ACTIVE = new HashMap<>();
 
@@ -78,13 +84,32 @@ public final class MinePredictRenderer {
         ClientWorld world = client.world;
         if (world == null) return;
 
-        // Insta-break path: no time for a crack ladder. Play vanilla block-break
-        // world event (particles + sound) so the disappearance isn't muted.
+        // Insta-break path: no time for a crack ladder. Play a toned-down version
+        // of the vanilla block-break effect — a handful of particles + the break
+        // sound — so the disappearance isn't muted. We skip syncWorldEvent(2001)
+        // because it spawns ~30 particles which is visual noise in rapid mining.
         if (payload.durationMs() < Protocol.INSTA_BREAK_THRESHOLD_MS) {
             BlockState state = world.getBlockState(payload.pos());
             if (!state.isAir()) {
-                int rawId = net.minecraft.block.Block.getRawIdFromState(state);
-                world.syncWorldEvent(WE_BLOCK_BROKEN, payload.pos(), rawId);
+                BlockPos pos = payload.pos();
+                double cx = pos.getX() + 0.5;
+                double cy = pos.getY() + 0.5;
+                double cz = pos.getZ() + 0.5;
+                ThreadLocalRandom r = ThreadLocalRandom.current();
+                BlockStateParticleEffect fx = new BlockStateParticleEffect(ParticleTypes.BLOCK, state);
+                for (int i = 0; i < INSTA_BREAK_PARTICLES; i++) {
+                    client.particleManager.addParticle(fx,
+                            cx + (r.nextDouble() - 0.5) * 0.5,
+                            cy + (r.nextDouble() - 0.5) * 0.5,
+                            cz + (r.nextDouble() - 0.5) * 0.5,
+                            (r.nextDouble() - 0.5) * 0.2,
+                            r.nextDouble() * 0.2,
+                            (r.nextDouble() - 0.5) * 0.2);
+                }
+                world.playSound(null, cx, cy, cz,
+                        state.getSoundGroup().getBreakSound(),
+                        SoundCategory.BLOCKS,
+                        0.6f, 0.9f + r.nextFloat() * 0.2f);
             }
             return;
         }
@@ -145,17 +170,16 @@ public final class MinePredictRenderer {
             long elapsed = now - entry.startMs;
             BlockPos pos = e.getKey();
 
-            // Self-cancel: the player stopped mining this block. Drop the prediction
-            // within the first ~30ms of a click so a tap doesn't flash the full ladder.
-            // We give a tiny grace window (40ms) to absorb the BlockDamageEvent → tick
-            // race where attackKey may not register pressed on the very first frame.
-            if (elapsed > 40) {
-                boolean stillTargeting = pos.equals(targeted);
-                if (!attacking || !stillTargeting) {
-                    world.setBlockBreakingInfo(entry.entityId, pos, -1);
-                    it.remove();
-                    continue;
-                }
+            // Self-cancel: if the player isn't holding attack or their crosshair
+            // has moved off the predicted block, drop it immediately. No grace
+            // window — an earlier 40ms grace leaked the first crack stage on
+            // single taps. For taps, attackKey will already read false on the
+            // first tick we see after packet arrival, which is what we want.
+            boolean stillTargeting = pos.equals(targeted);
+            if (!attacking || !stillTargeting) {
+                world.setBlockBreakingInfo(entry.entityId, pos, -1);
+                it.remove();
+                continue;
             }
 
             // Past the predicted duration? Clear — the server's real packets take over.
