@@ -15,36 +15,37 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Collapses the enchant block on RooPrisons items behind Shift.
+ * Trims the enchant block on RooPrisons items.
  *
- * <p>RooPrisons pickaxes and gear put their enchants as the first block of
- * lore lines, terminated by a blank line. When the item has any custom NBT
- * (the server-side plugin always sets PDC data on its items, so
- * {@code minecraft:custom_data} is non-empty), and the first lore block is
- * more than one line, we replace it with a single placeholder unless Shift
- * is held.
+ * <ul>
+ *   <li>Default — all enchant lines collapsed into a single
+ *       "{@code ... N enchants (hold Shift)}" line.</li>
+ *   <li>With Shift held — keep the top {@link #SHOWN_ON_SHIFT} highest-rarity
+ *       enchants (the server orders the block by rarity) and append an
+ *       "{@code ... X more}" summary line for whatever's cut.</li>
+ * </ul>
  *
- * <p>Vanilla items always pass through untouched: either they have no
- * custom_data, or their lore isn't structured as a leading enchant block.
+ * <p>RooPrisons items are detected via presence of any
+ * {@code minecraft:custom_data} NBT, which the server-side plugin always
+ * writes on pickaxe/gear PDC markers.
  *
- * <p>Fires for every tooltip the client renders, so it covers both inventory
- * hover and chat {@code [item]} hover without any extra wiring.
+ * <p>Fires for every tooltip the client renders, so it covers inventory
+ * hover and chat {@code [item]} hover with no extra wiring.
  */
 public final class TooltipCollapse {
 
-    /**
-     * Minimum number of consecutive enchant-looking lines before we bother
-     * collapsing. A 1–2 line tooltip block isn't worth the indirection.
-     */
+    /** Number of enchant lines to keep visible while Shift is held. */
+    private static final int SHOWN_ON_SHIFT = 5;
+
+    /** Only collapse when there are at least this many lines in the block. */
     private static final int MIN_LINES_TO_COLLAPSE = 3;
 
     public static void register() {
         ItemTooltipCallback.EVENT.register((stack, context, type, lines) -> {
             if (!ServerAllowlist.isAllowed()) return;
             if (!FeatureToggles.isEnchantCollapseEnabled()) return;
-            if (isShiftDown()) return;
             if (!looksLikeRooPrisonsItem(stack)) return;
-            collapseLeadingBlock(lines);
+            applyEnchantTrim(lines, isShiftDown());
         });
     }
 
@@ -57,23 +58,13 @@ public final class TooltipCollapse {
                 || InputUtil.isKeyPressed(window, GLFW.GLFW_KEY_RIGHT_SHIFT);
     }
 
-    /**
-     * An item is treated as a RooPrisons pickaxe/gear for collapse purposes
-     * if it carries any custom NBT (the server-side plugin always sets PDC
-     * markers on its items). Vanilla unmodified items are skipped so their
-     * enchanted-book tooltips etc. are never touched.
-     */
     private static boolean looksLikeRooPrisonsItem(ItemStack stack) {
         if (stack == null || stack.isEmpty()) return false;
         NbtComponent custom = stack.get(DataComponentTypes.CUSTOM_DATA);
         return custom != null && !custom.isEmpty();
     }
 
-    /**
-     * Replace the first contiguous block of non-blank lore lines (after the
-     * display-name line at index 0) with a collapsed placeholder.
-     */
-    private static void collapseLeadingBlock(List<Text> lines) {
+    private static void applyEnchantTrim(List<Text> lines, boolean shiftDown) {
         if (lines.size() < MIN_LINES_TO_COLLAPSE + 1) return;
 
         int start = 1; // skip the display-name line at index 0
@@ -84,18 +75,38 @@ public final class TooltipCollapse {
         int count = end - start;
         if (count < MIN_LINES_TO_COLLAPSE) return;
 
-        Text placeholder = Text.literal("... ")
+        int keep = shiftDown ? Math.min(SHOWN_ON_SHIFT, count) : 0;
+        int hidden = count - keep;
+        if (hidden <= 0) return;
+
+        List<Text> rebuilt = new ArrayList<>(lines.size() - hidden + 1);
+        rebuilt.addAll(lines.subList(0, start + keep));
+        rebuilt.add(buildSummaryLine(keep, hidden, shiftDown));
+        rebuilt.addAll(lines.subList(end, lines.size()));
+
+        lines.clear();
+        lines.addAll(rebuilt);
+    }
+
+    /**
+     * Shift held: "{@code ... N more}" — the "more" wording signals that some
+     * enchants are intentionally cut off so the tooltip stays compact.
+     * Shift released: "{@code ... N enchants (hold Shift)}" — prompt the user
+     * that there's more to reveal.
+     */
+    private static Text buildSummaryLine(int shown, int hidden, boolean shiftDown) {
+        if (shiftDown) {
+            return Text.literal("... ")
+                    .formatted(Formatting.DARK_GRAY)
+                    .append(Text.literal(hidden + " more").formatted(Formatting.GRAY));
+        }
+        int total = shown + hidden;
+        return Text.literal("... ")
                 .formatted(Formatting.DARK_GRAY)
-                .append(Text.literal(count + " enchants").formatted(Formatting.GRAY))
+                .append(Text.literal(total + " enchants").formatted(Formatting.GRAY))
                 .append(Text.literal(" (hold ").formatted(Formatting.DARK_GRAY))
                 .append(Text.literal("Shift").formatted(Formatting.WHITE))
                 .append(Text.literal(")").formatted(Formatting.DARK_GRAY));
-
-        List<Text> kept = new ArrayList<>(lines.subList(0, start));
-        kept.add(placeholder);
-        kept.addAll(lines.subList(end, lines.size()));
-        lines.clear();
-        lines.addAll(kept);
     }
 
     private static boolean isBlank(Text line) {
