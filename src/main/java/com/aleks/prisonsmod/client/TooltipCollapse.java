@@ -4,6 +4,9 @@ import net.fabricmc.fabric.api.client.item.v1.ItemTooltipCallback;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.client.util.Window;
+import net.minecraft.component.DataComponentTypes;
+import net.minecraft.component.type.NbtComponent;
+import net.minecraft.item.ItemStack;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import org.lwjgl.glfw.GLFW;
@@ -12,30 +15,36 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Collapses enchant-marked tooltip lines behind Shift.
+ * Collapses the enchant block on RooPrisons items behind Shift.
  *
- * <p>The server (PrisonsCore) prefixes every pickaxe enchant lore line with
- * a zero-width space ({@code \u200B}). Vanilla clients see no difference —
- * the character is invisible. This handler detects those marked lines and,
- * when Shift isn't held, replaces the contiguous block with a single
- * placeholder line so the tooltip doesn't dominate the screen.
+ * <p>RooPrisons pickaxes and gear put their enchants as the first block of
+ * lore lines, terminated by a blank line. When the item has any custom NBT
+ * (the server-side plugin always sets PDC data on its items, so
+ * {@code minecraft:custom_data} is non-empty), and the first lore block is
+ * more than one line, we replace it with a single placeholder unless Shift
+ * is held.
  *
- * <p>When Shift is held, lines pass through untouched. The zero-width space
- * stays in the text but renders as nothing, so there's no visual cost.
+ * <p>Vanilla items always pass through untouched: either they have no
+ * custom_data, or their lore isn't structured as a leading enchant block.
  *
  * <p>Fires for every tooltip the client renders, so it covers both inventory
  * hover and chat {@code [item]} hover without any extra wiring.
  */
 public final class TooltipCollapse {
 
-    private static final String MARKER = "\u200B";
+    /**
+     * Minimum number of consecutive enchant-looking lines before we bother
+     * collapsing. A 1–2 line tooltip block isn't worth the indirection.
+     */
+    private static final int MIN_LINES_TO_COLLAPSE = 3;
 
     public static void register() {
         ItemTooltipCallback.EVENT.register((stack, context, type, lines) -> {
             if (!ServerAllowlist.isAllowed()) return;
             if (!FeatureToggles.isEnchantCollapseEnabled()) return;
             if (isShiftDown()) return;
-            collapseMarkedLines(lines);
+            if (!looksLikeRooPrisonsItem(stack)) return;
+            collapseLeadingBlock(lines);
         });
     }
 
@@ -48,18 +57,32 @@ public final class TooltipCollapse {
                 || InputUtil.isKeyPressed(window, GLFW.GLFW_KEY_RIGHT_SHIFT);
     }
 
-    private static void collapseMarkedLines(List<Text> lines) {
-        int firstMarked = -1;
-        int lastMarked = -1;
-        int count = 0;
-        for (int i = 0; i < lines.size(); i++) {
-            if (isMarked(lines.get(i))) {
-                if (firstMarked < 0) firstMarked = i;
-                lastMarked = i;
-                count++;
-            }
+    /**
+     * An item is treated as a RooPrisons pickaxe/gear for collapse purposes
+     * if it carries any custom NBT (the server-side plugin always sets PDC
+     * markers on its items). Vanilla unmodified items are skipped so their
+     * enchanted-book tooltips etc. are never touched.
+     */
+    private static boolean looksLikeRooPrisonsItem(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) return false;
+        NbtComponent custom = stack.get(DataComponentTypes.CUSTOM_DATA);
+        return custom != null && !custom.isEmpty();
+    }
+
+    /**
+     * Replace the first contiguous block of non-blank lore lines (after the
+     * display-name line at index 0) with a collapsed placeholder.
+     */
+    private static void collapseLeadingBlock(List<Text> lines) {
+        if (lines.size() < MIN_LINES_TO_COLLAPSE + 1) return;
+
+        int start = 1; // skip the display-name line at index 0
+        int end = start;
+        while (end < lines.size() && !isBlank(lines.get(end))) {
+            end++;
         }
-        if (count <= 1) return;
+        int count = end - start;
+        if (count < MIN_LINES_TO_COLLAPSE) return;
 
         Text placeholder = Text.literal("... ")
                 .formatted(Formatting.DARK_GRAY)
@@ -68,19 +91,17 @@ public final class TooltipCollapse {
                 .append(Text.literal("Shift").formatted(Formatting.WHITE))
                 .append(Text.literal(")").formatted(Formatting.DARK_GRAY));
 
-        List<Text> kept = new ArrayList<>(lines.subList(0, firstMarked));
+        List<Text> kept = new ArrayList<>(lines.subList(0, start));
         kept.add(placeholder);
-        if (lastMarked + 1 < lines.size()) {
-            kept.addAll(lines.subList(lastMarked + 1, lines.size()));
-        }
+        kept.addAll(lines.subList(end, lines.size()));
         lines.clear();
         lines.addAll(kept);
     }
 
-    private static boolean isMarked(Text line) {
-        if (line == null) return false;
+    private static boolean isBlank(Text line) {
+        if (line == null) return true;
         String s = line.getString();
-        return s != null && s.contains(MARKER);
+        return s == null || s.isEmpty() || s.trim().isEmpty();
     }
 
     private TooltipCollapse() {}

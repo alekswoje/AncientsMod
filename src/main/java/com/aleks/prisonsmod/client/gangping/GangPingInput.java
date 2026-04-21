@@ -49,10 +49,18 @@ public final class GangPingInput {
             return;
         }
 
+        // Consume any queued key-press events so edge detection works even if
+        // something else (vanilla Pick Block, GUI close, etc.) swallowed the
+        // "held" state between ticks.
+        while (KeyBinds.GANG_PING.wasPressed()) {
+            PrisonsMod.LOGGER.info("Gang ping: wasPressed edge");
+        }
+
         boolean down = KeyBinds.GANG_PING.isPressed();
         long now = System.currentTimeMillis();
 
         if (down && !wasDown) {
+            PrisonsMod.LOGGER.info("Gang ping: press edge detected");
             pressedAtMs = now;
             previewActive = false;
             previewTarget = null;
