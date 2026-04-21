@@ -78,18 +78,11 @@ public final class GangPingInput {
                         isHeld ? "held" : "tap", heldFor / 1000.0,
                         point.x, point.y, point.z);
                 NetworkHandler.sendGangPingRequest(point.x, point.y, point.z, isHeld);
-                // Add locally so the sender sees their own ping immediately —
-                // server echo would normally populate this, but any round-trip
-                // delay makes the preview visibly snap off, then re-appear a
-                // beat later. The server's echoed ping will replace this entry
-                // in place (same sender-name key) with the authoritative one.
-                String worldName = client.world != null && client.world.getRegistryKey() != null
-                        ? client.world.getRegistryKey().getValue().getPath()
-                        : "";
-                GangPingManager.addLocal(
-                        client.player.getName().getString(),
-                        client.player.getUuid(),
-                        point.x, point.y, point.z, worldName);
+                // Don't add a local echo — server is authoritative. If the
+                // player isn't in an active gang or is over a rate limit,
+                // the request is silently rejected and no marker appears,
+                // which is the intended behavior. Normal latency means the
+                // server's echo lands within ~50-100ms.
             }
             resetHold();
         }

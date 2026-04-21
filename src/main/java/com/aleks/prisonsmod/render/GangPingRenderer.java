@@ -42,12 +42,19 @@ public final class GangPingRenderer {
     private static final Identifier BEAM_TEXTURE =
             Identifier.ofVanilla("textures/entity/beacon_beam.png");
 
-    private static final float BEAM_HEIGHT = 64.0f;
+    /** Beam extends from {@code ping_y - BEAM_Y_DOWN} up to {@code ping_y + BEAM_Y_UP}
+     *  so players below the ping point still see the bottom of the pillar when the
+     *  ping lands in open air. */
+    private static final float BEAM_Y_UP = 96.0f;
+    private static final float BEAM_Y_DOWN = 24.0f;
     private static final float BEAM_INNER_RADIUS = 0.22f;
     private static final float BEAM_OUTER_RADIUS = 0.55f;
     /** Quads around the circumference. 16 reads as a smooth cylinder at normal view distances. */
     private static final int BEAM_SEGMENTS = 16;
-    private static final float NAMETAG_OFFSET = 2.6f;
+
+    private static final float NAMETAG_BASE_OFFSET = 2.6f;
+    /** World-space vertical gap between stacked nametag lines. */
+    private static final float NAMETAG_LINE_SPACING = 0.32f;
     private static final float NAMETAG_SCALE = 0.04f;
 
     /**
@@ -142,20 +149,23 @@ public final class GangPingRenderer {
         VertexConsumer buf = provider.getBuffer(BEAM_LAYER);
         MatrixStack.Entry entry = matrices.peek();
 
+        float totalHeight = BEAM_Y_UP + BEAM_Y_DOWN;
+        float yBottom = -BEAM_Y_DOWN;
+
         // UV V coordinate scrolls with time so the beam looks animated.
         float vScroll = (nowMs % 4000L) / 4000.0f;
-        float vTop = vScroll + BEAM_HEIGHT * 0.5f;
+        float vTop = vScroll + totalHeight * 0.5f;
 
         // Inner (bright core) and outer (soft glow) concentric cylinders.
         float innerAlpha = Math.max(0.0f, Math.min(1.0f, alpha * 0.95f));
         float outerAlpha = Math.max(0.0f, Math.min(1.0f, alpha * 0.35f));
 
-        drawCylinder(buf, entry, BEAM_INNER_RADIUS, BEAM_HEIGHT, r, g, b, innerAlpha, vScroll, vTop);
-        drawCylinder(buf, entry, BEAM_OUTER_RADIUS, BEAM_HEIGHT, r, g, b, outerAlpha, vScroll, vTop);
+        drawCylinder(buf, entry, BEAM_INNER_RADIUS, yBottom, totalHeight, r, g, b, innerAlpha, vScroll, vTop);
+        drawCylinder(buf, entry, BEAM_OUTER_RADIUS, yBottom, totalHeight, r, g, b, outerAlpha, vScroll, vTop);
     }
 
     private static void drawCylinder(VertexConsumer buf, MatrixStack.Entry entry,
-                                     float radius, float height,
+                                     float radius, float yBottom, float height,
                                      float r, float g, float b, float a,
                                      float v0, float v1) {
         // N-sided prism around the Y axis. Each segment is wound CCW when
@@ -169,12 +179,13 @@ public final class GangPingRenderer {
             float z0 = (float) (Math.sin(t0) * radius);
             float x1 = (float) (Math.cos(t1) * radius);
             float z1 = (float) (Math.sin(t1) * radius);
-            quad(buf, entry, x0, z0, x1, z1, height, r, g, b, a, v0, v1);
+            quad(buf, entry, x0, z0, x1, z1, yBottom, height, r, g, b, a, v0, v1);
         }
     }
 
     private static void quad(VertexConsumer buf, MatrixStack.Entry entry,
-                             float x0, float z0, float x1, float z1, float height,
+                             float x0, float z0, float x1, float z1,
+                             float yBottom, float height,
                              float r, float g, float b, float a,
                              float v0, float v1) {
         // BEACON_BEAM_TRANSLUCENT expects the full block/entity vertex
@@ -185,13 +196,14 @@ public final class GangPingRenderer {
         Matrix4f mat = entry.getPositionMatrix();
         int light = 0xF000F0;
         int overlay = OverlayTexture.DEFAULT_UV;
-        buf.vertex(mat, x0, 0f, z0).color(r, g, b, a).texture(0f, v0)
+        float yTop = yBottom + height;
+        buf.vertex(mat, x0, yBottom, z0).color(r, g, b, a).texture(0f, v0)
                 .overlay(overlay).light(light).normal(entry, 0f, 1f, 0f);
-        buf.vertex(mat, x0, height, z0).color(r, g, b, a).texture(0f, v1)
+        buf.vertex(mat, x0, yTop, z0).color(r, g, b, a).texture(0f, v1)
                 .overlay(overlay).light(light).normal(entry, 0f, 1f, 0f);
-        buf.vertex(mat, x1, height, z1).color(r, g, b, a).texture(1f, v1)
+        buf.vertex(mat, x1, yTop, z1).color(r, g, b, a).texture(1f, v1)
                 .overlay(overlay).light(light).normal(entry, 0f, 1f, 0f);
-        buf.vertex(mat, x1, 0f, z1).color(r, g, b, a).texture(1f, v0)
+        buf.vertex(mat, x1, yBottom, z1).color(r, g, b, a).texture(1f, v0)
                 .overlay(overlay).light(light).normal(entry, 0f, 1f, 0f);
     }
 
@@ -213,32 +225,35 @@ public final class GangPingRenderer {
         int bgAlphaByte = Math.round(alpha * 0.55f * 255.0f) & 0xFF;
         int bgColor = (bgAlphaByte << 24) | 0x000000;
 
-        // Stack the label lines above the beam. Push a billboard transform
-        // once and step down in local-text-space between lines so they stay
-        // tight-centered.
+        // Each line is its own billboard transform so the world-space
+        // stacking isn't subject to the -Y text-scale flip. Top line is
+        // highest in the world.
+        float y = NAMETAG_BASE_OFFSET + 2 * NAMETAG_LINE_SPACING;
+        drawBillboardedLine(matrices, provider, camera, textRenderer,
+                senderLine, y, senderColor, bgColor);
+        y -= NAMETAG_LINE_SPACING;
+        drawBillboardedLine(matrices, provider, camera, textRenderer,
+                distanceLine, y, subColor, bgColor);
+        if (worldLine != null) {
+            y -= NAMETAG_LINE_SPACING;
+            drawBillboardedLine(matrices, provider, camera, textRenderer,
+                    worldLine, y, subColor, bgColor);
+        }
+    }
+
+    private static void drawBillboardedLine(MatrixStack matrices, VertexConsumerProvider provider,
+                                            Camera camera, TextRenderer textRenderer,
+                                            Text text, float worldY,
+                                            int textColor, int bgColor) {
         matrices.push();
-        matrices.translate(0.0f, NAMETAG_OFFSET, 0.0f);
+        matrices.translate(0.0f, worldY, 0.0f);
         matrices.multiply(camera.getRotation());
         matrices.scale(-NAMETAG_SCALE, -NAMETAG_SCALE, NAMETAG_SCALE);
         Matrix4f mat = matrices.peek().getPositionMatrix();
-
-        float y = 0f;
-        drawCenteredText(textRenderer, senderLine, 0f, y, senderColor, bgColor, mat, provider);
-        y += textRenderer.fontHeight + 1f;
-        drawCenteredText(textRenderer, distanceLine, 0f, y, subColor, bgColor, mat, provider);
-        if (worldLine != null) {
-            y += textRenderer.fontHeight + 1f;
-            drawCenteredText(textRenderer, worldLine, 0f, y, subColor, bgColor, mat, provider);
-        }
-        matrices.pop();
-    }
-
-    private static void drawCenteredText(TextRenderer tr, Text text, float cx, float y,
-                                         int textColor, int bgColor,
-                                         Matrix4f mat, VertexConsumerProvider provider) {
-        float halfWidth = tr.getWidth(text) / 2.0f;
-        tr.draw(text, cx - halfWidth, y, textColor, false, mat, provider,
+        float halfWidth = textRenderer.getWidth(text) / 2.0f;
+        textRenderer.draw(text, -halfWidth, 0f, textColor, false, mat, provider,
                 TextRenderer.TextLayerType.SEE_THROUGH, bgColor, 0xF000F0);
+        matrices.pop();
     }
 
     /**

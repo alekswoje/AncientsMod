@@ -22,7 +22,7 @@ public final class GangPingManager {
 
     /** Mirrors the server's palette in {@code GangPingListener#colorForUuid}. Kept in sync by hand. */
     private static final int[] COLOR_PALETTE = {
-            0x7C3AED, 0xA78BFA, 0xF59E0B, 0x4F46E5, 0xDC2626, 0x06B6D4
+            0x7C3AED, 0xA78BFA, 0xF59E0B, 0x4F46E5, 0x06B6D4
     };
 
     private static final Map<String, GangPing> pings = new ConcurrentHashMap<>();
