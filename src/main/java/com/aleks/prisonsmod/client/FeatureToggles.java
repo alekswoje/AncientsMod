@@ -25,6 +25,9 @@ public final class FeatureToggles {
     /** Client-side break-crack prediction. When off, the real server packets drive the crack animation (lag returns, for A/B comparison). */
     private static volatile boolean minePredict = true;
 
+    /** Collapse marked enchant tooltip lines behind Shift. Off = full enchant list always visible. */
+    private static volatile boolean enchantCollapse = true;
+
     // ─────────────────────────────────────────────────────────────────────────
 
     private static Path configPath() {
@@ -41,6 +44,7 @@ public final class FeatureToggles {
         try (var in = Files.newInputStream(path)) {
             props.load(in);
             minePredict = parseBool(props.getProperty("minePredict"), minePredict);
+            enchantCollapse = parseBool(props.getProperty("enchantCollapse"), enchantCollapse);
         } catch (IOException e) {
             PrisonsMod.LOGGER.warn("failed to load {}: {}", FILE_NAME, e.getMessage());
         }
@@ -49,6 +53,7 @@ public final class FeatureToggles {
     public static void save() {
         Properties props = new Properties();
         props.setProperty("minePredict", Boolean.toString(minePredict));
+        props.setProperty("enchantCollapse", Boolean.toString(enchantCollapse));
         try {
             Files.createDirectories(configPath().getParent());
             try (var out = Files.newOutputStream(configPath())) {
@@ -65,6 +70,14 @@ public final class FeatureToggles {
         minePredict = !minePredict;
         save();
         return minePredict;
+    }
+
+    public static boolean isEnchantCollapseEnabled() { return enchantCollapse; }
+
+    public static boolean toggleEnchantCollapse() {
+        enchantCollapse = !enchantCollapse;
+        save();
+        return enchantCollapse;
     }
 
     private static boolean parseBool(String s, boolean fallback) {
