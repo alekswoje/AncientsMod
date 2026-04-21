@@ -12,6 +12,7 @@ import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.client.render.Camera;
 import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.RenderSetup;
+import net.minecraft.client.render.OverlayTexture;
 import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.util.math.MatrixStack;
@@ -117,7 +118,7 @@ public final class GangPingRenderer {
         float b = (colorRgb & 0xFF) / 255.0f;
 
         VertexConsumer buf = provider.getBuffer(BEAM_LAYER);
-        Matrix4f mat = matrices.peek().getPositionMatrix();
+        MatrixStack.Entry entry = matrices.peek();
 
         // UV V coordinate scrolls with time so the beam looks animated.
         float vScroll = (nowMs % 4000L) / 4000.0f;
@@ -127,28 +128,40 @@ public final class GangPingRenderer {
         float innerAlpha = Math.max(0.0f, Math.min(1.0f, alpha * 0.95f));
         float outerAlpha = Math.max(0.0f, Math.min(1.0f, alpha * 0.35f));
 
-        drawCrossQuads(buf, mat, BEAM_INNER_HALF, BEAM_HEIGHT, r, g, b, innerAlpha, vScroll, vTop);
-        drawCrossQuads(buf, mat, BEAM_OUTER_HALF, BEAM_HEIGHT, r, g, b, outerAlpha, vScroll, vTop);
+        drawCrossQuads(buf, entry, BEAM_INNER_HALF, BEAM_HEIGHT, r, g, b, innerAlpha, vScroll, vTop);
+        drawCrossQuads(buf, entry, BEAM_OUTER_HALF, BEAM_HEIGHT, r, g, b, outerAlpha, vScroll, vTop);
     }
 
-    private static void drawCrossQuads(VertexConsumer buf, Matrix4f mat,
+    private static void drawCrossQuads(VertexConsumer buf, MatrixStack.Entry entry,
                                        float halfWidth, float height,
                                        float r, float g, float b, float a,
                                        float v0, float v1) {
         // Two perpendicular vertical quads so the beam looks cylindrical from
-        // every angle. Vertex attribute order: position, uv, color.
-        quad(buf, mat, -halfWidth, 0f, halfWidth, 0f, height, r, g, b, a, v0, v1);
-        quad(buf, mat, 0f, -halfWidth, 0f, halfWidth, height, r, g, b, a, v0, v1);
+        // every angle.
+        quad(buf, entry, -halfWidth, 0f, halfWidth, 0f, height, r, g, b, a, v0, v1);
+        quad(buf, entry, 0f, -halfWidth, 0f, halfWidth, height, r, g, b, a, v0, v1);
     }
 
-    private static void quad(VertexConsumer buf, Matrix4f mat,
+    private static void quad(VertexConsumer buf, MatrixStack.Entry entry,
                              float x0, float z0, float x1, float z1, float height,
                              float r, float g, float b, float a,
                              float v0, float v1) {
-        buf.vertex(mat, x0, 0f, z0).texture(0f, v0).color(r, g, b, a);
-        buf.vertex(mat, x0, height, z0).texture(0f, v1).color(r, g, b, a);
-        buf.vertex(mat, x1, height, z1).texture(1f, v1).color(r, g, b, a);
-        buf.vertex(mat, x1, 0f, z1).texture(1f, v0).color(r, g, b, a);
+        // BEACON_BEAM_TRANSLUCENT expects the full block/entity vertex
+        // format: position, color, uv, overlay, light, normal. Emissive beam
+        // so we just flood the lightmap to full brightness and use an up
+        // normal — neither is actually sampled by the beam shader but the
+        // buffer validator rejects the vertex if they're omitted.
+        Matrix4f mat = entry.getPositionMatrix();
+        int light = 0xF000F0;
+        int overlay = OverlayTexture.DEFAULT_UV;
+        buf.vertex(mat, x0, 0f, z0).color(r, g, b, a).texture(0f, v0)
+                .overlay(overlay).light(light).normal(entry, 0f, 1f, 0f);
+        buf.vertex(mat, x0, height, z0).color(r, g, b, a).texture(0f, v1)
+                .overlay(overlay).light(light).normal(entry, 0f, 1f, 0f);
+        buf.vertex(mat, x1, height, z1).color(r, g, b, a).texture(1f, v1)
+                .overlay(overlay).light(light).normal(entry, 0f, 1f, 0f);
+        buf.vertex(mat, x1, 0f, z1).color(r, g, b, a).texture(1f, v0)
+                .overlay(overlay).light(light).normal(entry, 0f, 1f, 0f);
     }
 
     private static void renderNametag(MatrixStack matrices, VertexConsumerProvider provider,

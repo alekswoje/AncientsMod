@@ -18,11 +18,10 @@ import java.util.List;
  * Trims the enchant block on RooPrisons items.
  *
  * <ul>
- *   <li>Default — all enchant lines collapsed into a single
- *       "{@code ... N enchants (hold Shift)}" line.</li>
- *   <li>With Shift held — keep the top {@link #SHOWN_ON_SHIFT} highest-rarity
- *       enchants (the server orders the block by rarity) and append an
- *       "{@code ... X more}" summary line for whatever's cut.</li>
+ *   <li>Default — keep the top {@link #SHOWN_BY_DEFAULT} highest-rarity
+ *       enchants (the server orders the block by rarity) and replace the
+ *       rest with "{@code ... X more (hold Shift)}".</li>
+ *   <li>With Shift held — show the full enchant list, untouched.</li>
  * </ul>
  *
  * <p>RooPrisons items are detected via presence of any
@@ -34,18 +33,19 @@ import java.util.List;
  */
 public final class TooltipCollapse {
 
-    /** Number of enchant lines to keep visible while Shift is held. */
-    private static final int SHOWN_ON_SHIFT = 5;
+    /** Number of enchant lines to keep visible in the default (non-Shift) state. */
+    private static final int SHOWN_BY_DEFAULT = 5;
 
-    /** Only collapse when there are at least this many lines in the block. */
-    private static final int MIN_LINES_TO_COLLAPSE = 3;
+    /** Only trim when there are more enchants than we'd show by default. */
+    private static final int MIN_LINES_TO_COLLAPSE = SHOWN_BY_DEFAULT + 1;
 
     public static void register() {
         ItemTooltipCallback.EVENT.register((stack, context, type, lines) -> {
             if (!ServerAllowlist.isAllowed()) return;
             if (!FeatureToggles.isEnchantCollapseEnabled()) return;
             if (!looksLikeRooPrisonsItem(stack)) return;
-            applyEnchantTrim(lines, isShiftDown());
+            if (isShiftDown()) return; // show everything untouched
+            applyEnchantTrim(lines);
         });
     }
 
@@ -64,7 +64,7 @@ public final class TooltipCollapse {
         return custom != null && !custom.isEmpty();
     }
 
-    private static void applyEnchantTrim(List<Text> lines, boolean shiftDown) {
+    private static void applyEnchantTrim(List<Text> lines) {
         if (lines.size() < MIN_LINES_TO_COLLAPSE + 1) return;
 
         int start = 1; // skip the display-name line at index 0
@@ -73,37 +73,22 @@ public final class TooltipCollapse {
             end++;
         }
         int count = end - start;
-        if (count < MIN_LINES_TO_COLLAPSE) return;
+        if (count <= SHOWN_BY_DEFAULT) return; // nothing to hide
 
-        int keep = shiftDown ? Math.min(SHOWN_ON_SHIFT, count) : 0;
-        int hidden = count - keep;
-        if (hidden <= 0) return;
-
+        int hidden = count - SHOWN_BY_DEFAULT;
         List<Text> rebuilt = new ArrayList<>(lines.size() - hidden + 1);
-        rebuilt.addAll(lines.subList(0, start + keep));
-        rebuilt.add(buildSummaryLine(keep, hidden, shiftDown));
+        rebuilt.addAll(lines.subList(0, start + SHOWN_BY_DEFAULT));
+        rebuilt.add(buildSummaryLine(hidden));
         rebuilt.addAll(lines.subList(end, lines.size()));
 
         lines.clear();
         lines.addAll(rebuilt);
     }
 
-    /**
-     * Shift held: "{@code ... N more}" — the "more" wording signals that some
-     * enchants are intentionally cut off so the tooltip stays compact.
-     * Shift released: "{@code ... N enchants (hold Shift)}" — prompt the user
-     * that there's more to reveal.
-     */
-    private static Text buildSummaryLine(int shown, int hidden, boolean shiftDown) {
-        if (shiftDown) {
-            return Text.literal("... ")
-                    .formatted(Formatting.DARK_GRAY)
-                    .append(Text.literal(hidden + " more").formatted(Formatting.GRAY));
-        }
-        int total = shown + hidden;
+    private static Text buildSummaryLine(int hidden) {
         return Text.literal("... ")
                 .formatted(Formatting.DARK_GRAY)
-                .append(Text.literal(total + " enchants").formatted(Formatting.GRAY))
+                .append(Text.literal(hidden + " more").formatted(Formatting.GRAY))
                 .append(Text.literal(" (hold ").formatted(Formatting.DARK_GRAY))
                 .append(Text.literal("Shift").formatted(Formatting.WHITE))
                 .append(Text.literal(")").formatted(Formatting.DARK_GRAY));
