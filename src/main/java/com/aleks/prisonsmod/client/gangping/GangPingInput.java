@@ -73,6 +73,9 @@ public final class GangPingInput {
             boolean isHeld = heldFor >= Protocol.GANG_PING_HOLD_THRESHOLD_MS;
             Vec3d point = isHeld ? raycastTarget(client) : client.player.getEntityPos();
             if (point != null) {
+                PrisonsMod.LOGGER.info("Gang ping: {} ({}s held) -> {} {} {}",
+                        isHeld ? "held" : "tap", heldFor / 1000.0,
+                        point.x, point.y, point.z);
                 NetworkHandler.sendGangPingRequest(point.x, point.y, point.z, isHeld);
             }
             resetHold();

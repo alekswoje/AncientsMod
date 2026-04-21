@@ -1,4 +1,5 @@
 {
   "category.prisonsmod": "PrisonsMod",
-  "key.prisonsmod.toggleMinePredict": "Toggle Mining-Crack Prediction"
+  "key.prisonsmod.toggleMinePredict": "Toggle Mining-Crack Prediction",
+  "key.prisonsmod.gangPing": "Gang Ping (tap = feet, hold = cursor)"
 }
