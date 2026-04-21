@@ -1,9 +1,12 @@
 package com.aleks.prisonsmod.client;
 
 import com.aleks.prisonsmod.PrisonsMod;
+import com.aleks.prisonsmod.client.gangping.GangPingInput;
+import com.aleks.prisonsmod.client.gangping.GangPingManager;
 import com.aleks.prisonsmod.net.NetworkHandler;
 import com.aleks.prisonsmod.render.CascadeEffectRenderer;
 import com.aleks.prisonsmod.render.FloatingNumberRenderer;
+import com.aleks.prisonsmod.render.GangPingRenderer;
 import com.aleks.prisonsmod.render.MinePredictRenderer;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -31,6 +34,8 @@ public final class PrisonsModClient implements ClientModInitializer {
         NetworkHandler.register();
         TooltipCollapse.register();
         TooltipScroll.register();
+        GangPingInput.register();
+        GangPingRenderer.register();
 
         // Server allowlist: flip on/off as the player joins/leaves servers.
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
@@ -42,6 +47,7 @@ public final class PrisonsModClient implements ClientModInitializer {
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             ServerAllowlist.onDisconnect();
             MinePredictRenderer.reset();
+            GangPingManager.reset();
         });
 
         // Pump renderer lifecycle so expired entries are evicted even when
@@ -51,6 +57,7 @@ public final class PrisonsModClient implements ClientModInitializer {
             FloatingNumberRenderer.tick(now);
             CascadeEffectRenderer.tick(now);
             MinePredictRenderer.tick();
+            GangPingManager.tick(now);
         });
 
         PrisonsMod.LOGGER.info("PrisonsMod client initialized");

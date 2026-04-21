@@ -2,7 +2,9 @@ package com.aleks.prisonsmod.net;
 
 import com.aleks.prisonsmod.PrisonsMod;
 import com.aleks.prisonsmod.client.ServerAllowlist;
+import com.aleks.prisonsmod.client.gangping.GangPingManager;
 import com.aleks.prisonsmod.net.payload.CascadePayload;
+import com.aleks.prisonsmod.net.payload.GangPingPayload;
 import com.aleks.prisonsmod.net.payload.HudUpdatePayload;
 import com.aleks.prisonsmod.net.payload.MineCancelPayload;
 import com.aleks.prisonsmod.net.payload.MineStartPayload;
@@ -30,6 +32,7 @@ public final class NetworkHandler {
     /** Register with Fabric's client networking API. Call once from client init. */
     public static void register() {
         PayloadTypeRegistry.playS2C().register(RawPayload.ID, RawPayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(RawPayload.ID, RawPayload.CODEC);
 
         ClientPlayNetworking.registerGlobalReceiver(RawPayload.ID, (payload, context) -> {
             // Server allowlist is the first gate — if we're not on RooPrisons, do nothing.
@@ -79,6 +82,11 @@ public final class NetworkHandler {
                     MineCancelPayload p = MineCancelPayload.decode(buf);
                     MinePredictRenderer.onMineCancel(p.pos());
                 }
+                case Protocol.PKT_GANG_PING -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.GANG_PING)) return;
+                    GangPingPayload p = GangPingPayload.decode(buf);
+                    GangPingManager.onPing(p);
+                }
                 default -> {
                     // Unknown type — silently ignore. A future server may emit
                     // newer packet types that older clients don't recognize; we
@@ -92,6 +100,30 @@ public final class NetworkHandler {
         } catch (Throwable unexpected) {
             // Catch-all: we never want a malformed packet to crash the client.
             PrisonsMod.LOGGER.debug("dropped malformed packet", unexpected);
+        }
+    }
+
+    /**
+     * Send a gang-ping request to the server. Payload contains only target
+     * coordinates + hold-flag — the server authenticates the sender from the
+     * connection itself and ignores any identity fields a malicious client
+     * could try to forge.
+     */
+    public static void sendGangPingRequest(double x, double y, double z, boolean isHeld) {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            io.netty.buffer.ByteBuf buf = Unpooled.buffer(26);
+            buf.writeByte(Protocol.PKT_GANG_PING_REQ);
+            buf.writeDouble(x);
+            buf.writeDouble(y);
+            buf.writeDouble(z);
+            buf.writeByte(isHeld ? 1 : 0);
+            byte[] data = new byte[buf.readableBytes()];
+            buf.readBytes(data);
+            ClientPlayNetworking.send(new RawPayload(data));
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send gang ping failed", t);
         }
     }
 

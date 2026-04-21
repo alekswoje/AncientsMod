@@ -27,8 +27,17 @@ public final class KeyBinds {
             KeyBinding.Category.MISC
     );
 
+    /** Send a gang ping at feet (tap) or at the cursor target (hold). Default: middle mouse button. */
+    public static final KeyBinding GANG_PING = new KeyBinding(
+            "key.prisonsmod.gangPing",
+            InputUtil.Type.MOUSE,
+            GLFW.GLFW_MOUSE_BUTTON_MIDDLE,
+            KeyBinding.Category.MULTIPLAYER
+    );
+
     public static void register() {
         KeyBindingHelper.registerKeyBinding(TOGGLE_MINE_PREDICT);
+        KeyBindingHelper.registerKeyBinding(GANG_PING);
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (TOGGLE_MINE_PREDICT.wasPressed()) {

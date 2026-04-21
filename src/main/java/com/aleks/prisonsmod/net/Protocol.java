@@ -51,6 +51,14 @@ public final class Protocol {
     public static final byte PKT_CASCADE    = 2;
     public static final byte PKT_HUD_UPDATE = 3;
     /**
+     * Server-broadcast gang ping: "a gang-mate pinged this point". The server
+     * has already resolved the recipient list (sender's online gang members in
+     * the same world) — anything arriving here is authoritative and the client
+     * just renders it. Sender identity in the payload is display-only; the
+     * server chose who receives the packet.
+     */
+    public static final byte PKT_GANG_PING  = 6;
+    /**
      * Low-latency "you are now mining this block" hint. Emitted by the server the
      * same tick as {@code BlockDamageEvent} so the mod can begin a predicted
      * break-crack animation ~100ms before the server's normal progress packets
@@ -69,6 +77,14 @@ public final class Protocol {
     // --- Packet type ids (C2S) ---
     /** One-shot handshake sent on login so the server can flag mod presence. Has no effect on gameplay. */
     public static final byte PKT_HANDSHAKE  = 101;
+    /**
+     * Client request: "I want to ping this world-space point for my gang."
+     * Payload carries only coordinates + a hold-flag. Server authenticates the
+     * sender from the channel connection, resolves the gang, validates range,
+     * rate-limits, and broadcasts PKT_GANG_PING to recipients. Client identity
+     * is NEVER taken from this payload.
+     */
+    public static final byte PKT_GANG_PING_REQ = (byte) 102;
 
     // --- Hard size caps (wire-level) ---
     /** Maximum bytes for any single S2C payload. Larger packets are dropped. */
@@ -86,6 +102,18 @@ public final class Protocol {
     public static final int RATE_HUD_UPDATE_PER_SEC = 5;
     public static final int RATE_MINE_START_PER_SEC = 40;   // theoretical max mining speed
     public static final int RATE_MINE_CANCEL_PER_SEC = 40;  // one per start at most
+    /** Max inbound pings per second — bounds renderer state if a server misbehaves. */
+    public static final int RATE_GANG_PING_PER_SEC = 10;
+
+    // --- Gang ping tunables ---
+    /** Maximum blocks from the sender to the ping target (matches server validation). */
+    public static final double GANG_PING_MAX_RADIUS = 100.0;
+    /** Hold duration before the keybind switches from "ping at feet" to "ping at cursor". */
+    public static final long GANG_PING_HOLD_THRESHOLD_MS = 200L;
+    /** Ping render lifetime (fades out over the final quarter). */
+    public static final long GANG_PING_LIFETIME_MS = 30_000L;
+    /** Hard cap on the sender display name the server can send us. */
+    public static final int GANG_PING_MAX_NAME_CHARS = 16;
 
     // --- Renderer caps (memory bounds) ---
     public static final int MAX_FLOATING_NUMBERS_ON_SCREEN = 200;
