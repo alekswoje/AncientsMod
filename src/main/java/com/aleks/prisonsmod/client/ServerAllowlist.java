@@ -23,6 +23,11 @@ public final class ServerAllowlist {
 
     /** Literal hostnames (case-insensitive). */
     private static final Set<String> EXACT_HOSTS = Set.of(
+            "ancients.gg",
+            "play.ancients.gg",
+            "dev.ancients.gg",
+            "season2.ancients.gg",
+            "hub.ancients.gg",
             "rooprisons.com",
             "play.rooprisons.com",
             "dev.rooprisons.com",
@@ -35,6 +40,7 @@ public final class ServerAllowlist {
 
     /** Any hostname ending in one of these is accepted. */
     private static final Set<String> SUFFIX_DOMAINS = Set.of(
+            ".ancients.gg",
             ".rooprisons.com"
     );
 
