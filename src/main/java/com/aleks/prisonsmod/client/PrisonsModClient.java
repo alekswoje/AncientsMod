@@ -30,6 +30,7 @@ public final class PrisonsModClient implements ClientModInitializer {
         KeyBinds.register();
         NetworkHandler.register();
         TooltipCollapse.register();
+        TooltipScroll.register();
 
         // Server allowlist: flip on/off as the player joins/leaves servers.
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {

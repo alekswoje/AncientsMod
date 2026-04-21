@@ -28,6 +28,9 @@ public final class FeatureToggles {
     /** Collapse marked enchant tooltip lines behind Shift. Off = full enchant list always visible. */
     private static volatile boolean enchantCollapse = true;
 
+    /** Scroll oversized tooltips with the mouse wheel. Off = vanilla clamping (bottom crops). */
+    private static volatile boolean scrollableTooltips = true;
+
     // ─────────────────────────────────────────────────────────────────────────
 
     private static Path configPath() {
@@ -45,6 +48,7 @@ public final class FeatureToggles {
             props.load(in);
             minePredict = parseBool(props.getProperty("minePredict"), minePredict);
             enchantCollapse = parseBool(props.getProperty("enchantCollapse"), enchantCollapse);
+            scrollableTooltips = parseBool(props.getProperty("scrollableTooltips"), scrollableTooltips);
         } catch (IOException e) {
             PrisonsMod.LOGGER.warn("failed to load {}: {}", FILE_NAME, e.getMessage());
         }
@@ -54,6 +58,7 @@ public final class FeatureToggles {
         Properties props = new Properties();
         props.setProperty("minePredict", Boolean.toString(minePredict));
         props.setProperty("enchantCollapse", Boolean.toString(enchantCollapse));
+        props.setProperty("scrollableTooltips", Boolean.toString(scrollableTooltips));
         try {
             Files.createDirectories(configPath().getParent());
             try (var out = Files.newOutputStream(configPath())) {
@@ -78,6 +83,14 @@ public final class FeatureToggles {
         enchantCollapse = !enchantCollapse;
         save();
         return enchantCollapse;
+    }
+
+    public static boolean isScrollableTooltipsEnabled() { return scrollableTooltips; }
+
+    public static boolean toggleScrollableTooltips() {
+        scrollableTooltips = !scrollableTooltips;
+        save();
+        return scrollableTooltips;
     }
 
     private static boolean parseBool(String s, boolean fallback) {
