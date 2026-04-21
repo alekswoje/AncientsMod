@@ -36,6 +36,7 @@ public final class PrisonsModClient implements ClientModInitializer {
         TooltipScroll.register();
         GangPingInput.register();
         GangPingRenderer.register();
+        ClientCommands.register();
 
         // Server allowlist: flip on/off as the player joins/leaves servers.
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
