@@ -1,6 +1,7 @@
 package com.aleks.prisonsmod.client;
 
 import com.aleks.prisonsmod.PrisonsMod;
+import com.aleks.prisonsmod.client.screen.SettingsScreen;
 import com.aleks.prisonsmod.render.MinePredictRenderer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
@@ -35,9 +36,18 @@ public final class KeyBinds {
             KeyBinding.Category.MULTIPLAYER
     );
 
+    /** Open the PrisonsMod settings screen. */
+    public static final KeyBinding OPEN_SETTINGS = new KeyBinding(
+            "key.prisonsmod.openSettings",
+            InputUtil.Type.KEYSYM,
+            GLFW.GLFW_KEY_F9,
+            KeyBinding.Category.MISC
+    );
+
     public static void register() {
         KeyBindingHelper.registerKeyBinding(TOGGLE_MINE_PREDICT);
         KeyBindingHelper.registerKeyBinding(GANG_PING);
+        KeyBindingHelper.registerKeyBinding(OPEN_SETTINGS);
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (TOGGLE_MINE_PREDICT.wasPressed()) {
@@ -47,6 +57,11 @@ public final class KeyBinds {
                     MinePredictRenderer.reset();
                 }
                 notify(client, nowOn);
+            }
+            while (OPEN_SETTINGS.wasPressed()) {
+                if (client.currentScreen == null) {
+                    client.setScreen(new SettingsScreen(null));
+                }
             }
         });
 

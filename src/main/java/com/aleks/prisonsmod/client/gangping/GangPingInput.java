@@ -32,7 +32,6 @@ public final class GangPingInput {
 
     private static boolean wasDown = false;
     private static long pressedAtMs = 0L;
-    private static Vec3d previewTarget = null;
     private static boolean previewActive = false;
 
     public static void register() {
@@ -63,28 +62,34 @@ public final class GangPingInput {
             PrisonsMod.LOGGER.info("Gang ping: press edge detected");
             pressedAtMs = now;
             previewActive = false;
-            previewTarget = null;
         }
 
         if (down) {
             long heldFor = now - pressedAtMs;
-            if (heldFor >= Protocol.GANG_PING_HOLD_THRESHOLD_MS) {
-                previewActive = true;
-                previewTarget = raycastTarget(client);
-            } else {
-                previewActive = false;
-            }
+            previewActive = heldFor >= Protocol.GANG_PING_HOLD_THRESHOLD_MS;
         }
 
         if (!down && wasDown) {
             long heldFor = now - pressedAtMs;
             boolean isHeld = heldFor >= Protocol.GANG_PING_HOLD_THRESHOLD_MS;
-            Vec3d point = isHeld ? raycastTarget(client) : client.player.getEntityPos();
+            Vec3d point = isHeld ? computeLiveTarget(client, 1.0f) : client.player.getEntityPos();
             if (point != null) {
                 PrisonsMod.LOGGER.info("Gang ping: {} ({}s held) -> {} {} {}",
                         isHeld ? "held" : "tap", heldFor / 1000.0,
                         point.x, point.y, point.z);
                 NetworkHandler.sendGangPingRequest(point.x, point.y, point.z, isHeld);
+                // Add locally so the sender sees their own ping immediately —
+                // server echo would normally populate this, but any round-trip
+                // delay makes the preview visibly snap off, then re-appear a
+                // beat later. The server's echoed ping will replace this entry
+                // in place (same sender-name key) with the authoritative one.
+                String worldName = client.world != null && client.world.getRegistryKey() != null
+                        ? client.world.getRegistryKey().getValue().getPath()
+                        : "";
+                GangPingManager.addLocal(
+                        client.player.getName().getString(),
+                        client.player.getUuid(),
+                        point.x, point.y, point.z, worldName);
             }
             resetHold();
         }
@@ -95,19 +100,27 @@ public final class GangPingInput {
     private static void resetHold() {
         wasDown = false;
         previewActive = false;
-        previewTarget = null;
     }
 
     /**
      * Raycast up to {@link Protocol#GANG_PING_MAX_RADIUS} blocks from the
      * player's eyes. Returns the block hit or, if nothing is in range, the
-     * raw endpoint at {@code MAX_RADIUS}.
+     * raw endpoint at {@code MAX_RADIUS}. Called on each render frame while
+     * the hold preview is active so the marker tracks the view at display
+     * refresh rate rather than the 20 Hz client tick rate.
+     *
+     * @param tickDelta fractional tick progress for the current render frame
+     *                  (0.0 = last tick, 1.0 = next tick). Passing the real
+     *                  render tickDelta smooths out the preview when the
+     *                  player is moving with WASD, since camera position
+     *                  lerps across the tick boundary rather than snapping.
      */
-    private static Vec3d raycastTarget(MinecraftClient client) {
+    public static Vec3d computeLiveTarget(MinecraftClient client, float tickDelta) {
+        if (client == null) return null;
         ClientPlayerEntity player = client.player;
         if (player == null || client.world == null) return null;
-        Vec3d start = player.getCameraPosVec(1.0f);
-        Vec3d look = player.getRotationVec(1.0f);
+        Vec3d start = player.getCameraPosVec(tickDelta);
+        Vec3d look = player.getRotationVec(tickDelta);
         Vec3d end = start.add(look.multiply(Protocol.GANG_PING_MAX_RADIUS));
         try {
             HitResult hit = client.world.raycast(new RaycastContext(
@@ -126,8 +139,6 @@ public final class GangPingInput {
     }
 
     public static boolean isPreviewActive() { return previewActive; }
-
-    public static Vec3d getPreviewTarget() { return previewTarget; }
 
     private GangPingInput() {}
 }

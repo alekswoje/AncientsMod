@@ -27,12 +27,15 @@ import org.joml.Matrix4f;
  * <p>The beam reuses vanilla's beacon-beam render pipeline
  * ({@link RenderPipelines#BEACON_BEAM_TRANSLUCENT}) and texture so it
  * animates and tints identically to a real beacon — proven code path that
- * vanilla flushes reliably every frame. Drawn as a cross of two quads so
- * it's visible from every angle. A billboarded name tag floats above the
- * beam showing the pinger's name in the ping color.
+ * vanilla flushes reliably every frame. Drawn as an N-segment cylinder so
+ * it reads as a rounded pillar from every viewing angle (rather than a
+ * flat quad that edge-culls at shallow angles). A billboarded name tag
+ * floats above the beam showing the pinger's name in the ping color.
  *
  * <p>While a player is holding the keybind past the hold threshold, a
  * low-opacity preview beam in the theme amber color tracks their cursor.
+ * The preview target is re-raycast every render frame so it follows the
+ * view smoothly at the display refresh rate (not the 20 Hz tick rate).
  */
 public final class GangPingRenderer {
 
@@ -40,8 +43,10 @@ public final class GangPingRenderer {
             Identifier.ofVanilla("textures/entity/beacon_beam.png");
 
     private static final float BEAM_HEIGHT = 64.0f;
-    private static final float BEAM_INNER_HALF = 0.2f;
-    private static final float BEAM_OUTER_HALF = 0.55f;
+    private static final float BEAM_INNER_RADIUS = 0.22f;
+    private static final float BEAM_OUTER_RADIUS = 0.55f;
+    /** Quads around the circumference. 16 reads as a smooth cylinder at normal view distances. */
+    private static final int BEAM_SEGMENTS = 16;
     private static final float NAMETAG_OFFSET = 2.6f;
     private static final float NAMETAG_SCALE = 0.04f;
 
@@ -77,38 +82,55 @@ public final class GangPingRenderer {
         long now = System.currentTimeMillis();
         Vec3d camPos = camera.getCameraPos();
 
+        float tickDelta = client.getRenderTickCounter().getTickProgress(true);
+        Vec3d playerPos = client.player.getLerpedPos(tickDelta);
+
         for (GangPing ping : GangPingManager.snapshot()) {
             float alpha = ping.alpha(now);
             if (alpha <= 0.0f) continue;
-            renderPing(matrices, provider, camera, camPos,
-                    ping.x, ping.y, ping.z, ping.colorRgb, ping.senderName,
+            renderPing(matrices, provider, camera, camPos, playerPos,
+                    ping.x, ping.y, ping.z, ping.colorRgb, ping.senderName, ping.worldName,
                     alpha, client.textRenderer, now);
         }
 
         if (GangPingInput.isPreviewActive()) {
-            Vec3d target = GangPingInput.getPreviewTarget();
+            Vec3d target = GangPingInput.computeLiveTarget(client, tickDelta);
             if (target != null) {
                 int previewColor = 0xF59E0B; // theme amber accent
-                renderPing(matrices, provider, camera, camPos,
+                String worldName = client.world != null && client.world.getRegistryKey() != null
+                        ? client.world.getRegistryKey().getValue().getPath()
+                        : "";
+                renderPing(matrices, provider, camera, camPos, playerPos,
                         target.x, target.y, target.z, previewColor,
-                        client.player.getName().getString(),
+                        client.player.getName().getString(), worldName,
                         0.45f, client.textRenderer, now);
             }
         }
     }
 
     private static void renderPing(MatrixStack matrices, VertexConsumerProvider provider,
-                                   Camera camera, Vec3d camPos,
+                                   Camera camera, Vec3d camPos, Vec3d playerPos,
                                    double x, double y, double z,
-                                   int colorRgb, String label, float alpha,
+                                   int colorRgb, String senderName, String worldName,
+                                   float alpha,
                                    TextRenderer textRenderer, long nowMs) {
         matrices.push();
         matrices.translate(x - camPos.x, y - camPos.y, z - camPos.z);
 
         renderBeam(matrices, provider, colorRgb, alpha, nowMs);
-        renderNametag(matrices, provider, camera, label, colorRgb, alpha, textRenderer);
+        int distance = distanceMeters(playerPos, x, y, z);
+        renderNametag(matrices, provider, camera, senderName, worldName, distance,
+                colorRgb, alpha, textRenderer);
 
         matrices.pop();
+    }
+
+    private static int distanceMeters(Vec3d playerPos, double x, double y, double z) {
+        if (playerPos == null) return 0;
+        double dx = x - playerPos.x;
+        double dy = y - playerPos.y;
+        double dz = z - playerPos.z;
+        return (int) Math.round(Math.sqrt(dx * dx + dy * dy + dz * dz));
     }
 
     private static void renderBeam(MatrixStack matrices, VertexConsumerProvider provider,
@@ -124,22 +146,31 @@ public final class GangPingRenderer {
         float vScroll = (nowMs % 4000L) / 4000.0f;
         float vTop = vScroll + BEAM_HEIGHT * 0.5f;
 
-        // Inner (bright, opaque) and outer (soft glow) cross quads.
+        // Inner (bright core) and outer (soft glow) concentric cylinders.
         float innerAlpha = Math.max(0.0f, Math.min(1.0f, alpha * 0.95f));
         float outerAlpha = Math.max(0.0f, Math.min(1.0f, alpha * 0.35f));
 
-        drawCrossQuads(buf, entry, BEAM_INNER_HALF, BEAM_HEIGHT, r, g, b, innerAlpha, vScroll, vTop);
-        drawCrossQuads(buf, entry, BEAM_OUTER_HALF, BEAM_HEIGHT, r, g, b, outerAlpha, vScroll, vTop);
+        drawCylinder(buf, entry, BEAM_INNER_RADIUS, BEAM_HEIGHT, r, g, b, innerAlpha, vScroll, vTop);
+        drawCylinder(buf, entry, BEAM_OUTER_RADIUS, BEAM_HEIGHT, r, g, b, outerAlpha, vScroll, vTop);
     }
 
-    private static void drawCrossQuads(VertexConsumer buf, MatrixStack.Entry entry,
-                                       float halfWidth, float height,
-                                       float r, float g, float b, float a,
-                                       float v0, float v1) {
-        // Two perpendicular vertical quads so the beam looks cylindrical from
-        // every angle.
-        quad(buf, entry, -halfWidth, 0f, halfWidth, 0f, height, r, g, b, a, v0, v1);
-        quad(buf, entry, 0f, -halfWidth, 0f, halfWidth, height, r, g, b, a, v0, v1);
+    private static void drawCylinder(VertexConsumer buf, MatrixStack.Entry entry,
+                                     float radius, float height,
+                                     float r, float g, float b, float a,
+                                     float v0, float v1) {
+        // N-sided prism around the Y axis. Each segment is wound CCW when
+        // viewed from outside the cylinder, matching vanilla beacon-face
+        // winding, so the beacon pipeline renders them as front faces.
+        final double step = (Math.PI * 2.0) / BEAM_SEGMENTS;
+        for (int i = 0; i < BEAM_SEGMENTS; i++) {
+            double t0 = i * step;
+            double t1 = (i + 1) * step;
+            float x0 = (float) (Math.cos(t0) * radius);
+            float z0 = (float) (Math.sin(t0) * radius);
+            float x1 = (float) (Math.cos(t1) * radius);
+            float z1 = (float) (Math.sin(t1) * radius);
+            quad(buf, entry, x0, z0, x1, z1, height, r, g, b, a, v0, v1);
+        }
     }
 
     private static void quad(VertexConsumer buf, MatrixStack.Entry entry,
@@ -165,25 +196,67 @@ public final class GangPingRenderer {
     }
 
     private static void renderNametag(MatrixStack matrices, VertexConsumerProvider provider,
-                                      Camera camera, String label, int colorRgb, float alpha,
+                                      Camera camera, String senderName, String worldName,
+                                      int distanceMeters,
+                                      int colorRgb, float alpha,
                                       TextRenderer textRenderer) {
-        if (label == null || label.isEmpty()) return;
-        Text text = Text.literal(label);
+        if (senderName == null || senderName.isEmpty()) return;
 
+        Text senderLine = Text.literal(senderName);
+        Text distanceLine = Text.literal(distanceMeters + "m away");
+        String pretty = prettifyWorldName(worldName);
+        Text worldLine = pretty.isEmpty() ? null : Text.literal(pretty);
+
+        int alphaByte = Math.max(0, Math.min(255, Math.round(alpha * 255.0f)));
+        int senderColor = (alphaByte << 24) | (colorRgb & 0xFFFFFF);
+        int subColor = (alphaByte << 24) | 0xCCCCCC;
+        int bgAlphaByte = Math.round(alpha * 0.55f * 255.0f) & 0xFF;
+        int bgColor = (bgAlphaByte << 24) | 0x000000;
+
+        // Stack the label lines above the beam. Push a billboard transform
+        // once and step down in local-text-space between lines so they stay
+        // tight-centered.
         matrices.push();
         matrices.translate(0.0f, NAMETAG_OFFSET, 0.0f);
         matrices.multiply(camera.getRotation());
         matrices.scale(-NAMETAG_SCALE, -NAMETAG_SCALE, NAMETAG_SCALE);
         Matrix4f mat = matrices.peek().getPositionMatrix();
 
-        int alphaByte = Math.max(0, Math.min(255, Math.round(alpha * 255.0f)));
-        int textColor = (alphaByte << 24) | (colorRgb & 0xFFFFFF);
-        int bgAlphaByte = Math.round(alpha * 0.45f * 255.0f) & 0xFF;
-        int bgColor = (bgAlphaByte << 24) | 0x000000;
-        float halfWidth = -textRenderer.getWidth(text) / 2.0f;
-        textRenderer.draw(text, halfWidth, 0, textColor, false, mat, provider,
-                TextRenderer.TextLayerType.SEE_THROUGH, bgColor, 0xF000F0);
+        float y = 0f;
+        drawCenteredText(textRenderer, senderLine, 0f, y, senderColor, bgColor, mat, provider);
+        y += textRenderer.fontHeight + 1f;
+        drawCenteredText(textRenderer, distanceLine, 0f, y, subColor, bgColor, mat, provider);
+        if (worldLine != null) {
+            y += textRenderer.fontHeight + 1f;
+            drawCenteredText(textRenderer, worldLine, 0f, y, subColor, bgColor, mat, provider);
+        }
         matrices.pop();
+    }
+
+    private static void drawCenteredText(TextRenderer tr, Text text, float cx, float y,
+                                         int textColor, int bgColor,
+                                         Matrix4f mat, VertexConsumerProvider provider) {
+        float halfWidth = tr.getWidth(text) / 2.0f;
+        tr.draw(text, cx - halfWidth, y, textColor, false, mat, provider,
+                TextRenderer.TextLayerType.SEE_THROUGH, bgColor, 0xF000F0);
+    }
+
+    /**
+     * Convert a registry-id path like {@code forgotten_polis} to a nicely
+     * title-cased label like {@code Forgotten Polis}. Empty or null inputs
+     * return empty string so callers can skip rendering cleanly.
+     */
+    public static String prettifyWorldName(String raw) {
+        if (raw == null || raw.isEmpty()) return "";
+        String[] parts = raw.split("[_\\s-]+");
+        StringBuilder out = new StringBuilder(raw.length());
+        for (String part : parts) {
+            if (part.isEmpty()) continue;
+            if (!out.isEmpty()) out.append(' ');
+            out.append(Character.toUpperCase(part.charAt(0)));
+            if (part.length() > 1) out.append(part.substring(1).toLowerCase());
+        }
+        return out.toString();
     }
 
     private GangPingRenderer() {}

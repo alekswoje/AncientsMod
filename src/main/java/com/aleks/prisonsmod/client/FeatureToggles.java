@@ -25,8 +25,8 @@ public final class FeatureToggles {
     /** Client-side break-crack prediction. When off, the real server packets drive the crack animation (lag returns, for A/B comparison). */
     private static volatile boolean minePredict = true;
 
-    /** Collapse marked enchant tooltip lines behind Shift. Off = full enchant list always visible. */
-    private static volatile boolean enchantCollapse = true;
+    /** Collapse marked enchant tooltip lines behind Shift. Off by default — full enchant list always visible. */
+    private static volatile boolean enchantCollapse = false;
 
     /** Scroll oversized tooltips with the mouse wheel. Off = vanilla clamping (bottom crops). */
     private static volatile boolean scrollableTooltips = true;
@@ -77,6 +77,12 @@ public final class FeatureToggles {
         return minePredict;
     }
 
+    public static void setMinePredict(boolean value) {
+        if (minePredict == value) return;
+        minePredict = value;
+        save();
+    }
+
     public static boolean isEnchantCollapseEnabled() { return enchantCollapse; }
 
     public static boolean toggleEnchantCollapse() {
@@ -85,12 +91,24 @@ public final class FeatureToggles {
         return enchantCollapse;
     }
 
+    public static void setEnchantCollapse(boolean value) {
+        if (enchantCollapse == value) return;
+        enchantCollapse = value;
+        save();
+    }
+
     public static boolean isScrollableTooltipsEnabled() { return scrollableTooltips; }
 
     public static boolean toggleScrollableTooltips() {
         scrollableTooltips = !scrollableTooltips;
         save();
         return scrollableTooltips;
+    }
+
+    public static void setScrollableTooltips(boolean value) {
+        if (scrollableTooltips == value) return;
+        scrollableTooltips = value;
+        save();
     }
 
     private static boolean parseBool(String s, boolean fallback) {

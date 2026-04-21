@@ -16,14 +16,18 @@ public final class GangPing {
     public final double x;
     public final double y;
     public final double z;
+    public final String worldName;
     public final long spawnedAtMs;
 
-    public GangPing(String senderName, int colorRgb, double x, double y, double z, long spawnedAtMs) {
+    public GangPing(String senderName, int colorRgb,
+                    double x, double y, double z,
+                    String worldName, long spawnedAtMs) {
         this.senderName = senderName;
         this.colorRgb = colorRgb;
         this.x = x;
         this.y = y;
         this.z = z;
+        this.worldName = worldName == null ? "" : worldName;
         this.spawnedAtMs = spawnedAtMs;
     }
 

@@ -114,6 +114,8 @@ public final class Protocol {
     public static final long GANG_PING_LIFETIME_MS = 30_000L;
     /** Hard cap on the sender display name the server can send us. */
     public static final int GANG_PING_MAX_NAME_CHARS = 16;
+    /** Hard cap on the internal world name attached to a ping. */
+    public static final int GANG_PING_MAX_WORLD_CHARS = 32;
 
     // --- Renderer caps (memory bounds) ---
     public static final int MAX_FLOATING_NUMBERS_ON_SCREEN = 200;

@@ -10,13 +10,15 @@ import net.minecraft.network.PacketByteBuf;
  * packet's recipient list, so sender identity here is cosmetic (displayed
  * above the ping marker) — it never authorizes anything client-side.
  */
-public record GangPingPayload(String senderName, int colorRgb, double x, double y, double z) {
+public record GangPingPayload(String senderName, int colorRgb,
+                              double x, double y, double z,
+                              String worldName) {
 
     public static GangPingPayload decode(PacketByteBuf buf) {
-        String raw = buf.readString(Protocol.GANG_PING_MAX_NAME_CHARS * 4);
-        String name = raw.length() > Protocol.GANG_PING_MAX_NAME_CHARS
-                ? raw.substring(0, Protocol.GANG_PING_MAX_NAME_CHARS)
-                : raw;
+        String rawName = buf.readString(Protocol.GANG_PING_MAX_NAME_CHARS * 4);
+        String name = rawName.length() > Protocol.GANG_PING_MAX_NAME_CHARS
+                ? rawName.substring(0, Protocol.GANG_PING_MAX_NAME_CHARS)
+                : rawName;
         int r = buf.readByte() & 0xFF;
         int g = buf.readByte() & 0xFF;
         int b = buf.readByte() & 0xFF;
@@ -27,6 +29,19 @@ public record GangPingPayload(String senderName, int colorRgb, double x, double 
         if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)) {
             throw new IllegalArgumentException("non-finite coordinates");
         }
-        return new GangPingPayload(name, rgb, x, y, z);
+        // World name is optional on the wire — old servers don't send it;
+        // decode defensively so we don't trip on a truncated/missing field.
+        String world = "";
+        if (buf.readableBytes() > 0) {
+            try {
+                String rawWorld = buf.readString(Protocol.GANG_PING_MAX_WORLD_CHARS * 4);
+                world = rawWorld.length() > Protocol.GANG_PING_MAX_WORLD_CHARS
+                        ? rawWorld.substring(0, Protocol.GANG_PING_MAX_WORLD_CHARS)
+                        : rawWorld;
+            } catch (Exception ignored) {
+                // treat as missing
+            }
+        }
+        return new GangPingPayload(name, rgb, x, y, z, world);
     }
 }
