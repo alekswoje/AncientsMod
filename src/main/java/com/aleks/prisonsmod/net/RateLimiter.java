@@ -20,7 +20,8 @@ public final class RateLimiter {
         HUD_UPDATE(Protocol.RATE_HUD_UPDATE_PER_SEC),
         MINE_START(Protocol.RATE_MINE_START_PER_SEC),
         MINE_CANCEL(Protocol.RATE_MINE_CANCEL_PER_SEC),
-        GANG_PING(Protocol.RATE_GANG_PING_PER_SEC);
+        GANG_PING(Protocol.RATE_GANG_PING_PER_SEC),
+        METEOR_PING(Protocol.RATE_METEOR_PING_PER_SEC);
 
         final int perSecond;
         Kind(int perSecond) { this.perSecond = perSecond; }

@@ -17,10 +17,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  *
  * <p>The vanilla {@link HoveredTooltipPositioner#getPosition} computes a
  * position that keeps the tooltip on-screen, which for taller-than-screen
- * tooltips means pinning the top and cropping the bottom. We record the
- * tooltip/screen height for scroll-bounds calculation, then offset the
- * returned Y only when the tooltip is actually oversized. Normal-sized
- * tooltips pass through untouched.
+ * tooltips means pinning the bottom (at {@code screenHeight - height - 3})
+ * and letting the top spill off-screen above. We record the tooltip/screen
+ * height for scroll-bounds calculation, then add the (non-negative) offset
+ * to the returned Y so the tooltip slides downward, revealing the top.
+ * Normal-sized tooltips pass through untouched.
  */
 @Mixin(HoveredTooltipPositioner.class)
 public class HoveredTooltipPositionerMixin {

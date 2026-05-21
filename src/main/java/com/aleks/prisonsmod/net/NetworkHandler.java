@@ -6,6 +6,7 @@ import com.aleks.prisonsmod.client.gangping.GangPingManager;
 import com.aleks.prisonsmod.net.payload.CascadePayload;
 import com.aleks.prisonsmod.net.payload.GangPingPayload;
 import com.aleks.prisonsmod.net.payload.HudUpdatePayload;
+import com.aleks.prisonsmod.net.payload.MeteorPingPayload;
 import com.aleks.prisonsmod.net.payload.MineCancelPayload;
 import com.aleks.prisonsmod.net.payload.MineStartPayload;
 import com.aleks.prisonsmod.net.payload.PointGainPayload;
@@ -86,6 +87,11 @@ public final class NetworkHandler {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.GANG_PING)) return;
                     GangPingPayload p = GangPingPayload.decode(buf);
                     GangPingManager.onPing(p);
+                }
+                case Protocol.PKT_METEOR_PING -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.METEOR_PING)) return;
+                    MeteorPingPayload p = MeteorPingPayload.decode(buf);
+                    GangPingManager.onMeteorPing(p);
                 }
                 default -> {
                     // Unknown type — silently ignore. A future server may emit

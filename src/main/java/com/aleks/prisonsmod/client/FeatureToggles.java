@@ -28,7 +28,7 @@ public final class FeatureToggles {
     /** Collapse marked enchant tooltip lines behind Shift. Off by default — full enchant list always visible. */
     private static volatile boolean enchantCollapse = false;
 
-    /** Scroll oversized tooltips with the mouse wheel. Off = vanilla clamping (bottom crops). */
+    /** Scroll oversized tooltips with the mouse wheel. Off = vanilla bottom-pin (top spills off-screen). */
     private static volatile boolean scrollableTooltips = true;
 
     // ─────────────────────────────────────────────────────────────────────────

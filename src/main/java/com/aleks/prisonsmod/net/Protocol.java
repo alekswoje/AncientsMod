@@ -59,6 +59,13 @@ public final class Protocol {
      */
     public static final byte PKT_GANG_PING  = 6;
     /**
+     * Server-broadcast meteor landing ping: "a meteor is going to land here".
+     * Rendered as a world-space beam with a label ("Meteor" / "Heroic Meteor")
+     * and server-chosen colour. Unlike gang pings, lifetime is carried in the
+     * payload so the server can size the beam to the actual fall time.
+     */
+    public static final byte PKT_METEOR_PING = 7;
+    /**
      * Low-latency "you are now mining this block" hint. Emitted by the server the
      * same tick as {@code BlockDamageEvent} so the mod can begin a predicted
      * break-crack animation ~100ms before the server's normal progress packets
@@ -104,6 +111,8 @@ public final class Protocol {
     public static final int RATE_MINE_CANCEL_PER_SEC = 40;  // one per start at most
     /** Max inbound pings per second — bounds renderer state if a server misbehaves. */
     public static final int RATE_GANG_PING_PER_SEC = 10;
+    /** Max inbound meteor pings per second. */
+    public static final int RATE_METEOR_PING_PER_SEC = 5;
 
     // --- Gang ping tunables ---
     /** Maximum blocks from the sender to the ping target (matches server validation). */
@@ -116,6 +125,11 @@ public final class Protocol {
     public static final int GANG_PING_MAX_NAME_CHARS = 16;
     /** Hard cap on the internal world name attached to a ping. */
     public static final int GANG_PING_MAX_WORLD_CHARS = 32;
+
+    // --- Meteor ping tunables ---
+    /** Server-provided lifetime is clamped to this range on decode. */
+    public static final int METEOR_PING_MIN_LIFETIME_MS = 1_000;
+    public static final int METEOR_PING_MAX_LIFETIME_MS = 600_000;
 
     // --- Renderer caps (memory bounds) ---
     public static final int MAX_FLOATING_NUMBERS_ON_SCREEN = 200;
