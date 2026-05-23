@@ -22,7 +22,10 @@ public record RawPayload(byte[] data) implements CustomPayload {
             (payload, buf) -> buf.writeBytes(payload.data),
             buf -> {
                 int available = buf.readableBytes();
-                if (available <= 0 || available > Protocol.MAX_PAYLOAD_BYTES) {
+                // Outer bound is the snapshot cap — cosmetic packets are far smaller,
+                // and NetworkHandler.onPayload enforces a stricter per-type bound
+                // (MAX_PAYLOAD_BYTES for cosmetic, MAX_SNAPSHOT_PAYLOAD_BYTES for snapshot).
+                if (available <= 0 || available > Protocol.MAX_SNAPSHOT_PAYLOAD_BYTES) {
                     // Drain the buffer so the netty pipeline doesn't complain about unread bytes,
                     // then surface as an empty payload (handler drops it).
                     buf.skipBytes(Math.max(0, available));

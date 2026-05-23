@@ -1,0 +1,73 @@
+package com.aleks.prisonsmod.client.hud;
+
+import com.aleks.prisonsmod.client.FeatureToggles;
+import net.minecraft.client.gui.screen.Screen;
+
+import java.util.LinkedHashSet;
+import java.util.Set;
+
+/**
+ * Per-widget settings for {@link StatsHud}. Two layers:
+ * <ul>
+ *   <li>Section toggles (world / kills / drops) — show or hide whole blocks</li>
+ *   <li>Per-mob whitelist for the kills section — empty = show everything,
+ *       otherwise hide anything not in the set</li>
+ * </ul>
+ */
+public final class StatsHudSettingsScreen extends WidgetSettingsScreen {
+
+    private final StatsHud stats;
+
+    public StatsHudSettingsScreen(Screen parent, StatsHud stats) {
+        super(parent, stats);
+        this.stats = stats;
+    }
+
+    @Override
+    protected void addRows() {
+        addToggle("Show this HUD",
+                FeatureToggles::isStatsHudEnabled, FeatureToggles::setStatsHud);
+        addSection("Sections");
+        // Section toggles.
+        for (String section : StatsHud.ALL_SECTIONS) {
+            String label = switch (section) {
+                case "world" -> "Show world name";
+                case "kills" -> "Show kills section";
+                case "drops" -> "Show drops section";
+                default -> "Show " + section;
+            };
+            addToggle(label,
+                    () -> stats.enabledSections().contains(section),
+                    v -> {
+                        Set<String> current = new LinkedHashSet<>(stats.enabledSections());
+                        if (v) current.add(section); else current.remove(section);
+                        HudSettings.setStringSet(stats.id(), StatsHud.KEY_SECTIONS, current);
+                    });
+        }
+
+        addSection("Visible kills");
+        // Per-mob visibility — empty set means "show every kind".
+        for (String mob : StatsHud.KILL_ORDER) {
+            addToggle("Show " + StatsHud.killDisplayName(mob) + " kills",
+                    () -> {
+                        Set<String> wl = stats.visibleKills();
+                        return wl.isEmpty() || wl.contains(mob);
+                    },
+                    v -> {
+                        Set<String> current = new LinkedHashSet<>(stats.visibleKills());
+                        // Switch from "empty=show all" to an explicit set the first
+                        // time the player flips any toggle. Once explicit, removing
+                        // last entry leaves "show none".
+                        if (current.isEmpty() && !v) {
+                            for (String key : StatsHud.KILL_ORDER) current.add(key);
+                            current.remove(mob);
+                        } else {
+                            if (v) current.add(mob); else current.remove(mob);
+                        }
+                        HudSettings.setStringSet(stats.id(), StatsHud.KEY_VISIBLE_KILLS, current);
+                    });
+        }
+
+        BoosterHudSettingsScreen.addLookRows(this, stats);
+    }
+}

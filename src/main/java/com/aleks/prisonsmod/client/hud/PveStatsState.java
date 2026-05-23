@@ -1,0 +1,43 @@
+package com.aleks.prisonsmod.client.hud;
+
+import com.aleks.prisonsmod.net.payload.PveStatsPayload;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+/** Latest PvE stats snapshot, written by the network handler, read by {@link StatsHud} each frame. */
+public final class PveStatsState {
+
+    /** Stale-after window — 8 s is generous given the 1-Hz heartbeat. */
+    private static final long STALE_AFTER_MS = 8_000L;
+
+    private static volatile String worldName = "";
+    private static volatile Map<String, Integer> kills = new LinkedHashMap<>();
+    private static volatile Map<String, Integer> drops = new LinkedHashMap<>();
+    private static volatile long receivedMs = 0L;
+
+    private PveStatsState() {}
+
+    public static void update(PveStatsPayload payload) {
+        worldName = payload.worldName() == null ? "" : payload.worldName();
+        kills = new LinkedHashMap<>(payload.kills());
+        drops = new LinkedHashMap<>(payload.drops());
+        receivedMs = payload.receivedMs();
+    }
+
+    public static boolean isStale() {
+        return System.currentTimeMillis() - receivedMs > STALE_AFTER_MS;
+    }
+
+    public static String worldName() {
+        return isStale() ? "" : worldName;
+    }
+
+    public static Map<String, Integer> kills() {
+        return isStale() ? new LinkedHashMap<>() : kills;
+    }
+
+    public static Map<String, Integer> drops() {
+        return isStale() ? new LinkedHashMap<>() : drops;
+    }
+}

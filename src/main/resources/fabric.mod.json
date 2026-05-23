@@ -3,7 +3,7 @@
   "id": "prisonsmod",
   "version": "${version}",
   "name": "PrisonsMod",
-  "description": "Client-side companion mod for the RooPrisons Minecraft server. Renders HUD, floating point numbers, and cascade effects for the Tartarus Rift event. Purely cosmetic — server remains authoritative for all gameplay.",
+  "description": "Client-side companion mod for the RooPrisons Minecraft server. Renders HUD and floating point numbers for the Tartarus Rift event. Purely cosmetic — server remains authoritative for all gameplay.",
   "authors": ["Aleks"],
   "contact": {
     "homepage": "https://rooprisons.com",

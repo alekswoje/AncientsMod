@@ -4,7 +4,11 @@
   "package": "com.aleks.prisonsmod.mixin",
   "compatibilityLevel": "JAVA_21",
   "client": [
-    "client.HoveredTooltipPositionerMixin"
+    "client.EquipmentRendererMixin",
+    "client.GameRendererInvoker",
+    "client.GameRendererTargetMixin",
+    "client.HoveredTooltipPositionerMixin",
+    "client.LivingEntityRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1

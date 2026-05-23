@@ -10,11 +10,12 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Live ping state. One entry per sender — new ping from the same sender
- * replaces their previous one (so a single player spamming their keybind
- * still only produces one marker at a time). Different senders each get
- * their own entry. Meteor pings reuse the same machinery, keyed by their
- * label (e.g. "Meteor", "Heroic Meteor").
+ * Live ping state. Gang pings are one-per-sender so a single player spamming
+ * their keybind only produces one marker at a time; different senders each
+ * get their own entry. Meteor pings reuse the same renderer but key per
+ * (label + world + coords) so two meteors falling simultaneously don't
+ * overwrite each other while the server's periodic re-announce of the same
+ * meteor still refreshes its existing entry in place.
  */
 public final class GangPingManager {
 
@@ -42,18 +43,19 @@ public final class GangPingManager {
 
     /**
      * Handle an incoming meteor ping. Reuses the same renderer path as gang
-     * pings — only the label, colour, and lifetime differ, all carried in
-     * the payload. Keyed by label so successive meteor announcements for the
-     * same meteor (re-fired every ~60s in flight) replace in place rather
-     * than stacking.
+     * pings — only the label, colour, and lifetime differ. Key is
+     * label+world+block-coords: re-announces of the same meteor refresh in
+     * place, distinct meteors get their own entry.
      */
     public static void onMeteorPing(MeteorPingPayload payload) {
         if (payload == null) return;
-        if (pings.size() >= MAX_ACTIVE && !pings.containsKey(payload.label())) {
+        String key = meteorKey(payload);
+        if (pings.size() >= MAX_ACTIVE && !pings.containsKey(key)) {
             pings.entrySet().removeIf(e -> e.getValue().expired(System.currentTimeMillis()));
             if (pings.size() >= MAX_ACTIVE) return;
         }
-        pings.put(payload.label(), new GangPing(
+        boolean refresh = pings.containsKey(key);
+        pings.put(key, new GangPing(
                 payload.label(),
                 payload.colorRgb(),
                 payload.x(),
@@ -62,7 +64,16 @@ public final class GangPingManager {
                 payload.worldName(),
                 System.currentTimeMillis(),
                 payload.lifetimeMs()));
-        playPingSound();
+        if (!refresh) playPingSound();
+    }
+
+    private static String meteorKey(MeteorPingPayload p) {
+        // Server sends int block coords as x+0.5; floor gets us back to the
+        // stable integer so re-announces collide and distinct meteors don't.
+        long bx = (long) Math.floor(p.x());
+        long by = (long) Math.floor(p.y());
+        long bz = (long) Math.floor(p.z());
+        return "meteor:" + p.label() + '@' + p.worldName() + ':' + bx + ',' + by + ',' + bz;
     }
 
     private static void playPingSound() {

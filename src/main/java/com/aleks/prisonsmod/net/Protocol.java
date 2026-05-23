@@ -17,9 +17,11 @@ import net.minecraft.util.Identifier;
  * <h3>Core invariants</h3>
  * <ol>
  *   <li><b>Server is authoritative.</b> The mod never sends packets that cause the
- *       server to grant rewards, mutate inventory, or influence scoring. The only
- *       C2S traffic allowed is a one-shot presence handshake; everything else is
- *       S2C cosmetic.</li>
+ *       server to grant rewards, mutate inventory, or influence scoring. C2S is
+ *       limited to (a) a one-shot presence handshake, (b) UI-trigger requests
+ *       that contain only intent (gang ping, buff-refresh, bug-report open), and
+ *       (c) bug-report conversation text — all of which the server treats as
+ *       untrusted display input and rate-limits hard.</li>
  *   <li><b>Display-only.</b> Packets describe events that already happened. The mod
  *       renders visuals. It never writes game state.</li>
  *   <li><b>Defensive decoding.</b> Every payload is bounds-checked before it is
@@ -48,7 +50,6 @@ public final class Protocol {
 
     // --- Packet type ids (S2C) ---
     public static final byte PKT_POINT_GAIN = 1;
-    public static final byte PKT_CASCADE    = 2;
     public static final byte PKT_HUD_UPDATE = 3;
     /**
      * Server-broadcast gang ping: "a gang-mate pinged this point". The server
@@ -81,6 +82,227 @@ public final class Protocol {
      */
     public static final byte PKT_MINE_CANCEL = 5;
 
+    /**
+     * Snapshot of the local player's current active gang roster (UUIDs of
+     * fellow active members, excluding self). Sent periodically and on
+     * membership change. Empty roster (count=0) means "no gang" — drives the
+     * peaceful-PvP phase-through fade.
+     */
+    public static final byte PKT_GANG_ROSTER = 8;
+
+    /**
+     * One-bit "are you currently in a duel fight" hint. Used to gate the
+     * peaceful-PvP phase-through so the mod never hides gang teammates that
+     * are technically opponents in a duel.
+     */
+    public static final byte PKT_DUEL_STATE = 9;
+
+    /**
+     * Periodic snapshot of the local player's currently-active boosters.
+     * Drives the moveable booster-timers HUD. Empty snapshot (count=0)
+     * means "no boosters" and clears the widget.
+     */
+    public static final byte PKT_BOOSTER_UPDATE = 10;
+
+    // Booster snapshot enum byte values (must match plugin PrisonsModChannel).
+    public static final byte BOOSTER_SRC_GLOBAL   = 0;
+    public static final byte BOOSTER_SRC_PERSONAL = 1;
+    public static final byte BOOSTER_SRC_COMP     = 2;
+    public static final byte BOOSTER_SRC_CHATGAME = 3;
+    public static final byte BOOSTER_KIND_XP     = 0;
+    public static final byte BOOSTER_KIND_ENERGY = 1;
+    public static final byte BOOSTER_KIND_ORE    = 2;
+    public static final byte BOOSTER_KIND_SHARD  = 3;
+
+    /** Hard cap on entries per booster snapshot (mirrors plugin). */
+    public static final int MAX_BOOSTER_ENTRIES = 16;
+
+    /**
+     * Periodic snapshot of cluster event timers (KOTH, BAH, Meteor, Rift, etc.).
+     * Drives the moveable Events HUD. Same wire approach as boosters: server
+     * heartbeats every second, client extrapolates between heartbeats.
+     */
+    public static final byte PKT_EVENT_TIMERS = 11;
+
+    /**
+     * Live snapshot of a single landed meteorite the local player has just
+     * interacted with (right-click or block break). Drives the moveable
+     * Meteorite HUD. {@code remaining=0} is the "destroyed" signal and clears
+     * the widget when the location matches the tracked meteorite.
+     *
+     * <p>Wire format: {@code varint+string worldName; int x, y, z;
+     * varint+string tierName; byte R, G, B; byte refined; int remaining}.
+     */
+    public static final byte PKT_METEORITE_HUD = 12;
+
+    /**
+     * Periodic snapshot of the local player's active cooldowns. Drives the
+     * moveable Cooldowns HUD. Empty (count=0) means "no active cooldowns" and
+     * collapses the widget.
+     */
+    public static final byte PKT_COOLDOWNS = 13;
+
+    /**
+     * Full {@code /pickbuffs} breakdown snapshot pushed when the player runs
+     * {@code /pickbuffs} on a modded client, or in response to a
+     * {@link #PKT_BUFF_REFRESH_REQ} from the buffs screen. Bypasses
+     * {@link #MAX_PAYLOAD_BYTES} — bounded by {@link #MAX_SNAPSHOT_PAYLOAD_BYTES}.
+     */
+    public static final byte PKT_BUFF_SNAPSHOT = 14;
+
+    // Cooldown categories (must match plugin PrisonsModChannel).
+    public static final byte CD_CAT_COMMANDS = 0;
+    public static final byte CD_CAT_COMBAT   = 1;
+    public static final byte CD_CAT_ENCHANT  = 2;
+    public static final byte CD_CAT_PICKAXE  = 3;
+
+    // Cooldown ids within category.
+    public static final byte CD_CMD_FIX    = 0;
+    public static final byte CD_CMD_EAT    = 1;
+    public static final byte CD_CMD_FEED   = 2;
+    public static final byte CD_CMD_JET    = 3;
+    public static final byte CD_COMBAT_TAG = 0;
+    // Enchant proc ids (must match plugin).
+    public static final byte CD_ENCH_DEVOUR         = 0;
+    public static final byte CD_ENCH_LAST_STAND     = 1;
+    public static final byte CD_ENCH_ENLIGHTEN      = 2;
+    public static final byte CD_ENCH_PAINKILLER     = 3;
+    public static final byte CD_ENCH_PRISMATIC_EFF  = 4;
+    public static final byte CD_ENCH_BERSERK        = 5;
+    public static final byte CD_ENCH_ADRENALINE     = 6;
+
+    /** Hard cap on entries per cooldown snapshot (mirrors plugin). */
+    public static final int MAX_COOLDOWN_ENTRIES = 32;
+
+    /** Session PvE kill/drop tallies snapshot — drives the moveable Stats HUD. */
+    public static final byte PKT_PVE_STATS = 15;
+
+    /** Hard cap on rows per PvE stats snapshot (kills or drops). */
+    public static final int MAX_PVE_STAT_ROWS = 32;
+
+    /**
+     * Server response to a {@link #PKT_BUGREPORT_INTENT}: opens the in-game
+     * Bug Report UI populated with the sanitized snapshot the server would file.
+     *
+     * <p>Wire format after the type byte:
+     * <pre>
+     *   varint+string  token         (server-issued, 1..{@link #BUGREPORT_MAX_TOKEN_CHARS})
+     *   varint+string  prefill       (args from the original /bugreport)
+     *   byte           sectionCount  (≤ {@link #BUGREPORT_MAX_SECTIONS})
+     *   for each section:
+     *     byte         sectionId     (BR_SECTION_*; unknown ids render as "Other")
+     *     varint+string title        (≤ {@link #BUGREPORT_MAX_TITLE_CHARS})
+     *     byte         lineCount     (≤ {@link #BUGREPORT_MAX_LINES_PER_SECTION})
+     *     for each line: varint+string text (≤ {@link #BUGREPORT_MAX_LINE_CHARS})
+     * </pre>
+     *
+     * <p>Bounded by {@link #MAX_SNAPSHOT_PAYLOAD_BYTES}. The server sanitizes
+     * the snapshot (drops other players' UUIDs etc.) before sending, so the
+     * open-source mod never receives server-internal identifiers.
+     */
+    public static final byte PKT_BUGREPORT_OPEN = 16;
+
+    /**
+     * AI reply in an in-flight bug-report conversation. Sent each time Hermes
+     * returns new text for the mod's chat thread.
+     *
+     * <p>Wire format after the type byte:
+     * <pre>
+     *   varint+string  token       (matches the open token; if unknown, mod drops)
+     *   varint+string  message     (≤ {@link #BUGREPORT_MAX_AI_MESSAGE_CHARS})
+     *   byte           status      (BR_STATUS_*)
+     * </pre>
+     */
+    public static final byte PKT_BUGREPORT_AI_REPLY = 17;
+
+    /**
+     * Confirmation that the bug report was filed server-side. Carries the
+     * {@code BR-XXXXXX} id so the mod can show it in the chat header.
+     *
+     * <p>Wire format after the type byte:
+     * <pre>
+     *   varint+string  token
+     *   varint+string  reportId
+     * </pre>
+     */
+    public static final byte PKT_BUGREPORT_FILED = 18;
+
+    /**
+     * Error in the bug-report flow (token expired, rate-limited, AI offline).
+     * Mod surfaces the message as a chat-thread notice; the flow continues
+     * unless the user closes the screen.
+     *
+     * <p>Wire format after the type byte:
+     * <pre>
+     *   varint+string  token        (may be empty if no token issued yet)
+     *   varint+string  message      (≤ {@link #BUGREPORT_MAX_AI_MESSAGE_CHARS})
+     * </pre>
+     */
+    public static final byte PKT_BUGREPORT_ERROR = 19;
+
+    // Bug report section ids (selector for icon/colour in the UI).
+    public static final byte BR_SECTION_PLAYER          = 1;
+    public static final byte BR_SECTION_SERVER_STATE    = 2;
+    public static final byte BR_SECTION_RECENT_COMMANDS = 3;
+    public static final byte BR_SECTION_RING_BUFFER     = 4;
+    public static final byte BR_SECTION_NEARBY          = 5;
+    public static final byte BR_SECTION_INVENTORY_LOG   = 6;
+    public static final byte BR_SECTION_INVENTORY       = 7;
+    public static final byte BR_SECTION_OTHER           = 8;
+
+    // Bug report AI reply status.
+    public static final byte BR_STATUS_REPLIED   = 0;  // AI sent text, conversation open
+    public static final byte BR_STATUS_RESOLVED  = 1;  // AI marked resolved; UI shows "resolved" badge
+    public static final byte BR_STATUS_ESCALATED = 2;  // AI handed off; Discord ticket opened
+    public static final byte BR_STATUS_ERROR     = 3;  // AI errored mid-flow; UI shows a retry hint
+
+    // Bug-report category bits — server-side BugReportCategory enum mirrors these.
+    public static final int BR_CAT_LOST_ITEMS = 1 <<  0;
+    public static final int BR_CAT_DEATH_PVP  = 1 <<  1;
+    public static final int BR_CAT_TELEPORT   = 1 <<  2;
+    public static final int BR_CAT_ECONOMY    = 1 <<  3;
+    public static final int BR_CAT_MINING     = 1 <<  4;
+    public static final int BR_CAT_EVENT      = 1 <<  5;
+    public static final int BR_CAT_VISUAL     = 1 <<  6;
+    public static final int BR_CAT_PERF       = 1 <<  7;
+    public static final int BR_CAT_OTHER      = 1 <<  8;
+
+    // Bug-report wire bounds.
+    public static final int BUGREPORT_MAX_TOKEN_CHARS = 32;
+    public static final int BUGREPORT_MAX_SECTIONS = 16;
+    public static final int BUGREPORT_MAX_LINES_PER_SECTION = 64;
+    public static final int BUGREPORT_MAX_LINE_CHARS = 128;
+    public static final int BUGREPORT_MAX_TITLE_CHARS = 48;
+    public static final int BUGREPORT_MAX_PREFILL_CHARS = 256;
+    public static final int BUGREPORT_MAX_DESCRIPTION_CHARS = 1024;
+    public static final int BUGREPORT_MAX_AI_MESSAGE_CHARS = 4096;
+    public static final int BUGREPORT_MAX_REPORT_ID_CHARS = 32;
+    public static final int BUGREPORT_MAX_FOLLOWUP_CHARS = 1024;
+
+    // Event id enum-byte values (must match plugin PrisonsModChannel). Add new
+    // entries at the END to stay wire-compatible with older servers.
+    public static final byte EVENT_KOTH              = 0;
+    public static final byte EVENT_BAH               = 1;
+    public static final byte EVENT_METEOR            = 2;
+    public static final byte EVENT_RIFT              = 3;
+    public static final byte EVENT_MINING_COMP       = 4;
+    public static final byte EVENT_METEORITE         = 5;
+    public static final byte EVENT_MINING_RUSH       = 6;
+    public static final byte EVENT_HOT_ZONE          = 7;
+    public static final byte EVENT_HEROIC_METEOR     = 8;
+    public static final byte EVENT_ORACLE            = 9;
+    public static final byte EVENT_OUTPOST           = 10;
+    public static final byte EVENT_CHAT_GAMES        = 11;
+    public static final byte EVENT_METEORITE_SHOWER  = 12;
+
+    public static final byte EVENT_STATE_COUNTDOWN = 0;
+    public static final byte EVENT_STATE_ACTIVE    = 1;
+    public static final byte EVENT_STATE_DISABLED  = 2;
+    public static final byte EVENT_STATE_UNKNOWN   = 3;
+
+    /** Hard cap on entries per event-timers snapshot (mirrors plugin). */
+    public static final int MAX_EVENT_ENTRIES = 16;
+
     // --- Packet type ids (C2S) ---
     /** One-shot handshake sent on login so the server can flag mod presence. Has no effect on gameplay. */
     public static final byte PKT_HANDSHAKE  = 101;
@@ -92,20 +314,89 @@ public final class Protocol {
      * is NEVER taken from this payload.
      */
     public static final byte PKT_GANG_PING_REQ = (byte) 102;
+    /**
+     * Buffs-screen refresh request. Single-byte payload — the server identifies
+     * the sender from the channel connection and resends a {@link #PKT_BUFF_SNAPSHOT}.
+     * Rate-limited server-side to one per second.
+     */
+    public static final byte PKT_BUFF_REFRESH_REQ = (byte) 103;
+
+    /**
+     * Player ran {@code /bugreport} on a modded client. The mod intercepts the
+     * command and sends this packet; the server replies with a
+     * {@link #PKT_BUGREPORT_OPEN} containing the snapshot to display.
+     *
+     * <p>Wire format after the type byte:
+     * <pre>
+     *   varint+string  prefillDescription   (≤ {@link #BUGREPORT_MAX_PREFILL_CHARS}, may be empty)
+     * </pre>
+     */
+    public static final byte PKT_BUGREPORT_INTENT = (byte) 104;
+
+    /**
+     * Player clicked Submit in the bug-report UI. The server validates the
+     * token (must match a live preview), files the report using its stashed
+     * snapshot + the description + categories from this packet, and kicks off
+     * the AI investigation.
+     *
+     * <p>Wire format after the type byte:
+     * <pre>
+     *   varint+string  token        (issued by {@link #PKT_BUGREPORT_OPEN})
+     *   varint         categoryMask (BR_CAT_* OR'd together)
+     *   varint+string  description  (≤ {@link #BUGREPORT_MAX_DESCRIPTION_CHARS})
+     * </pre>
+     */
+    public static final byte PKT_BUGREPORT_SUBMIT = (byte) 105;
+
+    /**
+     * Player typed a follow-up message in the chat-thread mode. The server
+     * forwards it to Hermes and pushes the reply back via
+     * {@link #PKT_BUGREPORT_AI_REPLY}.
+     *
+     * <p>Wire format after the type byte:
+     * <pre>
+     *   varint+string  token
+     *   varint+string  message   (≤ {@link #BUGREPORT_MAX_FOLLOWUP_CHARS})
+     * </pre>
+     */
+    public static final byte PKT_BUGREPORT_FOLLOWUP = (byte) 106;
+
+    /**
+     * Player clicked "Talk to staff". The server asks Hermes to open a Discord
+     * ticket with the full transcript so a human can take over.
+     *
+     * <p>Wire format after the type byte:
+     * <pre>
+     *   varint+string  token
+     * </pre>
+     */
+    public static final byte PKT_BUGREPORT_ESCALATE = (byte) 107;
+
+    /**
+     * Player closed the UI (either via "Mark resolved" or by dismissing). The
+     * server marks the conversation closed and frees the preview token.
+     *
+     * <p>Wire format after the type byte:
+     * <pre>
+     *   varint+string  token
+     *   byte           resolved   (1 if user clicked "Mark resolved", 0 if just dismissed)
+     * </pre>
+     */
+    public static final byte PKT_BUGREPORT_CLOSE = (byte) 108;
 
     // --- Hard size caps (wire-level) ---
-    /** Maximum bytes for any single S2C payload. Larger packets are dropped. */
+    /** Maximum bytes for any single cosmetic S2C payload. Larger packets are dropped. */
     public static final int MAX_PAYLOAD_BYTES = 256;
+    /** Larger cap reserved for {@link #PKT_BUFF_SNAPSHOT}, which carries every layer with a label. */
+    public static final int MAX_SNAPSHOT_PAYLOAD_BYTES = 16_384;
 
     // --- Semantic bounds (validated post-decode) ---
     public static final int MAX_POINTS_PER_EVENT = 10_000_000;
-    public static final int MAX_BLOCKS_PER_CASCADE = 10_000;
     public static final int MAX_RANK = 100_000;
     public static final long MAX_TIME_REMAINING_MS = 10L * 60L * 1000L;
 
     // --- Rate limits (per-second, receiver-enforced) ---
     public static final int RATE_POINT_GAIN_PER_SEC = 100;
-    public static final int RATE_CASCADE_PER_SEC    = 10;
     public static final int RATE_HUD_UPDATE_PER_SEC = 5;
     public static final int RATE_MINE_START_PER_SEC = 40;   // theoretical max mining speed
     public static final int RATE_MINE_CANCEL_PER_SEC = 40;  // one per start at most
@@ -113,6 +404,36 @@ public final class Protocol {
     public static final int RATE_GANG_PING_PER_SEC = 10;
     /** Max inbound meteor pings per second. */
     public static final int RATE_METEOR_PING_PER_SEC = 5;
+    /** Roster + duel state are low-frequency keepalives — a handful per second is the ceiling. */
+    public static final int RATE_GANG_ROSTER_PER_SEC = 4;
+    public static final int RATE_DUEL_STATE_PER_SEC = 4;
+    /** Booster heartbeat is 1 Hz from the server; ceiling at 5 absorbs jitter without letting a misbehaving server flood the renderer. */
+    public static final int RATE_BOOSTER_UPDATE_PER_SEC = 5;
+    /** Event timer heartbeat — same shape as boosters. */
+    public static final int RATE_EVENT_TIMERS_PER_SEC = 5;
+    /** Cooldowns heartbeat — same shape as boosters. */
+    public static final int RATE_COOLDOWNS_PER_SEC = 5;
+    /** PvE stats heartbeat — same shape. */
+    public static final int RATE_PVE_STATS_PER_SEC = 5;
+    /** Per-block-break + right-click. A meteorite is 200–300 blocks; cap at theoretical max mining cadence. */
+    public static final int RATE_METEORITE_HUD_PER_SEC = 40;
+    /** Buff snapshot is on-demand (only on /pickbuffs or refresh-button). */
+    public static final int RATE_BUFF_SNAPSHOT_PER_SEC = 5;
+    /** Bug-report inbound packets are user-driven; a handful per second absorbs jitter. */
+    public static final int RATE_BUGREPORT_PER_SEC = 5;
+
+    // --- Meteorite HUD tunables ---
+    /** Max tier-name length the server can send us (e.g. "Ancient Debris" → 14). */
+    public static final int METEORITE_HUD_MAX_TIER_CHARS = 16;
+    /** Max world-name length (matches gang/meteor ping conventions). */
+    public static final int METEORITE_HUD_MAX_WORLD_CHARS = 32;
+    /** Defensive upper bound on remaining count — meteorites cap at 300, this leaves room. */
+    public static final int METEORITE_HUD_MAX_REMAINING = 100_000;
+    /** If no fresh packet arrives within this window, the HUD self-clears. Safety net for clients that miss the destroyed broadcast. */
+    public static final long METEORITE_HUD_STALE_AFTER_MS = 30_000L;
+
+    /** Active gang on the season2 cluster maxes at 4 members. Decoder hard-caps at this to bound memory. */
+    public static final int MAX_GANG_ROSTER_MEMBERS = 8;
 
     // --- Gang ping tunables ---
     /** Maximum blocks from the sender to the ping target (matches server validation). */
@@ -133,7 +454,6 @@ public final class Protocol {
 
     // --- Renderer caps (memory bounds) ---
     public static final int MAX_FLOATING_NUMBERS_ON_SCREEN = 200;
-    public static final int MAX_CASCADE_EFFECTS_QUEUED = 8;
 
     // --- Mining predict bounds ---
     public static final int MAX_MINE_DURATION_MS = 30_000;

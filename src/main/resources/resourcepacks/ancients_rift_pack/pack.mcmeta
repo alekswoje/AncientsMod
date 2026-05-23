@@ -1,0 +1,7 @@
+{
+  "pack": {
+    "description": "§7Tints stone + ores white so the rift's special blocks pop. §8Auto-managed by PrisonsMod.",
+    "min_format": [75, 0],
+    "max_format": [2147483647, 0]
+  }
+}

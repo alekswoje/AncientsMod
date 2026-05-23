@@ -1,16 +1,33 @@
 package com.aleks.prisonsmod.net;
 
 import com.aleks.prisonsmod.PrisonsMod;
+import com.aleks.prisonsmod.client.DuelState;
+import com.aleks.prisonsmod.client.GangRoster;
 import com.aleks.prisonsmod.client.ServerAllowlist;
+import com.aleks.prisonsmod.client.bugreport.BugReportClient;
 import com.aleks.prisonsmod.client.gangping.GangPingManager;
-import com.aleks.prisonsmod.net.payload.CascadePayload;
+import com.aleks.prisonsmod.client.hud.BoosterState;
+import com.aleks.prisonsmod.client.hud.CooldownState;
+import com.aleks.prisonsmod.client.hud.EventState;
+import com.aleks.prisonsmod.client.hud.MeteoriteState;
+import com.aleks.prisonsmod.client.hud.PveStatsState;
+import com.aleks.prisonsmod.net.payload.BoosterUpdatePayload;
+import com.aleks.prisonsmod.net.payload.BugReportAiReplyPayload;
+import com.aleks.prisonsmod.net.payload.BugReportErrorPayload;
+import com.aleks.prisonsmod.net.payload.BugReportFiledPayload;
+import com.aleks.prisonsmod.net.payload.BugReportOpenPayload;
+import com.aleks.prisonsmod.net.payload.CooldownsPayload;
+import com.aleks.prisonsmod.net.payload.EventTimersPayload;
+import com.aleks.prisonsmod.net.payload.MeteoriteHudPayload;
+import com.aleks.prisonsmod.net.payload.PveStatsPayload;
+import com.aleks.prisonsmod.net.payload.DuelStatePayload;
 import com.aleks.prisonsmod.net.payload.GangPingPayload;
+import com.aleks.prisonsmod.net.payload.GangRosterPayload;
 import com.aleks.prisonsmod.net.payload.HudUpdatePayload;
 import com.aleks.prisonsmod.net.payload.MeteorPingPayload;
 import com.aleks.prisonsmod.net.payload.MineCancelPayload;
 import com.aleks.prisonsmod.net.payload.MineStartPayload;
 import com.aleks.prisonsmod.net.payload.PointGainPayload;
-import com.aleks.prisonsmod.render.CascadeEffectRenderer;
 import com.aleks.prisonsmod.render.FloatingNumberRenderer;
 import com.aleks.prisonsmod.render.MinePredictRenderer;
 import com.aleks.prisonsmod.render.RiftHud;
@@ -52,21 +69,24 @@ public final class NetworkHandler {
      */
     public static void onPayload(byte[] raw) {
         try {
-            if (raw == null || raw.length == 0 || raw.length > Protocol.MAX_PAYLOAD_BYTES) {
+            // Snapshot packets can be larger than cosmetic packets, so use the
+            // snapshot cap as the outer bound — type-specific decoders enforce
+            // their own bounds further in.
+            if (raw == null || raw.length == 0 || raw.length > Protocol.MAX_SNAPSHOT_PAYLOAD_BYTES) {
+                if (raw != null) PrisonsMod.LOGGER.info("onPayload: dropped len={}", raw.length);
                 return; // drop oversized or empty
             }
             PacketByteBuf buf = new PacketByteBuf(Unpooled.wrappedBuffer(raw));
             byte typeId = buf.readByte();
+            // Trace snapshot only — cosmetic packets are spammy.
+            if (typeId == Protocol.PKT_BUFF_SNAPSHOT) {
+                PrisonsMod.LOGGER.info("onPayload: type=PKT_BUFF_SNAPSHOT raw len={}", raw.length);
+            }
             switch (typeId) {
                 case Protocol.PKT_POINT_GAIN -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.POINT_GAIN)) return;
                     PointGainPayload p = PointGainPayload.decode(buf);
                     FloatingNumberRenderer.enqueue(p);
-                }
-                case Protocol.PKT_CASCADE -> {
-                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.CASCADE)) return;
-                    CascadePayload p = CascadePayload.decode(buf);
-                    CascadeEffectRenderer.enqueue(p);
                 }
                 case Protocol.PKT_HUD_UPDATE -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.HUD_UPDATE)) return;
@@ -93,6 +113,73 @@ public final class NetworkHandler {
                     MeteorPingPayload p = MeteorPingPayload.decode(buf);
                     GangPingManager.onMeteorPing(p);
                 }
+                case Protocol.PKT_GANG_ROSTER -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.GANG_ROSTER)) return;
+                    GangRosterPayload p = GangRosterPayload.decode(buf);
+                    GangRoster.update(p);
+                }
+                case Protocol.PKT_DUEL_STATE -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.DUEL_STATE)) return;
+                    DuelStatePayload p = DuelStatePayload.decode(buf);
+                    DuelState.set(p.inDuel());
+                }
+                case Protocol.PKT_BOOSTER_UPDATE -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.BOOSTER_UPDATE)) return;
+                    BoosterUpdatePayload p = BoosterUpdatePayload.decode(buf);
+                    BoosterState.update(p);
+                }
+                case Protocol.PKT_EVENT_TIMERS -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.EVENT_TIMERS)) return;
+                    EventTimersPayload p = EventTimersPayload.decode(buf);
+                    EventState.update(p);
+                }
+                case Protocol.PKT_METEORITE_HUD -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.METEORITE_HUD)) return;
+                    MeteoriteHudPayload p = MeteoriteHudPayload.decode(buf);
+                    MeteoriteState.update(p);
+                }
+                case Protocol.PKT_COOLDOWNS -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.COOLDOWNS)) return;
+                    CooldownsPayload p = CooldownsPayload.decode(buf);
+                    CooldownState.update(p);
+                }
+                case Protocol.PKT_PVE_STATS -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.PVE_STATS)) return;
+                    PveStatsPayload p = PveStatsPayload.decode(buf);
+                    PveStatsState.update(p);
+                }
+                case Protocol.PKT_BUFF_SNAPSHOT -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.BUFF_SNAPSHOT)) {
+                        PrisonsMod.LOGGER.info("BUFF_SNAPSHOT rate-limited");
+                        return;
+                    }
+                    com.aleks.prisonsmod.net.payload.BuffSnapshotPayload p =
+                            com.aleks.prisonsmod.net.payload.BuffSnapshotPayload.decode(buf);
+                    PrisonsMod.LOGGER.info("BUFF_SNAPSHOT received: {} channels", p.channels.size());
+                    com.aleks.prisonsmod.client.buffs.BuffSnapshotState.update(p);
+                    // If the screen isn't open yet, open it; if it is, refresh it.
+                    com.aleks.prisonsmod.client.screen.BuffBreakdownScreen.openNow(null);
+                }
+                case Protocol.PKT_BUGREPORT_OPEN -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.BUGREPORT)) return;
+                    BugReportOpenPayload p = BugReportOpenPayload.decode(buf);
+                    BugReportClient.onOpen(p);
+                }
+                case Protocol.PKT_BUGREPORT_AI_REPLY -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.BUGREPORT)) return;
+                    BugReportAiReplyPayload p = BugReportAiReplyPayload.decode(buf);
+                    BugReportClient.onAiReply(p);
+                }
+                case Protocol.PKT_BUGREPORT_FILED -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.BUGREPORT)) return;
+                    BugReportFiledPayload p = BugReportFiledPayload.decode(buf);
+                    BugReportClient.onFiled(p);
+                }
+                case Protocol.PKT_BUGREPORT_ERROR -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.BUGREPORT)) return;
+                    BugReportErrorPayload p = BugReportErrorPayload.decode(buf);
+                    BugReportClient.onError(p);
+                }
                 default -> {
                     // Unknown type — silently ignore. A future server may emit
                     // newer packet types that older clients don't recognize; we
@@ -106,6 +193,43 @@ public final class NetworkHandler {
         } catch (Throwable unexpected) {
             // Catch-all: we never want a malformed packet to crash the client.
             PrisonsMod.LOGGER.debug("dropped malformed packet", unexpected);
+        }
+    }
+
+    /**
+     * Send the one-shot mod-presence handshake. Called on
+     * {@code ClientPlayConnectionEvents.JOIN} once the server is allowlisted,
+     * so the server can flag this player as modded and route
+     * {@code /pickbuffs} to the rich snapshot path.
+     */
+    public static void sendHandshake() {
+        if (!ServerAllowlist.isAllowed()) {
+            PrisonsMod.LOGGER.info("sendHandshake: server not allowlisted, skipping");
+            return;
+        }
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) {
+            PrisonsMod.LOGGER.info("sendHandshake: channel not registered server-side, skipping");
+            return;
+        }
+        try {
+            ClientPlayNetworking.send(new RawPayload(new byte[] { Protocol.PKT_HANDSHAKE }));
+            PrisonsMod.LOGGER.info("sendHandshake: sent");
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.warn("send handshake failed", t);
+        }
+    }
+
+    /**
+     * Buff-screen refresh request. Single-byte payload — server identifies the
+     * sender from the channel connection. Server enforces a 1Hz rate limit.
+     */
+    public static void sendBuffRefreshRequest() {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            ClientPlayNetworking.send(new RawPayload(new byte[] { Protocol.PKT_BUFF_REFRESH_REQ }));
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send buff refresh failed", t);
         }
     }
 
@@ -131,6 +255,99 @@ public final class NetworkHandler {
         } catch (Throwable t) {
             PrisonsMod.LOGGER.debug("send gang ping failed", t);
         }
+    }
+
+    // ── Bug-report sends ─────────────────────────────────────────────────────
+
+    /**
+     * "Player ran /bugreport — open the UI." Server replies with
+     * {@link Protocol#PKT_BUGREPORT_OPEN} (token + sanitized snapshot) on
+     * success, or with {@link Protocol#PKT_BUGREPORT_ERROR} if rate-limited.
+     */
+    public static void sendBugReportIntent(String prefillDescription) {
+        sendString(Protocol.PKT_BUGREPORT_INTENT,
+                clamp(prefillDescription, Protocol.BUGREPORT_MAX_PREFILL_CHARS));
+    }
+
+    /**
+     * "Submit the report." Server validates token + persists the report +
+     * fires AI investigation. Categories is the OR'd BR_CAT_* bitmask.
+     */
+    public static void sendBugReportSubmit(String token, int categoryMask, String description) {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer(32));
+            buf.writeByte(Protocol.PKT_BUGREPORT_SUBMIT);
+            buf.writeString(clamp(token, Protocol.BUGREPORT_MAX_TOKEN_CHARS));
+            buf.writeVarInt(categoryMask & 0x1FF);
+            buf.writeString(clamp(description, Protocol.BUGREPORT_MAX_DESCRIPTION_CHARS));
+            sendBuf(buf);
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send bugreport submit failed", t);
+        }
+    }
+
+    /** Send a player follow-up in the AI chat thread. */
+    public static void sendBugReportFollowup(String token, String message) {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer(32));
+            buf.writeByte(Protocol.PKT_BUGREPORT_FOLLOWUP);
+            buf.writeString(clamp(token, Protocol.BUGREPORT_MAX_TOKEN_CHARS));
+            buf.writeString(clamp(message, Protocol.BUGREPORT_MAX_FOLLOWUP_CHARS));
+            sendBuf(buf);
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send bugreport followup failed", t);
+        }
+    }
+
+    /** Player clicked "Talk to staff": ask server to open a Discord ticket. */
+    public static void sendBugReportEscalate(String token) {
+        sendString(Protocol.PKT_BUGREPORT_ESCALATE, clamp(token, Protocol.BUGREPORT_MAX_TOKEN_CHARS));
+    }
+
+    /** Player closed the UI; tell server to free the preview / mark resolved. */
+    public static void sendBugReportClose(String token, boolean resolved) {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer(32));
+            buf.writeByte(Protocol.PKT_BUGREPORT_CLOSE);
+            buf.writeString(clamp(token, Protocol.BUGREPORT_MAX_TOKEN_CHARS));
+            buf.writeByte(resolved ? 1 : 0);
+            sendBuf(buf);
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send bugreport close failed", t);
+        }
+    }
+
+    // ── helpers ──────────────────────────────────────────────────────────────
+
+    private static void sendString(byte typeId, String s) {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer(32));
+            buf.writeByte(typeId);
+            buf.writeString(s == null ? "" : s);
+            sendBuf(buf);
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send string packet failed", t);
+        }
+    }
+
+    private static void sendBuf(PacketByteBuf buf) {
+        byte[] data = new byte[buf.readableBytes()];
+        buf.readBytes(data);
+        ClientPlayNetworking.send(new RawPayload(data));
+    }
+
+    private static String clamp(String s, int max) {
+        if (s == null) return "";
+        if (s.length() <= max) return s;
+        return s.substring(0, max);
     }
 
     private NetworkHandler() {}

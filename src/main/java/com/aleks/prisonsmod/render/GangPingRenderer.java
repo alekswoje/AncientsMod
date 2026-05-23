@@ -4,6 +4,7 @@ import com.aleks.prisonsmod.client.ServerAllowlist;
 import com.aleks.prisonsmod.client.gangping.GangPing;
 import com.aleks.prisonsmod.client.gangping.GangPingInput;
 import com.aleks.prisonsmod.client.gangping.GangPingManager;
+import com.aleks.prisonsmod.mixin.client.GameRendererInvoker;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
@@ -24,7 +25,6 @@ import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
-import org.joml.Vector4f;
 
 /**
  * Renders gang and meteor pings.
@@ -135,19 +135,21 @@ public final class GangPingRenderer {
         Camera camera = client.gameRenderer.getCamera();
         if (camera == null) return;
 
-        // Build the view-projection matrix the same way vanilla does for its
-        // world-to-screen helper: proj * rotation(camera.rotation.conjugate()).
-        // Vertices are pre-translated by -camPos before this transform.
-        float fovDeg = (float)(int) client.options.getFov().getValue();
-        Matrix4f proj = client.gameRenderer.getBasicProjectionMatrix(fovDeg);
-        Quaternionf invRot = camera.getRotation().conjugate(new Quaternionf());
-        Matrix4f viewRot = new Matrix4f().rotation(invRot);
-        Matrix4f viewProj = new Matrix4f(proj).mul(viewRot);
-
         long now = System.currentTimeMillis();
         float tickDelta = tickCounter.getTickProgress(true);
         Vec3d playerPos = client.player.getLerpedPos(tickDelta);
         Vec3d camPos = camera.getCameraPos();
+
+        // Mirror vanilla's world-render projection exactly: same FOV (modified
+        // by sprint / speed / FOV-effects slider) at the same tickDelta, then
+        // proj * rotation(camera.rotation.conjugate()). Anything less drifts
+        // off the beam during FOV transitions — see the class javadoc.
+        float fov = ((GameRendererInvoker) (Object) client.gameRenderer)
+                .prisonsmod$getFov(camera, tickDelta, true);
+        Matrix4f proj = client.gameRenderer.getBasicProjectionMatrix(fov);
+        Quaternionf invRot = camera.getRotation().conjugate(new Quaternionf());
+        Matrix4f viewRot = new Matrix4f().rotation(invRot);
+        Matrix4f viewProj = new Matrix4f(proj).mul(viewRot);
 
         int sw = client.getWindow().getScaledWidth();
         int sh = client.getWindow().getScaledHeight();
@@ -181,9 +183,9 @@ public final class GangPingRenderer {
     }
 
     /**
-     * Project a world point onto the screen using the same {@code proj * viewRot}
-     * pattern MC's internal world-to-screen helper uses, and, if it lands on
-     * screen, draw the multi-line label there.
+     * Project a world point onto the screen using the caller-supplied
+     * {@code viewProj} (built from the world-render FOV at the current
+     * tickDelta) and, if it lands on screen, draw the multi-line label there.
      */
     private static void drawProjectedLabel(DrawContext context, MinecraftClient client,
                                            String senderName, String worldName,
@@ -194,15 +196,15 @@ public final class GangPingRenderer {
                                            int sw, int sh) {
         if (senderName == null || senderName.isEmpty()) return;
 
-        // Pre-translate to camera-relative — MC's view matrix doesn't carry the
-        // camera translation; world geometry is rendered camera-relative.
+        // Pre-translate to camera-relative — the view matrix doesn't carry
+        // the camera translation; world geometry is rendered camera-relative.
         float rx = (float) (wx - camPos.x);
         float ry = (float) (wy - camPos.y);
         float rz = (float) (wz - camPos.z);
 
-        // Detect behind-camera by checking clip-space w before perspective divide.
-        // transformProject divides x/y/z by w internally; if w is negative the
-        // result is sign-flipped (point projected from behind the camera).
+        // Detect behind-camera by checking clip-space w before perspective
+        // divide. transformProject divides x/y/z by w internally; if w is
+        // negative the result is sign-flipped (point projected from behind).
         float w = viewProj.m03() * rx + viewProj.m13() * ry + viewProj.m23() * rz + viewProj.m33();
         if (w <= 0f) return;
 
