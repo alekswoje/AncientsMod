@@ -34,14 +34,16 @@ import java.util.Map;
 public final class PvAffinityPickerScreen extends Screen {
 
     private static final int PANEL_W = 380;
-    private static final int PANEL_H = 230;
+    // 17 categories (16 real + Uncategorized) needs 5 rows of 4. Bumped from
+    // 230 to make room for the extra row + keep footer button spacing.
+    private static final int PANEL_H = 270;
     private static final int TITLE_BAR_H = 24;
     private static final int FOOTER_H = 28;
     private static final int CELL_W = 84;
     private static final int CELL_H = 36;
     private static final int CELL_GAP = 4;
     private static final int COLS = 4;
-    private static final int ROWS = 4;
+    private static final int ROWS = 5;
 
     private final int vaultNumber;
     private PvBundlePayload bundle;

@@ -30,7 +30,11 @@ public enum PvCategory {
     CLUE_CASKETS("clue_caskets", "Clue Caskets", "Casket rewards from clue scrolls", Items.WRITABLE_BOOK),
     MINING_MATERIALS("mining_materials", "Mining Materials", "Condensed ore, bot items and fuel", Items.RAW_IRON),
     PICKAXES_AND_GEAR("pickaxes_and_gear", "Pickaxes & Gear", "Prisons picks and gear", Items.NETHERITE_PICKAXE),
-    CONTRABAND("contraband", "Contraband", "Smuggling contraband", Items.BARRIER);
+    CONTRABAND("contraband", "Contraband", "Smuggling contraband", Items.BARRIER),
+    /** Catch-all overflow — bind this to a PV to route any shift-clicked
+     *  item that didn't match a real category. */
+    UNCATEGORIZED("uncategorized", "Uncategorized",
+            "Anything that doesn't match another category", Items.HOPPER);
 
     private final String storageKey;
     private final String displayName;
