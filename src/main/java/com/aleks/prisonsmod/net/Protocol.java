@@ -240,6 +240,30 @@ public final class Protocol {
      */
     public static final byte PKT_BUGREPORT_ERROR = 19;
 
+    /**
+     * Server response to a {@link #PKT_SUGGEST_INTENT}: open the suggestion screen
+     * with the provided session token. Single string payload.
+     */
+    public static final byte PKT_SUGGEST_OPEN  = 20;
+
+    /** Server confirmed the suggestion was forwarded; mod closes the screen. */
+    public static final byte PKT_SUGGEST_FILED = 21;
+
+    /**
+     * Soft error in the suggest flow (rate-limited, Discord unlinked, token expired).
+     * If the token is empty the mod treats it as fatal and closes the screen.
+     */
+    public static final byte PKT_SUGGEST_ERROR = 22;
+
+    // Suggest category enum-bytes (must match plugin PrisonsModChannel).
+    public static final byte SUGGEST_CAT_MOD    = 0;
+    public static final byte SUGGEST_CAT_SERVER = 1;
+
+    // Suggest wire bounds.
+    public static final int SUGGEST_MAX_TOKEN_CHARS = 32;
+    public static final int SUGGEST_MAX_BODY_CHARS  = 1024;
+    public static final int SUGGEST_MAX_ERROR_CHARS = 256;
+
     // Bug report section ids (selector for icon/colour in the UI).
     public static final byte BR_SECTION_PLAYER          = 1;
     public static final byte BR_SECTION_SERVER_STATE    = 2;
@@ -384,6 +408,27 @@ public final class Protocol {
      */
     public static final byte PKT_BUGREPORT_CLOSE = (byte) 108;
 
+    /**
+     * Player ran {@code /suggest}. The mod intercepts the command and sends this
+     * (no payload — server identifies the player from the connection). Server
+     * replies with {@link #PKT_SUGGEST_OPEN} on success or {@link #PKT_SUGGEST_ERROR}.
+     */
+    public static final byte PKT_SUGGEST_INTENT = (byte) 109;
+
+    /**
+     * Player clicked Submit in the suggest UI.
+     * <p>Wire format after the type byte:
+     * <pre>
+     *   varint+string  token       (issued by {@link #PKT_SUGGEST_OPEN})
+     *   byte           category    ({@link #SUGGEST_CAT_MOD} or {@link #SUGGEST_CAT_SERVER})
+     *   varint+string  body        (≤ {@link #SUGGEST_MAX_BODY_CHARS})
+     * </pre>
+     */
+    public static final byte PKT_SUGGEST_SUBMIT = (byte) 110;
+
+    /** Player dismissed the suggest UI without submitting. */
+    public static final byte PKT_SUGGEST_CLOSE  = (byte) 111;
+
     // --- Hard size caps (wire-level) ---
     /** Maximum bytes for any single cosmetic S2C payload. Larger packets are dropped. */
     public static final int MAX_PAYLOAD_BYTES = 256;
@@ -421,6 +466,8 @@ public final class Protocol {
     public static final int RATE_BUFF_SNAPSHOT_PER_SEC = 5;
     /** Bug-report inbound packets are user-driven; a handful per second absorbs jitter. */
     public static final int RATE_BUGREPORT_PER_SEC = 5;
+    /** Suggest inbound packets are user-driven; a handful per second is plenty. */
+    public static final int RATE_SUGGEST_PER_SEC = 5;
 
     // --- Meteorite HUD tunables ---
     /** Max tier-name length the server can send us (e.g. "Ancient Debris" → 14). */

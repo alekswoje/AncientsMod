@@ -1,6 +1,7 @@
 package com.aleks.prisonsmod.client;
 
 import com.aleks.prisonsmod.client.screen.SettingsScreen;
+import com.aleks.prisonsmod.client.update.UpdateInstaller;
 import com.mojang.brigadier.Command;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
@@ -16,6 +17,9 @@ import net.minecraft.client.MinecraftClient;
  *   <li>{@code /prisonsmod} — open the settings screen (same as the F9
  *       keybind, but discoverable from chat).</li>
  *   <li>{@code /prisonsmod settings} — explicit alias of the above.</li>
+ *   <li>{@code /prisonsmod update} — download the latest mod release and stage
+ *       it for install on next Minecraft restart. Also wired up as the click
+ *       target on the join-time update alert.</li>
  * </ul>
  */
 public final class ClientCommands {
@@ -27,6 +31,8 @@ public final class ClientCommands {
                             .executes(ctx -> openSettings())
                             .then(ClientCommandManager.literal("settings")
                                     .executes(ctx -> openSettings()))
+                            .then(ClientCommandManager.literal("update")
+                                    .executes(ctx -> runUpdate()))
             );
         });
     }
@@ -42,6 +48,13 @@ public final class ClientCommands {
                 client.setScreen(new SettingsScreen(null));
             }
         });
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private static int runUpdate() {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null) return 0;
+        UpdateInstaller.runFromCommand(client);
         return Command.SINGLE_SUCCESS;
     }
 

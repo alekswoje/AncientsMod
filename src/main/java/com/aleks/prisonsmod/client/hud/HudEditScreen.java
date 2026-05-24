@@ -71,7 +71,22 @@ public final class HudEditScreen extends Screen {
             HudPositions.resetAll();
             selected = null;
         }).dimensions(this.width / 2 - 104, btnY, 100, 20).build());
+
+        // Equal-spacing-snap toggle. Sits one row above Done / Reset All so the
+        // toggle state is visible while dragging.
+        evenSnapBtn = addDrawableChild(ButtonWidget.builder(
+                Text.literal("Equal spacing: " + (com.aleks.prisonsmod.client.FeatureToggles.isEvenSpacingSnapEnabled() ? "ON" : "OFF")),
+                b -> {
+                    com.aleks.prisonsmod.client.FeatureToggles.setEvenSpacingSnap(
+                            !com.aleks.prisonsmod.client.FeatureToggles.isEvenSpacingSnapEnabled());
+                    b.setMessage(Text.literal("Equal spacing: "
+                            + (com.aleks.prisonsmod.client.FeatureToggles.isEvenSpacingSnapEnabled() ? "ON" : "OFF")));
+                })
+                .dimensions(this.width / 2 - 104, btnY - 24, 208, 20)
+                .build());
     }
+
+    private ButtonWidget evenSnapBtn;
 
     @Override
     public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
@@ -382,6 +397,69 @@ public final class HudEditScreen extends Screen {
                     bestYDist = d;
                     bestY = otherY[i];
                     gy = otherYGuide[i];
+                }
+            }
+        }
+
+        // Equal-spacing snap. For every pair (A, B) of OTHER widgets, derive
+        // positions for the dragged widget D where the gaps are even — either
+        // D between A and B (midpoint) or D continuing the pattern A→B→D
+        // (and the mirrored case D→A→B). Same goes for the vertical axis.
+        if (com.aleks.prisonsmod.client.FeatureToggles.isEvenSpacingSnapEnabled()) {
+            java.util.List<HudElement> all = HudRegistry.all();
+            for (int i = 0; i < all.size(); i++) {
+                HudElement a = all.get(i);
+                if (a == target) continue;
+                int axL = HudPositions.getX(a, this.width);
+                int ayT = HudPositions.getY(a, this.height);
+                float aScale = HudPositions.getScale(a);
+                int aw = Math.max(1, Math.round(a.width() * aScale));
+                int ah = Math.max(1, Math.round(a.height() * aScale));
+                int aCx = axL + aw / 2;
+                int aCy = ayT + ah / 2;
+
+                for (int j = 0; j < all.size(); j++) {
+                    if (j == i) continue;
+                    HudElement b = all.get(j);
+                    if (b == target) continue;
+                    int bxL = HudPositions.getX(b, this.width);
+                    int byT = HudPositions.getY(b, this.height);
+                    float bScale = HudPositions.getScale(b);
+                    int bw = Math.max(1, Math.round(b.width() * bScale));
+                    int bh = Math.max(1, Math.round(b.height() * bScale));
+                    int bCx = bxL + bw / 2;
+                    int bCy = byT + bh / 2;
+
+                    // Horizontal pattern (centers-aligned X): "D, A, B" or "A, D, B" or "A, B, D".
+                    // Three candidates for D's center-x given A and B already placed.
+                    int midCx = (aCx + bCx) / 2;        // D between A and B
+                    int contCx = 2 * bCx - aCx;          // D continues pattern A→B→D
+                    int preCx  = 2 * aCx - bCx;          // D leads pattern D→A→B
+                    int[] dCxCandidates = { midCx, contCx, preCx };
+                    for (int dCx : dCxCandidates) {
+                        int candidateX = dCx - w / 2;
+                        int d = Math.abs(x - candidateX);
+                        if (d < bestXDist) {
+                            bestXDist = d;
+                            bestX = candidateX;
+                            gx = dCx;
+                        }
+                    }
+
+                    // Vertical pattern (centers-aligned Y): same shape on the Y axis.
+                    int midCy = (aCy + bCy) / 2;
+                    int contCy = 2 * bCy - aCy;
+                    int preCy  = 2 * aCy - bCy;
+                    int[] dCyCandidates = { midCy, contCy, preCy };
+                    for (int dCy : dCyCandidates) {
+                        int candidateY = dCy - h / 2;
+                        int d = Math.abs(y - candidateY);
+                        if (d < bestYDist) {
+                            bestYDist = d;
+                            bestY = candidateY;
+                            gy = dCy;
+                        }
+                    }
                 }
             }
         }

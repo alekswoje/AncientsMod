@@ -5,6 +5,7 @@ import com.aleks.prisonsmod.client.DuelState;
 import com.aleks.prisonsmod.client.GangRoster;
 import com.aleks.prisonsmod.client.ServerAllowlist;
 import com.aleks.prisonsmod.client.bugreport.BugReportClient;
+import com.aleks.prisonsmod.client.suggest.SuggestClient;
 import com.aleks.prisonsmod.client.gangping.GangPingManager;
 import com.aleks.prisonsmod.client.hud.BoosterState;
 import com.aleks.prisonsmod.client.hud.CooldownState;
@@ -16,6 +17,9 @@ import com.aleks.prisonsmod.net.payload.BugReportAiReplyPayload;
 import com.aleks.prisonsmod.net.payload.BugReportErrorPayload;
 import com.aleks.prisonsmod.net.payload.BugReportFiledPayload;
 import com.aleks.prisonsmod.net.payload.BugReportOpenPayload;
+import com.aleks.prisonsmod.net.payload.SuggestErrorPayload;
+import com.aleks.prisonsmod.net.payload.SuggestFiledPayload;
+import com.aleks.prisonsmod.net.payload.SuggestOpenPayload;
 import com.aleks.prisonsmod.net.payload.CooldownsPayload;
 import com.aleks.prisonsmod.net.payload.EventTimersPayload;
 import com.aleks.prisonsmod.net.payload.MeteoriteHudPayload;
@@ -180,6 +184,21 @@ public final class NetworkHandler {
                     BugReportErrorPayload p = BugReportErrorPayload.decode(buf);
                     BugReportClient.onError(p);
                 }
+                case Protocol.PKT_SUGGEST_OPEN -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.SUGGEST)) return;
+                    SuggestOpenPayload p = SuggestOpenPayload.decode(buf);
+                    SuggestClient.onOpen(p);
+                }
+                case Protocol.PKT_SUGGEST_FILED -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.SUGGEST)) return;
+                    SuggestFiledPayload p = SuggestFiledPayload.decode(buf);
+                    SuggestClient.onFiled(p);
+                }
+                case Protocol.PKT_SUGGEST_ERROR -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.SUGGEST)) return;
+                    SuggestErrorPayload p = SuggestErrorPayload.decode(buf);
+                    SuggestClient.onError(p);
+                }
                 default -> {
                     // Unknown type — silently ignore. A future server may emit
                     // newer packet types that older clients don't recognize; we
@@ -321,6 +340,40 @@ public final class NetworkHandler {
         } catch (Throwable t) {
             PrisonsMod.LOGGER.debug("send bugreport close failed", t);
         }
+    }
+
+    // ── Suggest sends ────────────────────────────────────────────────────────
+
+    /** "Player ran /suggest — open the GUI." Server replies with PKT_SUGGEST_OPEN. */
+    public static void sendSuggestIntent() {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            ClientPlayNetworking.send(new RawPayload(new byte[] { Protocol.PKT_SUGGEST_INTENT }));
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send suggest intent failed", t);
+        }
+    }
+
+    /** "Submit this suggestion." Server validates the token and forwards to Discord. */
+    public static void sendSuggestSubmit(String token, byte category, String body) {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer(32));
+            buf.writeByte(Protocol.PKT_SUGGEST_SUBMIT);
+            buf.writeString(clamp(token, Protocol.SUGGEST_MAX_TOKEN_CHARS));
+            buf.writeByte(category);
+            buf.writeString(clamp(body, Protocol.SUGGEST_MAX_BODY_CHARS));
+            sendBuf(buf);
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send suggest submit failed", t);
+        }
+    }
+
+    /** Player dismissed the suggest UI; tell server to free the session. */
+    public static void sendSuggestClose(String token) {
+        sendString(Protocol.PKT_SUGGEST_CLOSE, clamp(token, Protocol.SUGGEST_MAX_TOKEN_CHARS));
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────

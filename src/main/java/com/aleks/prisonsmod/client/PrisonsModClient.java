@@ -2,6 +2,7 @@ package com.aleks.prisonsmod.client;
 
 import com.aleks.prisonsmod.PrisonsMod;
 import com.aleks.prisonsmod.client.bugreport.BugReportClient;
+import com.aleks.prisonsmod.client.suggest.SuggestClient;
 import com.aleks.prisonsmod.client.gangping.GangPingInput;
 import com.aleks.prisonsmod.client.gangping.GangPingManager;
 import com.aleks.prisonsmod.client.hud.BoosterHud;
@@ -14,6 +15,7 @@ import com.aleks.prisonsmod.client.hud.HudSettings;
 import com.aleks.prisonsmod.client.hud.MeteoriteState;
 import com.aleks.prisonsmod.client.hud.StatsHud;
 import com.aleks.prisonsmod.client.update.UpdateChecker;
+import com.aleks.prisonsmod.client.update.UpdateInstaller;
 import com.aleks.prisonsmod.net.NetworkHandler;
 import com.aleks.prisonsmod.render.FloatingNumberRenderer;
 import com.aleks.prisonsmod.render.GangPingRenderer;
@@ -60,6 +62,8 @@ public final class PrisonsModClient implements ClientModInitializer {
         GangPingRenderer.register();
         ClientCommands.register();
         BugReportClient.register();
+        SuggestClient.register();
+        UpdateInstaller.init();
 
         // HUD framework: register moveable widgets and the renderer hook.
         HudRegistry.register(BoosterHud.INSTANCE);
@@ -107,6 +111,7 @@ public final class PrisonsModClient implements ClientModInitializer {
             MeteoriteState.reset();
             com.aleks.prisonsmod.client.buffs.BuffSnapshotState.clear();
             BugReportClient.reset();
+            SuggestClient.reset();
             lastWorldKey = null;
         });
 
@@ -118,6 +123,7 @@ public final class PrisonsModClient implements ClientModInitializer {
             MinePredictRenderer.tick();
             GangPingManager.tick(now);
             BugReportClient.tick();
+            SuggestClient.tick();
             // Drop pings whose source world the player has since left. The
             // server only forwards meteor/gang pings to players currently in
             // the affected world, so a dimension switch is our cue that any

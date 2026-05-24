@@ -2,6 +2,8 @@ package com.aleks.prisonsmod.client.update;
 
 import com.aleks.prisonsmod.PrisonsMod;
 import com.aleks.prisonsmod.client.FeatureToggles;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import net.fabricmc.loader.api.FabricLoader;
@@ -27,6 +29,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * request per session at most; subsequent rejoins stay silent until the next
  * Minecraft restart.
  *
+ * <p>The chat alert includes a {@code [Click to update]} component that runs
+ * the client-side {@code /prisonsmod update} command, which hands off to
+ * {@link UpdateInstaller}. The release info is cached so the command doesn't
+ * need to refetch.
+ *
  * <p>Fires on a virtual thread so the join handler isn't blocked. User-facing
  * side effects (chat / toast / sound) are marshaled back to the render thread
  * via {@link MinecraftClient#execute}.
@@ -39,6 +46,7 @@ public final class UpdateChecker {
 
     private static final AtomicBoolean checkInFlight = new AtomicBoolean(false);
     private static volatile boolean alertShown = false;
+    private static volatile ReleaseInfo cachedLatest = null;
 
     /** Fire-and-forget. Safe to call from any thread, including the render thread. */
     public static void checkAsync(MinecraftClient mc) {
@@ -51,6 +59,7 @@ public final class UpdateChecker {
                 String current = installedVersion();
                 ReleaseInfo latest = fetchLatestRelease();
                 if (latest == null) return;
+                cachedLatest = latest;
 
                 if (isNewer(latest.version(), current)) {
                     mc.execute(() -> showAlert(mc, current, latest));
@@ -66,7 +75,24 @@ public final class UpdateChecker {
         });
     }
 
-    private static String installedVersion() {
+    /** Cached result of the most recent successful check, or null. */
+    public static ReleaseInfo getCachedLatest() {
+        return cachedLatest;
+    }
+
+    /** Fetches the latest release synchronously. Returns null on any error. */
+    public static ReleaseInfo fetchLatestReleaseSafe() {
+        try {
+            ReleaseInfo info = fetchLatestRelease();
+            if (info != null) cachedLatest = info;
+            return info;
+        } catch (Exception e) {
+            PrisonsMod.LOGGER.debug("PrisonsMod fetch latest release failed: {}", e.toString());
+            return null;
+        }
+    }
+
+    public static String installedVersion() {
         return FabricLoader.getInstance().getModContainer(PrisonsMod.MOD_ID)
                 .map(c -> c.getMetadata().getVersion().getFriendlyString())
                 .orElse("0.0.0");
@@ -91,7 +117,24 @@ public final class UpdateChecker {
         if (tag == null) return null;
         String htmlUrl = root.has("html_url") && !root.get("html_url").isJsonNull()
                 ? root.get("html_url").getAsString() : RELEASES_PAGE;
-        return new ReleaseInfo(stripLeadingV(tag), htmlUrl);
+        String assetUrl = findJarAsset(root);
+        return new ReleaseInfo(stripLeadingV(tag), htmlUrl, assetUrl);
+    }
+
+    /** Returns the browser_download_url for the first {@code prisonsmod-*.jar} asset, or null. */
+    private static String findJarAsset(JsonObject root) {
+        if (!root.has("assets") || !root.get("assets").isJsonArray()) return null;
+        JsonArray assets = root.getAsJsonArray("assets");
+        for (JsonElement el : assets) {
+            if (!el.isJsonObject()) continue;
+            JsonObject a = el.getAsJsonObject();
+            String name = a.has("name") && !a.get("name").isJsonNull() ? a.get("name").getAsString() : "";
+            if (name.startsWith("prisonsmod-") && name.endsWith(".jar")) {
+                JsonElement url = a.get("browser_download_url");
+                if (url != null && !url.isJsonNull()) return url.getAsString();
+            }
+        }
+        return null;
     }
 
     private static void showAlert(MinecraftClient mc, String current, ReleaseInfo latest) {
@@ -99,15 +142,24 @@ public final class UpdateChecker {
         if (alertShown) return;
         alertShown = true;
 
+        boolean hasJar = latest.assetUrl() != null && !latest.assetUrl().isBlank();
+        String clickLabel = hasJar ? "[Click to auto-update]" : "[Open releases page]";
+        ClickEvent clickAction = hasJar
+                ? new ClickEvent.RunCommand("/prisonsmod update")
+                : new ClickEvent.OpenUrl(URI.create(latest.url()));
+        String hoverText = hasJar
+                ? "Downloads v" + latest.version() + " and applies on next restart"
+                : latest.url();
+
         MutableText msg = Text.literal("[PrisonsMod] ").formatted(Formatting.GOLD)
                 .append(Text.literal("Update available: ").formatted(Formatting.WHITE))
                 .append(Text.literal("v" + latest.version()).formatted(Formatting.GREEN))
                 .append(Text.literal(" (you have v" + current + "). ").formatted(Formatting.GRAY))
-                .append(Text.literal("[Click to download]").styled(s -> s
+                .append(Text.literal(clickLabel).styled(s -> s
                         .withColor(Formatting.AQUA)
                         .withUnderline(true)
-                        .withClickEvent(new ClickEvent.OpenUrl(URI.create(latest.url())))
-                        .withHoverEvent(new HoverEvent.ShowText(Text.literal(latest.url())))));
+                        .withClickEvent(clickAction)
+                        .withHoverEvent(new HoverEvent.ShowText(Text.literal(hoverText)))));
 
         if (mc.player != null) {
             mc.player.sendMessage(msg, false);
@@ -153,7 +205,8 @@ public final class UpdateChecker {
         return (tag.startsWith("v") || tag.startsWith("V")) ? tag.substring(1) : tag;
     }
 
-    private record ReleaseInfo(String version, String url) {}
+    /** Public so {@link UpdateInstaller} and the {@code /prisonsmod update} command can hand it around. */
+    public record ReleaseInfo(String version, String url, String assetUrl) {}
 
     private UpdateChecker() {}
 }

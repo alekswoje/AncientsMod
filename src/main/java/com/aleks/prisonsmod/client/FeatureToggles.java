@@ -58,8 +58,14 @@ public final class FeatureToggles {
     /** Intercept {@code /bugreport} and open the in-game UI instead of filing immediately. Off = vanilla command flow. */
     private static volatile boolean bugReportUi = true;
 
+    /** Intercept {@code /suggest} and open the in-game GUI. Off = command goes to the server (which will tell vanilla users to install the mod). */
+    private static volatile boolean suggestUi = true;
+
     /** Auto-load the bundled rift texture pack (tints stone + ores white so the four special blocks pop) while in {@code tartarus_rift}. Drives {@link RiftTexturePackManager}. */
     private static volatile boolean riftTexturePack = false;
+
+    /** When dragging a widget in the HUD editor, snap to positions that make spacing relative to other widgets equal (midpoint between two, or continuing a pattern of three). */
+    private static volatile boolean evenSpacingSnap = true;
 
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -88,7 +94,9 @@ public final class FeatureToggles {
             statsHud = parseBool(props.getProperty("statsHud"), statsHud);
             updateAlert = parseBool(props.getProperty("updateAlert"), updateAlert);
             bugReportUi = parseBool(props.getProperty("bugReportUi"), bugReportUi);
+            suggestUi = parseBool(props.getProperty("suggestUi"), suggestUi);
             riftTexturePack = parseBool(props.getProperty("riftTexturePack"), riftTexturePack);
+            evenSpacingSnap = parseBool(props.getProperty("evenSpacingSnap"), evenSpacingSnap);
         } catch (IOException e) {
             PrisonsMod.LOGGER.warn("failed to load {}: {}", FILE_NAME, e.getMessage());
         }
@@ -108,7 +116,9 @@ public final class FeatureToggles {
         props.setProperty("statsHud", Boolean.toString(statsHud));
         props.setProperty("updateAlert", Boolean.toString(updateAlert));
         props.setProperty("bugReportUi", Boolean.toString(bugReportUi));
+        props.setProperty("suggestUi", Boolean.toString(suggestUi));
         props.setProperty("riftTexturePack", Boolean.toString(riftTexturePack));
+        props.setProperty("evenSpacingSnap", Boolean.toString(evenSpacingSnap));
         try {
             Files.createDirectories(configPath().getParent());
             try (var out = Files.newOutputStream(configPath())) {
@@ -245,11 +255,27 @@ public final class FeatureToggles {
         save();
     }
 
+    public static boolean isSuggestUiEnabled() { return suggestUi; }
+
+    public static void setSuggestUi(boolean value) {
+        if (suggestUi == value) return;
+        suggestUi = value;
+        save();
+    }
+
     public static boolean isRiftTexturePackEnabled() { return riftTexturePack; }
 
     public static void setRiftTexturePack(boolean value) {
         if (riftTexturePack == value) return;
         riftTexturePack = value;
+        save();
+    }
+
+    public static boolean isEvenSpacingSnapEnabled() { return evenSpacingSnap; }
+
+    public static void setEvenSpacingSnap(boolean value) {
+        if (evenSpacingSnap == value) return;
+        evenSpacingSnap = value;
         save();
     }
 
