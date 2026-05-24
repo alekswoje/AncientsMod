@@ -467,6 +467,21 @@ public final class NetworkHandler {
         }
     }
 
+    /** "Apply this affinity preset." Server overwrites PV 1-6 affinities. */
+    public static void sendPvApplyPreset(String presetKey) {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        if (presetKey == null || presetKey.isEmpty()) return;
+        try {
+            PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer(32));
+            buf.writeByte(Protocol.PKT_PV_APPLY_PRESET);
+            buf.writeString(clamp(presetKey, 64));
+            sendBuf(buf);
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send pv apply preset failed", t);
+        }
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private static void sendString(byte typeId, String s) {

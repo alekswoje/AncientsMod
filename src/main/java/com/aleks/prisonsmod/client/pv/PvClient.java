@@ -5,6 +5,7 @@ import com.aleks.prisonsmod.client.FeatureToggles;
 import com.aleks.prisonsmod.client.ServerAllowlist;
 import com.aleks.prisonsmod.client.screen.PvAffinityPickerScreen;
 import com.aleks.prisonsmod.client.screen.PvOverviewScreen;
+import com.aleks.prisonsmod.client.screen.PvPresetsScreen;
 import com.aleks.prisonsmod.net.NetworkHandler;
 import com.aleks.prisonsmod.net.payload.PvBundlePayload;
 import net.fabricmc.fabric.api.client.message.v1.ClientSendMessageEvents;
@@ -64,6 +65,13 @@ public final class PvClient {
             // One-shot: consume the flag immediately so we don't loop if the
             // bundle never comes back.
             expectingMenuReopen = false;
+            // Open with cached bundle right away so the user never sees the
+            // server's chest GUI flicker; refresh in background.
+            PvBundlePayload cached = latestBundle;
+            if (cached != null) {
+                state = State.OPEN;
+                client.execute(() -> client.setScreen(new PvOverviewScreen(cached)));
+            }
             NetworkHandler.sendPvBundleRequest();
         });
     }
@@ -79,22 +87,40 @@ public final class PvClient {
         // /pvsort, etc. all pass through to the server as vanilla commands.
         if (!(trimmed.equals("pv") || trimmed.equals("personalvault"))) return true;
 
+        // Fast path: if we already have a cached bundle, open the overview
+        // immediately and request a fresh bundle in the background. Avoids
+        // the 3s timeout fallback when the server's rate-limit blocks a quick
+        // re-open of /pv.
+        if (latestBundle != null) {
+            state = State.OPEN;
+            PvBundlePayload cached = latestBundle;
+            MinecraftClient.getInstance().execute(() ->
+                    MinecraftClient.getInstance().setScreen(new PvOverviewScreen(cached)));
+            NetworkHandler.sendPvBundleRequest();
+            PrisonsMod.LOGGER.info("[PV] /pv intercepted, opened cached + bg refresh");
+            return false;
+        }
+
+        // First-time path: no cache yet, wait for the first bundle.
         intentSentAtMs = System.currentTimeMillis();
         state = State.REQUESTING;
         NetworkHandler.sendPvBundleRequest();
-        PrisonsMod.LOGGER.info("[PV] /pv intercepted, BUNDLE_REQ sent");
+        PrisonsMod.LOGGER.info("[PV] /pv intercepted, BUNDLE_REQ sent (no cache)");
         return false; // cancel outbound command
     }
 
     public static void onBundle(PvBundlePayload payload) {
         latestBundle = payload;
         MinecraftClient.getInstance().execute(() -> {
-            // If the affinity picker is open, this bundle was a post-toggle
-            // refresh — re-render the picker in place instead of swapping
-            // screens.
+            // If a mod-side PV screen is open, this bundle is a refresh —
+            // re-render in place instead of swapping screens.
             Screen current = MinecraftClient.getInstance().currentScreen;
             if (current instanceof PvAffinityPickerScreen picker) {
                 picker.onBundleUpdated(payload);
+                return;
+            }
+            if (current instanceof PvPresetsScreen presets) {
+                presets.onBundleUpdated(payload);
                 return;
             }
             if (current instanceof PvOverviewScreen overview) {
@@ -130,6 +156,28 @@ public final class PvClient {
             intentSentAtMs = System.currentTimeMillis();
             NetworkHandler.sendPvBundleRequest();
         }
+    }
+
+    /** Open the presets screen from the picker's "Presets" button. */
+    public static void openPresetsFromPicker(int returnVault) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        PvBundlePayload b = latestBundle;
+        if (b == null) {
+            NetworkHandler.sendPvBundleRequest();
+            return;
+        }
+        client.setScreen(new PvPresetsScreen(returnVault, b));
+    }
+
+    /** Re-open the affinity picker from the presets screen's "Back" button. */
+    public static void openAffinityPickerFromPresets(int vaultNumber) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        PvBundlePayload b = latestBundle;
+        if (b == null) {
+            NetworkHandler.sendPvBundleRequest();
+            return;
+        }
+        client.setScreen(new PvAffinityPickerScreen(vaultNumber, b));
     }
 
     private static volatile PvBundlePayload latestBundle = null;

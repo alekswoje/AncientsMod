@@ -46,6 +46,7 @@ public final class PvAffinityPickerScreen extends Screen {
     private final int vaultNumber;
     private PvBundlePayload bundle;
     private ButtonWidget clearButton;
+    private ButtonWidget presetsButton;
     private ButtonWidget backButton;
 
     public PvAffinityPickerScreen(int vaultNumber, PvBundlePayload bundle) {
@@ -73,10 +74,15 @@ public final class PvAffinityPickerScreen extends Screen {
                         b -> NetworkHandler.sendPvAffinityClear(vaultNumber))
                 .dimensions(panelX + 12, btnY, btnW, 20)
                 .build();
+        presetsButton = ButtonWidget.builder(Text.literal("Presets"),
+                        b -> PvClient.openPresetsFromPicker(vaultNumber))
+                .dimensions(panelX + (PANEL_W - btnW) / 2, btnY, btnW, 20)
+                .build();
         backButton = ButtonWidget.builder(Text.literal("Back to /pv"), b -> PvClient.openOverviewFromPicker())
                 .dimensions(panelX + PANEL_W - btnW - 12, btnY, btnW, 20)
                 .build();
         this.addDrawableChild(clearButton);
+        this.addDrawableChild(presetsButton);
         this.addDrawableChild(backButton);
     }
 

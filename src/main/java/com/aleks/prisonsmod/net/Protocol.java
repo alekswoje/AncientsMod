@@ -458,6 +458,9 @@ public final class Protocol {
     public static final byte PKT_PV_AFFINITY_TOGGLE = (byte) 115;
     /** Clear every affinity bound to a vault. Wire: byte vault. */
     public static final byte PKT_PV_AFFINITY_CLEAR = (byte) 116;
+    /** Apply an affinity preset (overwrites PV 1-6, leaves PV7+ alone).
+     *  Wire: varint+string presetKey. */
+    public static final byte PKT_PV_APPLY_PRESET = (byte) 117;
 
     // --- Hard size caps (wire-level) ---
     /** Maximum bytes for any single cosmetic S2C payload. Larger packets are dropped. */
