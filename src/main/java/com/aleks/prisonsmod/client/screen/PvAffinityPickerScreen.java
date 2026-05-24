@@ -82,26 +82,30 @@ public final class PvAffinityPickerScreen extends Screen {
 
     @Override
     public boolean mouseClicked(Click click, boolean doubleClick) {
-        if (super.mouseClicked(click, doubleClick)) return true;
-        if (click.button() != 0) return false;
-
-        int gridX = (this.width - gridWidth()) / 2;
-        int gridY = (this.height - PANEL_H) / 2 + TITLE_BAR_H + 6;
-        double mx = click.x();
-        double my = click.y();
-
-        PvCategory[] all = PvCategory.values();
-        for (int i = 0; i < all.length; i++) {
-            int col = i % COLS;
-            int row = i / COLS;
-            int cx = gridX + col * (CELL_W + CELL_GAP);
-            int cy = gridY + row * (CELL_H + CELL_GAP);
-            if (mx < cx || mx >= cx + CELL_W) continue;
-            if (my < cy || my >= cy + CELL_H) continue;
-            NetworkHandler.sendPvAffinityToggle(vaultNumber, all[i].storageKey());
-            return true;
+        // Check the cell grid BEFORE delegating to super — otherwise the
+        // parent dispatcher may consume the click (focus-related quirks) and
+        // we never reach the toggle.
+        if (click.button() == 0) {
+            int gridX = (this.width - gridWidth()) / 2;
+            int gridY = (this.height - PANEL_H) / 2 + TITLE_BAR_H + 6;
+            double mx = click.x();
+            double my = click.y();
+            PvCategory[] all = PvCategory.values();
+            for (int i = 0; i < all.length; i++) {
+                int col = i % COLS;
+                int row = i / COLS;
+                int cx = gridX + col * (CELL_W + CELL_GAP);
+                int cy = gridY + row * (CELL_H + CELL_GAP);
+                if (mx < cx || mx >= cx + CELL_W) continue;
+                if (my < cy || my >= cy + CELL_H) continue;
+                com.aleks.prisonsmod.PrisonsMod.LOGGER.info(
+                        "[PvPicker] toggle vault={} key={}", vaultNumber, all[i].storageKey());
+                NetworkHandler.sendPvAffinityToggle(vaultNumber, all[i].storageKey());
+                return true;
+            }
         }
-        return false;
+        // Footer buttons (Clear All, Back) and any future widgets.
+        return super.mouseClicked(click, doubleClick);
     }
 
     @Override
