@@ -1,0 +1,113 @@
+name: Release on v* tag
+
+# Fires when you push a v* tag (e.g. v0.2.1). Builds the mod jar, publishes
+# a GitHub release using CHANGELOG-PREP.md as the body, attaches the built
+# jars, then resets CHANGELOG-PREP.md back to the empty template and commits
+# the reset to master.
+#
+# Manual workflow_dispatch is also supported (pick a tag from the dropdown);
+# useful if a tag was pushed before this workflow existed.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to publish a release for (e.g. v0.2.2)'
+        required: true
+        type: string
+
+permissions:
+  contents: write   # needed to create the release + push the prep reset
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+          fetch-depth: 0
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      - name: Build mod
+        run: |
+          chmod +x ./gradlew
+          ./gradlew build --no-daemon
+          ls -la build/libs/
+
+      - name: Extract release body from CHANGELOG-PREP.md
+        id: notes
+        run: |
+          PREP="$GITHUB_WORKSPACE/CHANGELOG-PREP.md"
+          OUT="$GITHUB_WORKSPACE/.release-notes.md"
+          if [ ! -f "$PREP" ]; then
+            echo "no_prep=true" >> $GITHUB_OUTPUT
+            echo "CHANGELOG-PREP.md not found — release will use the default body."
+            exit 0
+          fi
+          # Count bullets under any `## ` heading.
+          BULLETS=$(awk '/^## /{inside=1; next} inside && /^[-*+] /{n++} END{print n+0}' "$PREP")
+          echo "bullets=$BULLETS" >> $GITHUB_OUTPUT
+          if [ "$BULLETS" -eq 0 ]; then
+            echo "no_bullets=true" >> $GITHUB_OUTPUT
+            echo "Prep file has no bullets — release notes will be minimal."
+            cat > "$OUT" <<EOF
+          Release $TAG.
+
+          (No CHANGELOG-PREP bullets were present for this tag.)
+          EOF
+          else
+            # Strip the prep header block (everything before the first ## heading)
+            # so the release body starts with the first real section.
+            awk 'BEGIN{found=0} /^## /{found=1} found{print}' "$PREP" > "$OUT"
+          fi
+          echo "notes_file=$OUT" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: ${{ env.TAG }}
+          body_path: ${{ steps.notes.outputs.notes_file }}
+          files: |
+            build/libs/prisonsmod-*.jar
+          fail_on_unmatched_files: true
+          generate_release_notes: false
+
+      - name: Reset CHANGELOG-PREP.md and commit to master
+        if: ${{ steps.notes.outputs.no_prep != 'true' && steps.notes.outputs.no_bullets != 'true' }}
+        run: |
+          # Apply the reset on master (the tag commit may be detached/ahead).
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin master
+          git checkout master
+          bash "$GITHUB_WORKSPACE/scripts/reset-changelog-prep.sh"
+          git add CHANGELOG-PREP.md
+          if git diff --cached --quiet; then
+            echo "Prep file unchanged after reset — nothing to commit."
+          else
+            git commit -m "Reset CHANGELOG-PREP after publishing $TAG"
+            git push origin master
+          fi
