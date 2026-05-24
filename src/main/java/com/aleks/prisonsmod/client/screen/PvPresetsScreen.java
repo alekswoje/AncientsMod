@@ -72,7 +72,13 @@ public final class PvPresetsScreen extends Screen {
                 int ty = tileY + i * (TILE_H + TILE_GAP);
                 if (mx < tileX || mx >= tileX + TILE_W) continue;
                 if (my < ty || my >= ty + TILE_H) continue;
+                com.aleks.prisonsmod.PrisonsMod.LOGGER.info(
+                        "[PvPresets] applying preset key={}", all[i].storageKey());
                 NetworkHandler.sendPvApplyPreset(all[i].storageKey());
+                // Jump back to the overview so the user gets immediate
+                // feedback. The bundle reply from the server will refresh
+                // the overview's affinity badges once it arrives.
+                PvClient.openOverviewFromPicker();
                 return true;
             }
         }
