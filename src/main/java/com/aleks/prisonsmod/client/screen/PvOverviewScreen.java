@@ -4,7 +4,6 @@ import com.aleks.prisonsmod.client.pv.PvClient;
 import com.aleks.prisonsmod.net.payload.PvBundlePayload;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.tooltip.Tooltip;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -75,9 +74,11 @@ public final class PvOverviewScreen extends Screen {
             int finalVaultNumber = vault.vaultNumber;
             ButtonWidget btn = ButtonWidget.builder(Text.empty(), b -> PvClient.openVault(finalVaultNumber))
                     .dimensions(cx, cy, CARD_W, CARD_H)
-                    .tooltip(Tooltip.of(Text.literal("§eClick to open PV " + finalVaultNumber)))
                     .build();
-            // Make it visually transparent — we render the card ourselves.
+            // No tooltip — it covers the item grid. The gold hover border
+            // already signals the card is clickable, and item-hover tooltips
+            // (rendered by us in render()) wouldn't show through a button
+            // tooltip anyway.
             btn.visible = true;
             this.addDrawableChild(btn);
         }
