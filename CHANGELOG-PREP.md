@@ -16,6 +16,7 @@
 
 - **The `/pv` overview now scrolls vertically** so you can browse all your personal vaults when you have more than fit on screen. The Sort button stays anchored in the footer; mouse-wheel scrolls one row at a time.
 - **Fixed: clicking PV 8 in the `/pv` overview did nothing.** An off-by-one cap rejected vault 8 before the request reached the server — left-click and right-click now both work on every accessible vault.
+- **Affinity picker shows when a category is bound to multiple PVs.** A category bound to both this vault and elsewhere displays "✔ + PV 5,9"; a category bound only on other PVs shows "on PV 5,9". Click still toggles only this vault's binding (multi-affinity is the new default — other bindings stay).
 
 ## Input & Keybinds
 

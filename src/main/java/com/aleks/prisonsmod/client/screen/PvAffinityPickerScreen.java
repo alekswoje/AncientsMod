@@ -11,7 +11,10 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.item.ItemStack;
 import net.minecraft.text.Text;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -132,7 +135,7 @@ public final class PvAffinityPickerScreen extends Screen {
         ctx.fill(panelX, panelY, panelX + PANEL_W, panelY + TITLE_BAR_H, 0xFF1A1A1A);
         ctx.drawText(this.textRenderer, Text.literal("§ePV " + vaultNumber + " Affinities"),
                 panelX + 10, panelY + 8, 0xFFFFFFFF, true);
-        String hint = "§7Click a category to bind/move/unbind";
+        String hint = "§7Click to bind/unbind · §8multiple PVs OK";
         int hintW = this.textRenderer.getWidth(hint);
         ctx.drawText(this.textRenderer, Text.literal(hint),
                 panelX + PANEL_W - hintW - 10, panelY + 8, 0xFFAAAAAA, false);
@@ -142,7 +145,7 @@ public final class PvAffinityPickerScreen extends Screen {
     public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
         super.render(ctx, mouseX, mouseY, delta);
 
-        Map<PvCategory, Integer> owner = ownerByCategory();
+        Map<PvCategory, List<Integer>> owners = ownersByCategory();
         int gridX = (this.width - gridWidth()) / 2;
         int gridY = (this.height - PANEL_H) / 2 + TITLE_BAR_H + 6;
 
@@ -154,22 +157,23 @@ public final class PvAffinityPickerScreen extends Screen {
             int cy = gridY + row * (CELL_H + CELL_GAP);
             boolean hover = mouseX >= cx && mouseX < cx + CELL_W
                     && mouseY >= cy && mouseY < cy + CELL_H;
-            renderCell(ctx, all[i], cx, cy, hover, owner);
+            renderCell(ctx, all[i], cx, cy, hover, owners);
         }
     }
 
     private void renderCell(DrawContext ctx, PvCategory cat, int x, int y, boolean hover,
-                            Map<PvCategory, Integer> owner) {
-        int boundVault = owner.getOrDefault(cat, 0);
-        boolean here = boundVault == vaultNumber;
-        boolean elsewhere = boundVault > 0 && boundVault != vaultNumber;
+                            Map<PvCategory, List<Integer>> owners) {
+        List<Integer> ownerVaults = owners.getOrDefault(cat, Collections.emptyList());
+        boolean here = ownerVaults.contains(vaultNumber);
+        List<Integer> elsewhere = new ArrayList<>(ownerVaults);
+        elsewhere.remove(Integer.valueOf(vaultNumber));
 
         int bg;
         int border;
         if (here) {
             bg = hover ? 0xFF1E3A1E : 0xFF152915;
             border = hover ? 0xFF55FF55 : 0xFF338833;
-        } else if (elsewhere) {
+        } else if (!elsewhere.isEmpty()) {
             bg = hover ? 0xFF3A2E15 : 0xFF2A2210;
             border = hover ? 0xFFFFCC33 : 0xFF886633;
         } else {
@@ -182,16 +186,13 @@ public final class PvAffinityPickerScreen extends Screen {
         ctx.fill(x, y, x + 1, y + CELL_H, border);
         ctx.fill(x + CELL_W - 1, y, x + CELL_W, y + CELL_H, border);
 
-        // Icon — vertically centered on the left.
         ItemStack icon = new ItemStack(cat.icon());
         int iconX = x + 4;
         int iconY = y + (CELL_H - 16) / 2;
         ctx.drawItem(icon, iconX, iconY);
 
-        // Name + status text on the right.
         int textX = x + 24;
-        String name = (here ? "§a" : (elsewhere ? "§6" : "§f")) + cat.displayName();
-        // Trim name to fit in the cell, leaving space for status badge.
+        String name = (here ? "§a" : (!elsewhere.isEmpty() ? "§6" : "§f")) + cat.displayName();
         int maxNameW = CELL_W - 24 - 4;
         name = trimWithEllipsis(name, maxNameW);
         ctx.drawText(this.textRenderer, Text.literal(name),
@@ -199,29 +200,43 @@ public final class PvAffinityPickerScreen extends Screen {
 
         String status;
         int statusColor;
-        if (here) {
+        if (here && elsewhere.isEmpty()) {
             status = "§a✔ bound";
             statusColor = 0xFFAAFFAA;
-        } else if (elsewhere) {
-            status = "§eon PV " + boundVault;
+        } else if (here) {
+            status = "§a✔ §7+ " + formatPvList(elsewhere);
+            statusColor = 0xFFAAFFAA;
+        } else if (!elsewhere.isEmpty()) {
+            status = "§eon " + formatPvList(elsewhere);
             statusColor = 0xFFFFCC55;
         } else {
             status = "§8unbound";
             statusColor = 0xFF888888;
         }
-        ctx.drawText(this.textRenderer, Text.literal(status),
+        String trimmedStatus = trimWithEllipsis(status, CELL_W - 24 - 4);
+        ctx.drawText(this.textRenderer, Text.literal(trimmedStatus),
                 textX, y + 18, statusColor, false);
     }
 
-    private Map<PvCategory, Integer> ownerByCategory() {
-        EnumMap<PvCategory, Integer> map = new EnumMap<>(PvCategory.class);
+    private static String formatPvList(List<Integer> pvs) {
+        if (pvs.isEmpty()) return "";
+        StringBuilder sb = new StringBuilder("PV ");
+        for (int i = 0; i < pvs.size(); i++) {
+            if (i > 0) sb.append(",");
+            sb.append(pvs.get(i));
+        }
+        return sb.toString();
+    }
+
+    private Map<PvCategory, List<Integer>> ownersByCategory() {
+        EnumMap<PvCategory, List<Integer>> map = new EnumMap<>(PvCategory.class);
         if (bundle == null) return map;
         for (PvBundlePayload.Vault v : bundle.vaults) {
             if (v.affinityCsv == null || v.affinityCsv.isEmpty()) continue;
             for (String token : v.affinityCsv.split(",")) {
                 PvCategory cat = PvCategory.fromStorageKey(token.trim());
                 if (cat == null) continue;
-                map.putIfAbsent(cat, v.vaultNumber);
+                map.computeIfAbsent(cat, k -> new ArrayList<>()).add(v.vaultNumber);
             }
         }
         return map;
