@@ -14,7 +14,8 @@
 
 ## UI & Screens
 
-- New **Personal Vaults overview screen** — running `/pv` now opens a single screen showing all 7 of your PVs side-by-side with item previews and the affinity bindings for each vault. Click any vault card to open it normally. Toggleable in Settings → Network. `/pv 1`, `/pv 2`, `/pvsort` etc. still go to the server unchanged.
+- New **Personal Vaults overview screen** — running `/pv` now opens a single screen showing all 8 of your PVs side-by-side with item previews and the affinity bindings for each vault. Click any vault card to open it normally. Toggleable in Settings → Custom Screens. `/pv 1`, `/pv 2`, `/pvsort` etc. still go to the server unchanged.
+- Settings reorganised: the **PV overview** and **bug-report UI** toggles moved out of *Network* into their own **Custom Screens** section, so Network now lists only true network behaviors (update alert, auto-rejoin).
 
 ## Input & Keybinds
 

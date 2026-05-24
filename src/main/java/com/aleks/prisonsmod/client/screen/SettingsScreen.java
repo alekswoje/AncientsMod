@@ -58,13 +58,15 @@ public final class SettingsScreen extends WidgetSettingsScreen {
         addToggle("Rift texture pack (tints stone + ores white)",
                 FeatureToggles::isRiftTexturePackEnabled, FeatureToggles::setRiftTexturePack);
 
-        addSection("Network");
-        addToggle("Update alert on server join",
-                FeatureToggles::isUpdateAlertEnabled, FeatureToggles::setUpdateAlert);
+        addSection("Custom Screens");
         addToggle("Bug-report UI on /bugreport",
                 FeatureToggles::isBugReportUiEnabled, FeatureToggles::setBugReportUi);
         addToggle("PV overview screen on /pv (no args)",
                 FeatureToggles::isPvOverviewEnabled, FeatureToggles::setPvOverview);
+
+        addSection("Network");
+        addToggle("Update alert on server join",
+                FeatureToggles::isUpdateAlertEnabled, FeatureToggles::setUpdateAlert);
         addToggle("Auto-rejoin after kick (retry every 5s)",
                 FeatureToggles::isAutoRejoinEnabled, FeatureToggles::setAutoRejoin);
     }
