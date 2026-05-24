@@ -485,7 +485,7 @@ public final class NetworkHandler {
         }
     }
 
-    /** "Apply this affinity preset." Server overwrites PV 1-6 affinities. */
+    /** "Apply this affinity preset." Server overwrites every unlocked PV's affinities. */
     public static void sendPvApplyPreset(String presetKey) {
         if (!ServerAllowlist.isAllowed()) return;
         if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
@@ -509,6 +509,23 @@ public final class NetworkHandler {
             ClientPlayNetworking.send(new RawPayload(new byte[] { Protocol.PKT_PV_SORT_REQ }));
         } catch (Throwable t) {
             PrisonsMod.LOGGER.debug("send pv sort req failed", t);
+        }
+    }
+
+    /** "Swap PV from ↔ PV to." Triggered by drag-drop in the overview. Server
+     *  validates accessibility + slot capacity, swaps contents + affinities
+     *  atomically, then pushes a fresh PKT_PV_BUNDLE. */
+    public static void sendPvSwapRequest(int from, int to) {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        if (from < 1 || from > Protocol.PV_MAX_VAULTS) return;
+        if (to < 1 || to > Protocol.PV_MAX_VAULTS) return;
+        if (from == to) return;
+        try {
+            ClientPlayNetworking.send(new RawPayload(new byte[] {
+                    Protocol.PKT_PV_SWAP_REQ, (byte) (from & 0xFF), (byte) (to & 0xFF) }));
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send pv swap req failed", t);
         }
     }
 

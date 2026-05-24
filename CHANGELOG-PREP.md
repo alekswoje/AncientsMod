@@ -17,6 +17,8 @@
 - **The `/pv` overview now scrolls vertically** so you can browse all your personal vaults when you have more than fit on screen. The Sort button stays anchored in the footer; mouse-wheel scrolls one row at a time.
 - **Fixed: clicking PV 8 in the `/pv` overview did nothing.** An off-by-one cap rejected vault 8 before the request reached the server — left-click and right-click now both work on every accessible vault.
 - **Affinity picker shows when a category is bound to multiple PVs.** A category bound to both this vault and elsewhere displays "✔ + PV 5,9"; a category bound only on other PVs shows "on PV 5,9". Click still toggles only this vault's binding (multi-affinity is the new default — other bindings stay).
+- **Drag-and-drop reorder in the `/pv` overview.** Click and drag any PV tile onto another to swap their contents and affinities — drop a high-volume PV next to its sibling so they sit together in your overview. Drag ghost follows the cursor, valid drop targets pulse yellow, and both tiles flash on release.
+- **Smooth animations in the `/pv` overview.** Hover state eases in over ~250ms, drag ghost renders at the cursor with a translucent panel, and the swap completion flash fades out cleanly. Behavior is unchanged — just nicer to look at.
 
 ## Input & Keybinds
 

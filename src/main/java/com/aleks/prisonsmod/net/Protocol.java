@@ -458,7 +458,7 @@ public final class Protocol {
     public static final byte PKT_PV_AFFINITY_TOGGLE = (byte) 115;
     /** Clear every affinity bound to a vault. Wire: byte vault. */
     public static final byte PKT_PV_AFFINITY_CLEAR = (byte) 116;
-    /** Apply an affinity preset (overwrites PV 1-6, leaves PV7+ alone).
+    /** Apply an affinity preset (overwrites every unlocked PV's affinities).
      *  Wire: varint+string presetKey. */
     public static final byte PKT_PV_APPLY_PRESET = (byte) 117;
     /** Trigger /pvsort and re-send the bundle so the overview refreshes
@@ -482,6 +482,11 @@ public final class Protocol {
      *  {@code int playerInvSlot} (0..35, Bukkit ordering — hotbar 0..8,
      *  main inv 9..35). */
     public static final byte PKT_PV_SHIFT_CLICK_REQ = (byte) 120;
+
+    /** Swap two vaults' contents + affinities. Sent by the overview screen on
+     *  drag-drop. Wire: byte fromVault, byte toVault. Server replies with a
+     *  fresh PKT_PV_BUNDLE so the screen re-renders. */
+    public static final byte PKT_PV_SWAP_REQ = (byte) 121;
 
     // --- Hard size caps (wire-level) ---
     /** Maximum bytes for any single cosmetic S2C payload. Larger packets are dropped. */

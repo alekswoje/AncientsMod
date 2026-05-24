@@ -14,9 +14,9 @@ import net.minecraft.text.Text;
 /**
  * Preset picker — opened from a {@link PvAffinityPickerScreen}'s "Presets"
  * button. Lists the 4 available presets as tiles. Click previews the layout
- * in chat; shift-click applies the preset (server overwrites PV 1-6
- * affinities). After apply, server pushes a fresh bundle and we route back
- * to the overview.
+ * in chat; shift-click applies the preset (server overwrites every unlocked
+ * PV's affinities). After apply, server pushes a fresh bundle and we route
+ * back to the overview.
  */
 public final class PvPresetsScreen extends Screen {
 
@@ -99,7 +99,7 @@ public final class PvPresetsScreen extends Screen {
         ctx.fill(panelX, panelY, panelX + PANEL_W, panelY + TITLE_BAR_H, 0xFF1A1A1A);
         ctx.drawText(this.textRenderer, Text.literal("§eAffinity Presets"),
                 panelX + 10, panelY + 8, 0xFFFFFFFF, true);
-        String hint = "§7Click a preset to apply · overwrites PV 1-6";
+        String hint = "§7Click a preset · overwrites every unlocked PV";
         int hintW = this.textRenderer.getWidth(hint);
         ctx.drawText(this.textRenderer, Text.literal(hint),
                 panelX + PANEL_W - hintW - 10, panelY + 8, 0xFFAAAAAA, false);
