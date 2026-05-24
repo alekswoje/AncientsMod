@@ -7,7 +7,9 @@ import com.aleks.prisonsmod.client.screen.PvOverviewScreen;
 import com.aleks.prisonsmod.net.NetworkHandler;
 import com.aleks.prisonsmod.net.payload.PvBundlePayload;
 import net.fabricmc.fabric.api.client.message.v1.ClientSendMessageEvents;
+import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.text.Text;
 
 import java.util.Locale;
@@ -34,8 +36,34 @@ public final class PvClient {
     private static volatile State state = State.IDLE;
     private static volatile long intentSentAtMs = 0L;
 
+    /**
+     * When true, the next time the server opens the PersonalVaultMenu chest
+     * GUI (title "Personal Vaults") the mod should swap it for a fresh
+     * overview. Set when the player navigates into a vault from the overview;
+     * cleared once the swap has been consumed or the player explicitly closes
+     * the overview without re-navigating.
+     */
+    private static volatile boolean expectingMenuReopen = false;
+
     public static void register() {
         ClientSendMessageEvents.ALLOW_COMMAND.register(PvClient::onCommand);
+        // Detect the server reopening the PersonalVaultMenu chest GUI after
+        // a vault-or-picker close. When the flag is set (meaning the user
+        // arrived here via the mod overview), trigger a fresh bundle request
+        // and let onBundle replace the chest screen with the overview.
+        ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> {
+            if (!expectingMenuReopen) return;
+            if (!ServerAllowlist.isAllowed()) return;
+            if (!FeatureToggles.isPvOverviewEnabled()) return;
+            if (!(screen instanceof HandledScreen<?> hs)) return;
+            String title = hs.getTitle().getString();
+            if (title == null) return;
+            if (!title.equals("Personal Vaults")) return;
+            // One-shot: consume the flag immediately so we don't loop if the
+            // bundle never comes back.
+            expectingMenuReopen = false;
+            NetworkHandler.sendPvBundleRequest();
+        });
     }
 
     private static boolean onCommand(String command) {
@@ -71,15 +99,38 @@ public final class PvClient {
         state = State.IDLE;
     }
 
-    /** Open a specific PV via the vanilla server flow (used when the user clicks
-     *  a vault preview in the overview screen). */
+    /** Open a specific PV from the overview. Sends a custom packet rather
+     *  than {@code /pv N} so the server can open with
+     *  {@code reopenMenuOnClose=true}; combined with the menu-intercept flag
+     *  below, closing the vault returns the player to a fresh overview. */
     public static void openVault(int vaultNumber) {
         state = State.IDLE;
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null || client.getNetworkHandler() == null) return;
         if (vaultNumber < 1 || vaultNumber > 7) return;
+        expectingMenuReopen = true;
         client.setScreen(null);
-        client.getNetworkHandler().sendChatCommand("pv " + vaultNumber);
+        NetworkHandler.sendPvOpenRequest(vaultNumber);
+    }
+
+    /** Open the affinity picker for a vault from the overview. Triggered by
+     *  right-click on a card. Server gates on Ascendant rank. */
+    public static void openAffinityPicker(int vaultNumber) {
+        state = State.IDLE;
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.player == null || client.getNetworkHandler() == null) return;
+        if (vaultNumber < 1 || vaultNumber > 7) return;
+        expectingMenuReopen = true;
+        client.setScreen(null);
+        NetworkHandler.sendPvAffinityOpenRequest(vaultNumber);
+    }
+
+    public static boolean isExpectingMenuReopen() {
+        return expectingMenuReopen;
+    }
+
+    public static void clearExpectingMenuReopen() {
+        expectingMenuReopen = false;
     }
 
     public static void tick() {

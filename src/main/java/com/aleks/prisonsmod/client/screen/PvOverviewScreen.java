@@ -2,9 +2,9 @@ package com.aleks.prisonsmod.client.screen;
 
 import com.aleks.prisonsmod.client.pv.PvClient;
 import com.aleks.prisonsmod.net.payload.PvBundlePayload;
+import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
@@ -56,32 +56,40 @@ public final class PvOverviewScreen extends Screen {
 
     @Override
     protected void init() {
+        // Click handling lives in mouseClicked override below so we can
+        // distinguish left vs right button (ButtonWidget only fires on left).
+        // Hit boxes are computed from the grid layout in render().
+    }
+
+    @Override
+    public boolean mouseClicked(Click click, boolean doubleClick) {
+        // Left = open vault. Right = open affinity picker.
+        int button = click.button();
+        if (button != 0 && button != 1) {
+            return super.mouseClicked(click, doubleClick);
+        }
+        double mouseX = click.x();
+        double mouseY = click.y();
         int gridX = (this.width - gridWidth()) / 2;
         int gridY = (this.height - gridHeight()) / 2 + TITLE_BAR_H;
-
-        // Invisible click targets per card so we can route clicks via the
-        // standard widget pipeline (keyboard accessibility comes for free).
         for (int idx = 0; idx < bundle.vaults.size(); idx++) {
             PvBundlePayload.Vault vault = bundle.vaults.get(idx);
             int col = idx % CARDS_PER_ROW;
             int row = idx / CARDS_PER_ROW;
             if (row >= CARD_ROWS) break;
+            if (!vault.isAccessible()) continue;
             int cx = gridX + col * (CARD_W + CARD_GAP);
             int cy = gridY + row * (CARD_H + CARD_GAP);
-
-            if (!vault.isAccessible()) continue; // locked vault — not clickable
-
-            int finalVaultNumber = vault.vaultNumber;
-            ButtonWidget btn = ButtonWidget.builder(Text.empty(), b -> PvClient.openVault(finalVaultNumber))
-                    .dimensions(cx, cy, CARD_W, CARD_H)
-                    .build();
-            // No tooltip — it covers the item grid. The gold hover border
-            // already signals the card is clickable, and item-hover tooltips
-            // (rendered by us in render()) wouldn't show through a button
-            // tooltip anyway.
-            btn.visible = true;
-            this.addDrawableChild(btn);
+            if (mouseX < cx || mouseX >= cx + CARD_W) continue;
+            if (mouseY < cy || mouseY >= cy + CARD_H) continue;
+            if (button == 1) {
+                PvClient.openAffinityPicker(vault.vaultNumber);
+            } else {
+                PvClient.openVault(vault.vaultNumber);
+            }
+            return true;
         }
+        return super.mouseClicked(click, doubleClick);
     }
 
     @Override
@@ -134,7 +142,7 @@ public final class PvOverviewScreen extends Screen {
         ctx.fill(panelX, panelY, panelX + panelW, panelY + TITLE_BAR_H, 0xFF1A1A1A);
         ctx.drawText(this.textRenderer, Text.literal("§ePersonal Vaults"),
                 panelX + 10, panelY + 8, 0xFFFFFFFF, true);
-        String hint = "§8ESC to close · click a vault to open";
+        String hint = "§7Left-click §8open  §7Right-click §8affinities  §7ESC §8close";
         int hintW = this.textRenderer.getWidth(hint);
         ctx.drawText(this.textRenderer, Text.literal(hint),
                 panelX + panelW - hintW - 10, panelY + 8, 0xFFAAAAAA, false);
@@ -218,7 +226,7 @@ public final class PvOverviewScreen extends Screen {
             }
         }
 
-        // Affinities row
+        // Affinities row (left) + right-click hint (right).
         int affY = y + CARD_H - 14;
         String affText = formatAffinity(vault.affinityCsv);
         if (affText.isEmpty()) {
@@ -228,6 +236,11 @@ public final class PvOverviewScreen extends Screen {
             ctx.drawText(this.textRenderer, Text.literal("§b" + affText),
                     x + 6, affY, 0xFF88EEFF, false);
         }
+
+        String rmbHint = hover ? "§eRMB: edit" : "§8RMB: edit";
+        int rmbW = this.textRenderer.getWidth(rmbHint);
+        ctx.drawText(this.textRenderer, Text.literal(rmbHint),
+                x + CARD_W - rmbW - 6, affY, hover ? 0xFFFFCC33 : 0xFF666666, false);
     }
 
     private ItemStack resolveStack(PvBundlePayload.Slot slot) {

@@ -400,6 +400,41 @@ public final class NetworkHandler {
         }
     }
 
+    /**
+     * "Open this vault for me — and reopen the menu on close." Server
+     * responds with the standard chest GUI; close returns to the
+     * PersonalVaultMenu chest GUI, which the mod intercepts and replaces
+     * with a fresh overview.
+     */
+    public static void sendPvOpenRequest(int vaultNumber) {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        if (vaultNumber < 1 || vaultNumber > 7) return;
+        try {
+            ClientPlayNetworking.send(new RawPayload(new byte[] {
+                    Protocol.PKT_PV_OPEN_REQ, (byte) (vaultNumber & 0xFF) }));
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send pv open req failed", t);
+        }
+    }
+
+    /**
+     * "Open the affinity picker for this vault." Same flow as shift- or right-
+     * clicking the tile in PersonalVaultMenu, but accessible directly from
+     * the mod overview.
+     */
+    public static void sendPvAffinityOpenRequest(int vaultNumber) {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        if (vaultNumber < 1 || vaultNumber > 7) return;
+        try {
+            ClientPlayNetworking.send(new RawPayload(new byte[] {
+                    Protocol.PKT_PV_AFFINITY_OPEN_REQ, (byte) (vaultNumber & 0xFF) }));
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send pv affinity open req failed", t);
+        }
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private static void sendString(byte typeId, String s) {

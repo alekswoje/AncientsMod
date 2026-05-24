@@ -441,6 +441,18 @@ public final class Protocol {
      * containing all 7 PVs' summarized contents.
      */
     public static final byte PKT_PV_BUNDLE_REQ = (byte) 112;
+    /**
+     * Player clicked a vault card in the mod's overview. Server opens the
+     * vault chest GUI with {@code reopenMenuOnClose=true} so closing returns
+     * to the PersonalVaultMenu (which the mod intercepts and swaps for a
+     * fresh overview). Wire format: single byte vault (1..7).
+     */
+    public static final byte PKT_PV_OPEN_REQ = (byte) 113;
+    /**
+     * Player right-clicked a vault card in the mod's overview — open the
+     * affinity picker for that vault. Wire format: single byte vault (1..7).
+     */
+    public static final byte PKT_PV_AFFINITY_OPEN_REQ = (byte) 114;
 
     // --- Hard size caps (wire-level) ---
     /** Maximum bytes for any single cosmetic S2C payload. Larger packets are dropped. */
