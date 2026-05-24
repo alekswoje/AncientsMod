@@ -20,4 +20,6 @@
 
 ## Updates & Installation
 
+- Fixed the **in-mod auto-updater** picking the wrong jar from the GitHub release — when both the runnable jar and a `-sources.jar` were attached, the updater grabbed whichever came first in the API response and could download the sources jar (no compiled classes), causing the game to crash on next launch with a `MixinApplyError: EquipmentRendererMixin was not found`. Updater now explicitly skips `-sources.jar`, `-dev.jar`, and `-shadow.jar` variants.
+
 ## Quality of Life

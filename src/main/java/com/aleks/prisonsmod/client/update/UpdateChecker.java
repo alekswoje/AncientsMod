@@ -121,7 +121,9 @@ public final class UpdateChecker {
         return new ReleaseInfo(stripLeadingV(tag), htmlUrl, assetUrl);
     }
 
-    /** Returns the browser_download_url for the first {@code prisonsmod-*.jar} asset, or null. */
+    /** Returns the browser_download_url for the runnable mod jar asset
+     *  ({@code prisonsmod-X.Y.Z.jar} — NOT {@code -sources.jar} or
+     *  {@code -dev.jar}), or null if none found. */
     private static String findJarAsset(JsonObject root) {
         if (!root.has("assets") || !root.get("assets").isJsonArray()) return null;
         JsonArray assets = root.getAsJsonArray("assets");
@@ -129,10 +131,14 @@ public final class UpdateChecker {
             if (!el.isJsonObject()) continue;
             JsonObject a = el.getAsJsonObject();
             String name = a.has("name") && !a.get("name").isJsonNull() ? a.get("name").getAsString() : "";
-            if (name.startsWith("prisonsmod-") && name.endsWith(".jar")) {
-                JsonElement url = a.get("browser_download_url");
-                if (url != null && !url.isJsonNull()) return url.getAsString();
-            }
+            if (!name.startsWith("prisonsmod-") || !name.endsWith(".jar")) continue;
+            // Skip non-runnable jar variants — sources jars contain only .java
+            // files and trigger a MixinApplyError on load because the compiled
+            // mixin classes aren't there. Dev / shadow jars likewise.
+            if (name.endsWith("-sources.jar") || name.endsWith("-dev.jar")
+                    || name.endsWith("-shadow.jar")) continue;
+            JsonElement url = a.get("browser_download_url");
+            if (url != null && !url.isJsonNull()) return url.getAsString();
         }
         return null;
     }
