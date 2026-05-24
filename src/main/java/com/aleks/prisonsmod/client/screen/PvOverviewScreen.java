@@ -1,10 +1,12 @@
 package com.aleks.prisonsmod.client.screen;
 
 import com.aleks.prisonsmod.client.pv.PvClient;
+import com.aleks.prisonsmod.net.NetworkHandler;
 import com.aleks.prisonsmod.net.payload.PvBundlePayload;
 import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
@@ -38,7 +40,8 @@ public final class PvOverviewScreen extends Screen {
     private static final int GRID_ROWS = 6;
 
     private static final int TITLE_BAR_H = 24;
-    private static final int FOOTER_H = 18;
+    /** Bumped from 18 to 28 to fit a 20px Sort button + padding. */
+    private static final int FOOTER_H = 28;
 
     private PvBundlePayload bundle;
 
@@ -61,9 +64,23 @@ public final class PvOverviewScreen extends Screen {
 
     @Override
     protected void init() {
-        // Click handling lives in mouseClicked override below so we can
-        // distinguish left vs right button (ButtonWidget only fires on left).
-        // Hit boxes are computed from the grid layout in render().
+        // Click handling for cards lives in mouseClicked override below so we
+        // can distinguish left vs right button (ButtonWidget only fires on
+        // left). Hit boxes are computed from the grid layout in render().
+        // Add a single Sort button at the bottom-right of the panel — runs
+        // /pvsort via PKT_PV_SORT_REQ and refreshes the bundle.
+        int totalW = gridWidth();
+        int totalH = gridHeight();
+        int panelX = (this.width - totalW) / 2 - 8;
+        int panelY = (this.height - totalH) / 2 - 8;
+        int panelW = totalW + 16;
+        int panelH = totalH + 16;
+        int btnW = 90;
+        int btnY = panelY + panelH - FOOTER_H + 4;
+        ButtonWidget sortBtn = ButtonWidget.builder(Text.literal("Sort"), b -> NetworkHandler.sendPvSortRequest())
+                .dimensions(panelX + panelW - btnW - 10, btnY, btnW, 20)
+                .build();
+        this.addDrawableChild(sortBtn);
     }
 
     @Override

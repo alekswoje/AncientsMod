@@ -18,6 +18,7 @@ public enum PvCategory {
     ENCHANT_DUST("enchant_dust", "Enchant Dust", "Regular and calcified enchant dust", Items.GLOWSTONE_DUST),
     SHARDS("shards", "Shards", "Raw shards and shard satchels", Items.PRISMARINE_SHARD),
     ENCHANT_ORBS("enchant_orbs", "Enchant Orbs", "Godly, mystery, and exceptional orbs", Items.PURPLE_DYE),
+    ENCHANT_TOOLS("enchant_tools", "Enchant Tools", "Black/white scrolls, randomization scrolls, slot expanders", Items.ENCHANTED_BOOK),
     BOSS_ESSENCES("boss_essences", "Boss Essences", "Echidna / Lamia / Hephaestus / Thanatos", Items.GHAST_TEAR),
     BOSS_KEYS("boss_keys", "Boss Keys", "Altar keys for summoning bosses", Items.TRIPWIRE_HOOK),
     CRATES_AND_BOXES("crates_and_boxes", "Crates & Boxes", "Lootboxes, bundles, lockboxes, crates, lootbags", Items.CHEST),

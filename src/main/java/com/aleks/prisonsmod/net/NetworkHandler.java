@@ -482,6 +482,18 @@ public final class NetworkHandler {
         }
     }
 
+    /** "Run /pvsort." Server reshuffles items by affinity and pushes back
+     *  a fresh PKT_PV_BUNDLE so the overview re-renders in place. */
+    public static void sendPvSortRequest() {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            ClientPlayNetworking.send(new RawPayload(new byte[] { Protocol.PKT_PV_SORT_REQ }));
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send pv sort req failed", t);
+        }
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private static void sendString(byte typeId, String s) {

@@ -461,6 +461,9 @@ public final class Protocol {
     /** Apply an affinity preset (overwrites PV 1-6, leaves PV7+ alone).
      *  Wire: varint+string presetKey. */
     public static final byte PKT_PV_APPLY_PRESET = (byte) 117;
+    /** Trigger /pvsort and re-send the bundle so the overview refreshes
+     *  in place. No payload. */
+    public static final byte PKT_PV_SORT_REQ = (byte) 118;
 
     // --- Hard size caps (wire-level) ---
     /** Maximum bytes for any single cosmetic S2C payload. Larger packets are dropped. */
