@@ -90,8 +90,19 @@ jobs:
           tag_name: ${{ env.TAG }}
           name: ${{ env.TAG }}
           body_path: ${{ steps.notes.outputs.notes_file }}
+          # Exclude -sources.jar (and -dev/-shadow if Loom ever emits them):
+          # the in-mod auto-updater used to grab whichever prisonsmod-*.jar
+          # asset the GitHub API listed first, and the sources jar (no
+          # compiled classes) crashed the game on next launch with
+          # "MixinApplyError: EquipmentRendererMixin not found".
+          # UpdateChecker.findJarAsset now defensively skips these on the
+          # client side too (since v0.2.3), but the cleanest fix is to not
+          # publish them in the first place.
           files: |
             build/libs/prisonsmod-*.jar
+            !build/libs/prisonsmod-*-sources.jar
+            !build/libs/prisonsmod-*-dev.jar
+            !build/libs/prisonsmod-*-shadow.jar
           fail_on_unmatched_files: true
           generate_release_notes: false
 
