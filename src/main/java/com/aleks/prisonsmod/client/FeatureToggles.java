@@ -61,11 +61,17 @@ public final class FeatureToggles {
     /** Intercept {@code /suggest} and open the in-game GUI. Off = command goes to the server (which will tell vanilla users to install the mod). */
     private static volatile boolean suggestUi = true;
 
+    /** Intercept {@code /pv} (no args) and open the mod's overview screen showing all 7 PVs at once. Off = vanilla server menu. */
+    private static volatile boolean pvOverview = true;
+
     /** Auto-load the bundled rift texture pack (tints stone + ores white so the four special blocks pop) while in {@code tartarus_rift}. Drives {@link RiftTexturePackManager}. */
     private static volatile boolean riftTexturePack = false;
 
     /** When dragging a widget in the HUD editor, snap to positions that make spacing relative to other widgets equal (midpoint between two, or continuing a pattern of three). */
     private static volatile boolean evenSpacingSnap = true;
+
+    /** Auto-rejoin the server after an involuntary disconnect (kick, restart, network drop). Retries every 5s while the disconnect screen is showing. Backend routing + queueing on the way back in is handled by the proxy. */
+    private static volatile boolean autoRejoin = false;
 
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -95,8 +101,10 @@ public final class FeatureToggles {
             updateAlert = parseBool(props.getProperty("updateAlert"), updateAlert);
             bugReportUi = parseBool(props.getProperty("bugReportUi"), bugReportUi);
             suggestUi = parseBool(props.getProperty("suggestUi"), suggestUi);
+            pvOverview = parseBool(props.getProperty("pvOverview"), pvOverview);
             riftTexturePack = parseBool(props.getProperty("riftTexturePack"), riftTexturePack);
             evenSpacingSnap = parseBool(props.getProperty("evenSpacingSnap"), evenSpacingSnap);
+            autoRejoin = parseBool(props.getProperty("autoRejoin"), autoRejoin);
         } catch (IOException e) {
             PrisonsMod.LOGGER.warn("failed to load {}: {}", FILE_NAME, e.getMessage());
         }
@@ -117,8 +125,10 @@ public final class FeatureToggles {
         props.setProperty("updateAlert", Boolean.toString(updateAlert));
         props.setProperty("bugReportUi", Boolean.toString(bugReportUi));
         props.setProperty("suggestUi", Boolean.toString(suggestUi));
+        props.setProperty("pvOverview", Boolean.toString(pvOverview));
         props.setProperty("riftTexturePack", Boolean.toString(riftTexturePack));
         props.setProperty("evenSpacingSnap", Boolean.toString(evenSpacingSnap));
+        props.setProperty("autoRejoin", Boolean.toString(autoRejoin));
         try {
             Files.createDirectories(configPath().getParent());
             try (var out = Files.newOutputStream(configPath())) {
@@ -263,6 +273,14 @@ public final class FeatureToggles {
         save();
     }
 
+    public static boolean isPvOverviewEnabled() { return pvOverview; }
+
+    public static void setPvOverview(boolean value) {
+        if (pvOverview == value) return;
+        pvOverview = value;
+        save();
+    }
+
     public static boolean isRiftTexturePackEnabled() { return riftTexturePack; }
 
     public static void setRiftTexturePack(boolean value) {
@@ -276,6 +294,14 @@ public final class FeatureToggles {
     public static void setEvenSpacingSnap(boolean value) {
         if (evenSpacingSnap == value) return;
         evenSpacingSnap = value;
+        save();
+    }
+
+    public static boolean isAutoRejoinEnabled() { return autoRejoin; }
+
+    public static void setAutoRejoin(boolean value) {
+        if (autoRejoin == value) return;
+        autoRejoin = value;
         save();
     }
 

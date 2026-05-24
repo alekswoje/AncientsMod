@@ -2,6 +2,7 @@ package com.aleks.prisonsmod.client;
 
 import com.aleks.prisonsmod.PrisonsMod;
 import com.aleks.prisonsmod.client.bugreport.BugReportClient;
+import com.aleks.prisonsmod.client.pv.PvClient;
 import com.aleks.prisonsmod.client.suggest.SuggestClient;
 import com.aleks.prisonsmod.client.gangping.GangPingInput;
 import com.aleks.prisonsmod.client.gangping.GangPingManager;
@@ -25,6 +26,7 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
+import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.registry.RegistryKey;
 import net.minecraft.world.World;
 
@@ -63,6 +65,7 @@ public final class PrisonsModClient implements ClientModInitializer {
         ClientCommands.register();
         BugReportClient.register();
         SuggestClient.register();
+        PvClient.register();
         UpdateInstaller.init();
 
         // HUD framework: register moveable widgets and the renderer hook.
@@ -76,6 +79,7 @@ public final class PrisonsModClient implements ClientModInitializer {
         // Server allowlist: flip on/off as the player joins/leaves servers.
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             ServerAllowlist.onJoin(client.getCurrentServerEntry());
+            AutoRejoinManager.onJoin(client.getCurrentServerEntry());
             if (ServerAllowlist.isAllowed()) {
                 PrisonsMod.LOGGER.info("PrisonsMod active on this server");
                 UpdateChecker.checkAsync(client);
@@ -88,6 +92,9 @@ public final class PrisonsModClient implements ClientModInitializer {
                 });
             }
         });
+        // Auto-rejoin overlay: attach a per-screen render callback whenever the
+        // vanilla DisconnectedScreen is opened.
+        ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> AutoRejoinManager.onScreenInit(screen));
         // Watch system chat for rift queue state-change announcements so the
         // texture pack can pre-load during the queue wait rather than stalling
         // the player when the rift actually starts.
@@ -124,6 +131,8 @@ public final class PrisonsModClient implements ClientModInitializer {
             GangPingManager.tick(now);
             BugReportClient.tick();
             SuggestClient.tick();
+            PvClient.tick();
+            AutoRejoinManager.tick(client);
             // Drop pings whose source world the player has since left. The
             // server only forwards meteor/gang pings to players currently in
             // the affected world, so a dimension switch is our cue that any

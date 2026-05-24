@@ -5,6 +5,7 @@ import com.aleks.prisonsmod.client.DuelState;
 import com.aleks.prisonsmod.client.GangRoster;
 import com.aleks.prisonsmod.client.ServerAllowlist;
 import com.aleks.prisonsmod.client.bugreport.BugReportClient;
+import com.aleks.prisonsmod.client.pv.PvClient;
 import com.aleks.prisonsmod.client.suggest.SuggestClient;
 import com.aleks.prisonsmod.client.gangping.GangPingManager;
 import com.aleks.prisonsmod.client.hud.BoosterState;
@@ -32,6 +33,7 @@ import com.aleks.prisonsmod.net.payload.MeteorPingPayload;
 import com.aleks.prisonsmod.net.payload.MineCancelPayload;
 import com.aleks.prisonsmod.net.payload.MineStartPayload;
 import com.aleks.prisonsmod.net.payload.PointGainPayload;
+import com.aleks.prisonsmod.net.payload.PvBundlePayload;
 import com.aleks.prisonsmod.render.FloatingNumberRenderer;
 import com.aleks.prisonsmod.render.MinePredictRenderer;
 import com.aleks.prisonsmod.render.RiftHud;
@@ -74,9 +76,10 @@ public final class NetworkHandler {
     public static void onPayload(byte[] raw) {
         try {
             // Snapshot packets can be larger than cosmetic packets, so use the
-            // snapshot cap as the outer bound — type-specific decoders enforce
-            // their own bounds further in.
-            if (raw == null || raw.length == 0 || raw.length > Protocol.MAX_SNAPSHOT_PAYLOAD_BYTES) {
+            // largest known cap (PV bundle) as the outer bound — type-specific
+            // decoders enforce their own bounds further in.
+            int outerCap = Math.max(Protocol.MAX_SNAPSHOT_PAYLOAD_BYTES, Protocol.MAX_PV_BUNDLE_BYTES);
+            if (raw == null || raw.length == 0 || raw.length > outerCap) {
                 if (raw != null) PrisonsMod.LOGGER.info("onPayload: dropped len={}", raw.length);
                 return; // drop oversized or empty
             }
@@ -198,6 +201,11 @@ public final class NetworkHandler {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.SUGGEST)) return;
                     SuggestErrorPayload p = SuggestErrorPayload.decode(buf);
                     SuggestClient.onError(p);
+                }
+                case Protocol.PKT_PV_BUNDLE -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.PV_BUNDLE)) return;
+                    PvBundlePayload p = PvBundlePayload.decode(buf);
+                    PvClient.onBundle(p);
                 }
                 default -> {
                     // Unknown type — silently ignore. A future server may emit
@@ -374,6 +382,22 @@ public final class NetworkHandler {
     /** Player dismissed the suggest UI; tell server to free the session. */
     public static void sendSuggestClose(String token) {
         sendString(Protocol.PKT_SUGGEST_CLOSE, clamp(token, Protocol.SUGGEST_MAX_TOKEN_CHARS));
+    }
+
+    // ── PV overview sends ────────────────────────────────────────────────────
+
+    /**
+     * "Player ran /pv — bundle all 7 PVs for me." Single-byte payload. Server
+     * identifies the sender from the connection and rate-limits (2s per player).
+     */
+    public static void sendPvBundleRequest() {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            ClientPlayNetworking.send(new RawPayload(new byte[] { Protocol.PKT_PV_BUNDLE_REQ }));
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send pv bundle req failed", t);
+        }
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────

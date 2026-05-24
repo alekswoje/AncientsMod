@@ -14,9 +14,13 @@
 
 ## UI & Screens
 
+- New **Personal Vaults overview screen** — running `/pv` now opens a single screen showing all 7 of your PVs side-by-side with item previews and the affinity bindings for each vault. Click any vault card to open it normally. Toggleable in Settings → Network. `/pv 1`, `/pv 2`, `/pvsort` etc. still go to the server unchanged.
+
 ## Input & Keybinds
 
 ## Networking & Server Integration
+
+- New **Auto-rejoin** toggle (Settings → Network, off by default). When the server kicks you, restarts, or your connection drops, the mod waits 5 s and reconnects to the same server address, then keeps retrying every 5 s until you're back in. The proxy puts you back on the backend you were last playing on (or queues you if it's still booting). Click any button on the disconnect screen to cancel.
 
 ## Updates & Installation
 

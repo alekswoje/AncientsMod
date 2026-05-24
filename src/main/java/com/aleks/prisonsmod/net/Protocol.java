@@ -255,6 +255,13 @@ public final class Protocol {
      */
     public static final byte PKT_SUGGEST_ERROR = 22;
 
+    /**
+     * Bundle of all 7 PVs' contents (material id + custom name + amount per
+     * non-empty slot, plus affinity csv per vault). Drives the mod's custom
+     * {@code /pv} overview screen. Bounded by {@link #MAX_PV_BUNDLE_BYTES}.
+     */
+    public static final byte PKT_PV_BUNDLE = 23;
+
     // Suggest category enum-bytes (must match plugin PrisonsModChannel).
     public static final byte SUGGEST_CAT_MOD    = 0;
     public static final byte SUGGEST_CAT_SERVER = 1;
@@ -428,12 +435,28 @@ public final class Protocol {
 
     /** Player dismissed the suggest UI without submitting. */
     public static final byte PKT_SUGGEST_CLOSE  = (byte) 111;
+    /**
+     * Player ran {@code /pv} (no args) on a modded client. The mod intercepts
+     * the command and sends this; the server replies with {@link #PKT_PV_BUNDLE}
+     * containing all 7 PVs' summarized contents.
+     */
+    public static final byte PKT_PV_BUNDLE_REQ = (byte) 112;
 
     // --- Hard size caps (wire-level) ---
     /** Maximum bytes for any single cosmetic S2C payload. Larger packets are dropped. */
     public static final int MAX_PAYLOAD_BYTES = 256;
     /** Larger cap reserved for {@link #PKT_BUFF_SNAPSHOT}, which carries every layer with a label. */
     public static final int MAX_SNAPSHOT_PAYLOAD_BYTES = 16_384;
+    /** Even larger cap reserved for {@link #PKT_PV_BUNDLE}: 7 vaults × up to
+     *  162 slots each can produce dense payloads. */
+    public static final int MAX_PV_BUNDLE_BYTES = 65_536;
+
+    // --- PV bundle bounds ---
+    public static final int PV_MAX_VAULTS = 7;
+    public static final int PV_MAX_SLOTS = 162; // 6 rows × 9 cols × multiple rows of extras
+    public static final int PV_MAX_MATERIAL_KEY_CHARS = 48;
+    public static final int PV_MAX_DISPLAY_NAME_CHARS = 64;
+    public static final int PV_MAX_AFFINITY_CSV_CHARS = 256;
 
     // --- Semantic bounds (validated post-decode) ---
     public static final int MAX_POINTS_PER_EVENT = 10_000_000;
@@ -468,6 +491,8 @@ public final class Protocol {
     public static final int RATE_BUGREPORT_PER_SEC = 5;
     /** Suggest inbound packets are user-driven; a handful per second is plenty. */
     public static final int RATE_SUGGEST_PER_SEC = 5;
+    /** PV bundle is on-demand only (one packet per /pv intercept) — cap low. */
+    public static final int RATE_PV_BUNDLE_PER_SEC = 3;
 
     // --- Meteorite HUD tunables ---
     /** Max tier-name length the server can send us (e.g. "Ancient Debris" → 14). */

@@ -30,7 +30,8 @@ public final class RateLimiter {
         BUFF_SNAPSHOT(Protocol.RATE_BUFF_SNAPSHOT_PER_SEC),
         PVE_STATS(Protocol.RATE_PVE_STATS_PER_SEC),
         BUGREPORT(Protocol.RATE_BUGREPORT_PER_SEC),
-        SUGGEST(Protocol.RATE_SUGGEST_PER_SEC);
+        SUGGEST(Protocol.RATE_SUGGEST_PER_SEC),
+        PV_BUNDLE(Protocol.RATE_PV_BUNDLE_PER_SEC);
 
         final int perSecond;
         Kind(int perSecond) { this.perSecond = perSecond; }

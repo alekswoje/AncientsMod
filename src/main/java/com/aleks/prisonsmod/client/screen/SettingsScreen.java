@@ -63,5 +63,9 @@ public final class SettingsScreen extends WidgetSettingsScreen {
                 FeatureToggles::isUpdateAlertEnabled, FeatureToggles::setUpdateAlert);
         addToggle("Bug-report UI on /bugreport",
                 FeatureToggles::isBugReportUiEnabled, FeatureToggles::setBugReportUi);
+        addToggle("PV overview screen on /pv (no args)",
+                FeatureToggles::isPvOverviewEnabled, FeatureToggles::setPvOverview);
+        addToggle("Auto-rejoin after kick (retry every 5s)",
+                FeatureToggles::isAutoRejoinEnabled, FeatureToggles::setAutoRejoin);
     }
 }
