@@ -12,6 +12,8 @@
 
 ## Rendering & Visuals
 
+- **Gang pings and meteorite labels now scale with zoom.** Using a zoom mod (Zoomify / OkZoomer / Lunar zoom / OptiFine zoom) narrows your FOV, which made the beam grow while the floating text stayed tiny — now the text grows in lockstep with the beam and the meteorite block, matching what you see through the zoom.
+
 ## UI & Screens
 
 - **The `/pv` overview now scrolls vertically** so you can browse all your personal vaults when you have more than fit on screen. The Sort button stays anchored in the footer; mouse-wheel scrolls one row at a time.
@@ -22,11 +24,14 @@
 - **`/buffs` Damage Dealt now lists every damage-proc enchant on your weapon** — Lightning, Scorch, Electrocution, Poison (swords), Bleed (axes), Pummel (either) — with its proc chance, per-proc damage, and average damage per hit. Numbers are computed from your held weapon's actual base damage.
 - **`/buffs` Damage Taken now leads with your total damage reduction** (`-85.0% (15.0% taken)`) and adds a Total damage reduction summary row under the armor list. Empty armor slots also explain why they're blank in the row detail.
 - **`/buffs` Damage Taken now lists every defensive enchant on your armor** — Titan Blood / Crouch as always-on DR multipliers, Tank / Armoured as conditional (vs axe / sword attackers), and Painkiller, Blood Magic, Damage Limiter, Voodoo, Aegis, Deflect, Maneuver, Anti Gank, Elemental Master, Extinguish, Tough Skin, Cactus, Last Stand, Adrenaline, Escapist as informational proc/conditional rows. Each row shows what triggers it and what it does.
-- **Proc-damage enchants and conditional-DR enchants in `/buffs` are now toggleable** with checkboxes — tick Lightning to see how much expected damage per hit it adds, tick Tank to see "what's my DR vs an axe attacker", tick Painkiller to see the average per-hit reduction. The total at the top of the channel updates live as you toggle.
-- **New Lucky toggle in `/buffs` Damage Dealt.** Combines your Lucky levels across armor + main hand (capped at 4) plus any Cavern Luck levels and shows the proc-chance multiplier; toggle on to see roughly how Lucky impacts your expected per-hit damage.
+- **Proc damage rows in `/buffs` Damage Dealt are now live displays, not toggles.** Lightning, Scorch, Electrocution, Poison, Bleed, and Pummel each show their current expected avg/hit damage — the number updates instantly as you tick Swordsman / Execute / Enrage / Monster Hunter / Fearless on or off. The proc rows have no checkbox of their own.
+- **Lucky proc boost is now a toggle at the TOP of Damage Dealt** and multiplies only the proc damage rows when ticked — it no longer inflates your weapon's base hit. The Lucky row shows the proc-chance multiplier (e.g. `x2.00`); ticking it scales every proc row's displayed damage by that factor.
+- **Conditional-DR enchants in `/buffs` Damage Taken are now toggleable** with checkboxes — tick Tank to see "what's my DR vs an axe attacker", tick Painkiller to see the average per-hit reduction. The total at the top of the channel updates live as you toggle.
 - **`/buffs` Total damage reduction row now does the math correctly** when Titan Blood, Crouch, or other multiplicative passive layers are active — previously it summed DR percentages additively which over-estimated.
 
 ## Input & Keybinds
+
+- **New keybind: Item Lock (default Z).** Open any inventory screen, hover a slot, press Z to flag it as locked. A small yellow padlock appears in the slot's corner. Locked slots refuse Q-drops, Ctrl+Q stack drops, drag-into-void, shift-clicks into chests/vaults, and number-key hotbar swaps — the slot becomes read-only until you press Z again to unlock. Works on hotbar, main inventory, armor, and offhand. Rebind under Options → Controls → Inventory. Manage all locks (clear-all) under PrisonsMod Settings → Inventory.
 
 ## Networking & Server Integration
 

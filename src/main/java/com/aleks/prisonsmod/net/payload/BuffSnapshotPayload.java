@@ -64,6 +64,13 @@ public final class BuffSnapshotPayload {
     public static final byte KIND_MULTIPLICATIVE = 1;
     public static final byte KIND_FLAT_BONUS     = 2;
     public static final byte KIND_BASE           = 3;
+    /** Info-only proc damage row. value = base avg/hit (no Lucky, no multipliers).
+     *  Mod renders without checkbox; display value scales with active multipliers
+     *  and the active KIND_LUCKY_PROC factor. */
+    public static final byte KIND_PROC_DAMAGE    = 4;
+    /** Toggleable multiplier applied ONLY to KIND_PROC_DAMAGE rows. value = lucky mult.
+     *  Does NOT multiply the channel's base hit damage. */
+    public static final byte KIND_LUCKY_PROC     = 5;
 
     // Layer state.
     public static final byte STATE_ACTIVE    = 0;

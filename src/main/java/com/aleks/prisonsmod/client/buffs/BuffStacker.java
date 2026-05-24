@@ -37,13 +37,19 @@ public final class BuffStacker {
         public final double additivePool;
         public final double flatBonus;
         public final double multiplicativeProduct;
+        public final double luckyProcMult;
+        public final double procDamageSum;
         public final double finalValue;
 
-        public Result(double base, double additivePool, double flatBonus, double multiplicativeProduct, double finalValue) {
+        public Result(double base, double additivePool, double flatBonus,
+                       double multiplicativeProduct, double luckyProcMult,
+                       double procDamageSum, double finalValue) {
             this.base = base;
             this.additivePool = additivePool;
             this.flatBonus = flatBonus;
             this.multiplicativeProduct = multiplicativeProduct;
+            this.luckyProcMult = luckyProcMult;
+            this.procDamageSum = procDamageSum;
             this.finalValue = finalValue;
         }
     }
@@ -54,6 +60,8 @@ public final class BuffStacker {
         double mult = 1.0;
         double base = Double.NaN;
         boolean baseFound = false;
+        double luckyProcMult = 1.0;
+        double procDamageSum = 0.0;
 
         for (int i = 0; i < layers.size(); i++) {
             BuffSnapshotPayload.Layer l = layers.get(i);
@@ -67,17 +75,29 @@ public final class BuffStacker {
                 }
                 continue;
             }
+            // Proc damage rows are always summed regardless of toggle state —
+            // they're info-only display rows. The mod never lets the user
+            // toggle them; their displayed value scales with pool × mult ×
+            // lucky_factor live.
+            if (l.kind == BuffSnapshotPayload.KIND_PROC_DAMAGE) {
+                procDamageSum += l.value;
+                continue;
+            }
             if (!active.isActive(i)) continue;
             switch (l.kind) {
                 case BuffSnapshotPayload.KIND_ADDITIVE -> additiveSum += l.value;
                 case BuffSnapshotPayload.KIND_FLAT_BONUS -> flatBonus += l.value;
                 case BuffSnapshotPayload.KIND_MULTIPLICATIVE -> mult *= l.value;
+                case BuffSnapshotPayload.KIND_LUCKY_PROC -> luckyProcMult *= l.value;
                 default -> { /* unknown — ignore */ }
             }
         }
         double pool = Math.max(0.0, 1.0 + additiveSum);
         double startBase = baseFound ? base : 1.0;
-        double finalValue = (startBase + flatBonus) * pool * mult;
-        return new Result(startBase, pool, flatBonus, mult, finalValue);
+        // Final = base-hit subtotal + proc-damage subtotal (only procs get
+        // multiplied by luckyProcMult; the base hit does not).
+        double finalValue = (startBase + flatBonus) * pool * mult
+                          + procDamageSum * pool * mult * luckyProcMult;
+        return new Result(startBase, pool, flatBonus, mult, luckyProcMult, procDamageSum, finalValue);
     }
 }

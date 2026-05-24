@@ -528,7 +528,7 @@ public final class BuffBreakdownScreen extends Screen {
         for (int i = 0; i < ch.layers.size(); i++) {
             BuffSnapshotPayload.Layer layer = ch.layers.get(i);
             if (rowY + ROW_H >= bodyY && rowY < bodyY + bodyH) {
-                renderRow(ctx, x + 4, rowY, w - 8, layer, i, bs.get(i), mouseX, mouseY);
+                renderRow(ctx, x + 4, rowY, w - 8, layer, i, bs.get(i), mouseX, mouseY, sandbox);
             }
             rowY += ROW_H;
         }
@@ -543,7 +543,7 @@ public final class BuffBreakdownScreen extends Screen {
     }
 
     private void renderRow(DrawContext ctx, int x, int y, int w, BuffSnapshotPayload.Layer layer, int index,
-                            boolean checked, int mouseX, int mouseY) {
+                            boolean checked, int mouseX, int mouseY, BuffStacker.Result sandbox) {
         boolean hovered = mouseX >= x && mouseX <= x + w && mouseY >= y && mouseY <= y + ROW_H;
         if (hovered) ctx.fill(x, y, x + w, y + ROW_H, ROW_HOVER);
         else if ((index & 1) == 1) ctx.fill(x, y, x + w, y + ROW_H, ROW_ALT);
@@ -552,10 +552,12 @@ public final class BuffBreakdownScreen extends Screen {
         int accent = BuffSnapshotPayload.categoryColor(layer.category);
         ctx.fill(x + 2, y + 2, x + 4, y + ROW_H - 2, accent);
 
-        // Checkbox (only for non-BASE layers — base can't be toggled off).
+        // Checkbox: BASE and PROC_DAMAGE rows can't be toggled (the proc rows
+        // are info-only display rows whose value reacts to other toggles).
         int checkboxX = x + 8;
         int checkboxY = y + (ROW_H - CHECKBOX_W) / 2;
-        boolean toggleable = layer.kind != BuffSnapshotPayload.KIND_BASE;
+        boolean toggleable = layer.kind != BuffSnapshotPayload.KIND_BASE
+                          && layer.kind != BuffSnapshotPayload.KIND_PROC_DAMAGE;
         if (toggleable) {
             ctx.fill(checkboxX, checkboxY, checkboxX + CHECKBOX_W, checkboxY + CHECKBOX_W, 0x44000000);
             drawBorder(ctx, checkboxX, checkboxY, checkboxX + CHECKBOX_W, checkboxY + CHECKBOX_W, BORDER);
@@ -569,6 +571,9 @@ public final class BuffBreakdownScreen extends Screen {
         int textY = y + (ROW_H - textRenderer.fontHeight) / 2;
         int labelColor = layer.state == BuffSnapshotPayload.STATE_POTENTIAL ? DIM_COLOR : LABEL_COLOR;
         if (toggleable && !checked) labelColor = DIM_COLOR;
+        // PROC_DAMAGE rows always render at full label color — they're not
+        // toggleable and are conceptually always-on info.
+        if (layer.kind == BuffSnapshotPayload.KIND_PROC_DAMAGE) labelColor = LABEL_COLOR;
         ctx.drawText(textRenderer, Text.literal(layer.label), labelX, textY, labelColor, true);
 
         if (!layer.detail.isEmpty()) {
@@ -577,10 +582,19 @@ public final class BuffBreakdownScreen extends Screen {
                     labelX + labelW, textY, DIM_COLOR, false);
         }
 
-        // Right-aligned value with kind suffix.
-        String valueStr = formatLayerValue(layer);
+        // Right-aligned value. For PROC_DAMAGE rows the displayed value is
+        // computed live: base × pool × mult × luckyProcMult — the proc
+        // damage you'd actually deal per hit given the current toggle state.
+        String valueStr;
+        if (layer.kind == BuffSnapshotPayload.KIND_PROC_DAMAGE) {
+            double displayed = layer.value * sandbox.additivePool * sandbox.multiplicativeProduct * sandbox.luckyProcMult;
+            valueStr = String.format(Locale.US, "%.2f", displayed);
+        } else {
+            valueStr = formatLayerValue(layer);
+        }
         int valW = textRenderer.getWidth(valueStr);
         int valColor = layer.state == BuffSnapshotPayload.STATE_POTENTIAL && !checked ? DIM_COLOR : VALUE_COLOR;
+        if (layer.kind == BuffSnapshotPayload.KIND_PROC_DAMAGE) valColor = VALUE_COLOR;
         ctx.drawText(textRenderer, Text.literal(valueStr), x + w - 6 - valW, textY, valColor, true);
     }
 
@@ -651,6 +665,7 @@ public final class BuffBreakdownScreen extends Screen {
         if (rowIdx < 0 || rowIdx >= ch.layers.size()) return false;
         BuffSnapshotPayload.Layer layer = ch.layers.get(rowIdx);
         if (layer.kind == BuffSnapshotPayload.KIND_BASE) return false;
+        if (layer.kind == BuffSnapshotPayload.KIND_PROC_DAMAGE) return false;
         BitSet bs = togglesFor(ch);
         bs.flip(rowIdx);
         return true;
