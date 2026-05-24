@@ -714,7 +714,11 @@ public final class BuffBreakdownScreen extends Screen {
             return String.format(Locale.US, "%.2f dmg", v);
         }
         if (chId == BuffSnapshotPayload.CH_COMBAT_IN || chId == BuffSnapshotPayload.CH_BOSS_IN) {
-            return String.format(Locale.US, "%.0f%% taken", v * 100.0);
+            // Lead with the reduction% so players see their total DR at a glance,
+            // not the inverse "taken" fraction.
+            double reductionPct = (1.0 - v) * 100.0;
+            double takenPct = v * 100.0;
+            return String.format(Locale.US, "-%.1f%% (%.1f%% taken)", reductionPct, takenPct);
         }
         return formatX(v);
     }
