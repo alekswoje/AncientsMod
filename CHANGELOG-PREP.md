@@ -21,6 +21,7 @@
 - **Smooth animations in the `/pv` overview.** Hover state eases in over ~250ms, drag ghost renders at the cursor with a translucent panel, and the swap completion flash fades out cleanly. Behavior is unchanged — just nicer to look at.
 - **`/buffs` Damage Dealt now lists every damage-proc enchant on your weapon** — Lightning, Scorch, Electrocution, Poison (swords), Bleed (axes), Pummel (either) — with its proc chance, per-proc damage, and average damage per hit. Numbers are computed from your held weapon's actual base damage.
 - **`/buffs` Damage Taken now leads with your total damage reduction** (`-85.0% (15.0% taken)`) and adds a Total damage reduction summary row under the armor list. Empty armor slots also explain why they're blank in the row detail.
+- **`/buffs` Damage Taken now lists every defensive enchant on your armor** — Titan Blood / Crouch as always-on DR multipliers, Tank / Armoured as conditional (vs axe / sword attackers), and Painkiller, Blood Magic, Damage Limiter, Voodoo, Aegis, Deflect, Maneuver, Anti Gank, Elemental Master, Extinguish, Tough Skin, Cactus, Last Stand, Adrenaline, Escapist as informational proc/conditional rows. Each row shows what triggers it and what it does.
 
 ## Input & Keybinds
 
