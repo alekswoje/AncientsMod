@@ -3,12 +3,14 @@ package com.aleks.prisonsmod.client.pv;
 import com.aleks.prisonsmod.PrisonsMod;
 import com.aleks.prisonsmod.client.FeatureToggles;
 import com.aleks.prisonsmod.client.ServerAllowlist;
+import com.aleks.prisonsmod.client.screen.PvAffinityPickerScreen;
 import com.aleks.prisonsmod.client.screen.PvOverviewScreen;
 import com.aleks.prisonsmod.net.NetworkHandler;
 import com.aleks.prisonsmod.net.payload.PvBundlePayload;
 import net.fabricmc.fabric.api.client.message.v1.ClientSendMessageEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.text.Text;
 
@@ -85,11 +87,21 @@ public final class PvClient {
     }
 
     public static void onBundle(PvBundlePayload payload) {
+        latestBundle = payload;
         MinecraftClient.getInstance().execute(() -> {
-            if (state != State.REQUESTING && state != State.IDLE) {
-                PrisonsMod.LOGGER.debug("[PV] BUNDLE ignored, state={}", state);
+            // If the affinity picker is open, this bundle was a post-toggle
+            // refresh — re-render the picker in place instead of swapping
+            // screens.
+            Screen current = MinecraftClient.getInstance().currentScreen;
+            if (current instanceof PvAffinityPickerScreen picker) {
+                picker.onBundleUpdated(payload);
                 return;
             }
+            if (current instanceof PvOverviewScreen overview) {
+                overview.onBundleUpdated(payload);
+                return;
+            }
+            // Otherwise we're arriving from /pv intercept or post-vault-close.
             state = State.OPEN;
             MinecraftClient.getInstance().setScreen(new PvOverviewScreen(payload));
         });
@@ -98,6 +110,29 @@ public final class PvClient {
     public static void onScreenClosed() {
         state = State.IDLE;
     }
+
+    public static void onPickerClosed() {
+        // Picker dismissed via ESC or Back button — return to the overview if
+        // we still have data, otherwise just go idle.
+        state = State.IDLE;
+    }
+
+    /** Re-open the overview from the picker's "Back" button. Uses the latest
+     *  cached bundle if available, else requests a fresh one. */
+    public static void openOverviewFromPicker() {
+        MinecraftClient client = MinecraftClient.getInstance();
+        PvBundlePayload b = latestBundle;
+        if (b != null) {
+            state = State.OPEN;
+            client.setScreen(new PvOverviewScreen(b));
+        } else {
+            state = State.REQUESTING;
+            intentSentAtMs = System.currentTimeMillis();
+            NetworkHandler.sendPvBundleRequest();
+        }
+    }
+
+    private static volatile PvBundlePayload latestBundle = null;
 
     /** Open a specific PV from the overview. Sends a custom packet rather
      *  than {@code /pv N} so the server can open with
@@ -113,16 +148,22 @@ public final class PvClient {
         NetworkHandler.sendPvOpenRequest(vaultNumber);
     }
 
-    /** Open the affinity picker for a vault from the overview. Triggered by
-     *  right-click on a card. Server gates on Ascendant rank. */
+    /** Open the client-side affinity picker for a vault. Triggered by
+     *  right-click on an overview card. Uses the cached bundle so categories
+     *  show current bindings; toggle clicks send PKT_PV_AFFINITY_TOGGLE and
+     *  the server replies with an updated bundle that we route back via
+     *  {@link #onBundle}. */
     public static void openAffinityPicker(int vaultNumber) {
-        state = State.IDLE;
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null || client.getNetworkHandler() == null) return;
         if (vaultNumber < 1 || vaultNumber > 7) return;
-        expectingMenuReopen = true;
-        client.setScreen(null);
-        NetworkHandler.sendPvAffinityOpenRequest(vaultNumber);
+        if (latestBundle == null) {
+            // No data yet — kick off a bundle request and the post-bundle path
+            // will open the overview; user can right-click again.
+            NetworkHandler.sendPvBundleRequest();
+            return;
+        }
+        client.setScreen(new PvAffinityPickerScreen(vaultNumber, latestBundle));
     }
 
     public static boolean isExpectingMenuReopen() {

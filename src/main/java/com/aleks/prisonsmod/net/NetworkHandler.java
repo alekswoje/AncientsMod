@@ -435,6 +435,38 @@ public final class NetworkHandler {
         }
     }
 
+    /** "Toggle this category on this vault." Server runs exclusive toggle
+     *  (strips the category from other vaults) and replies with a fresh
+     *  PKT_PV_BUNDLE so the client picker can re-render. */
+    public static void sendPvAffinityToggle(int vaultNumber, String categoryKey) {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        if (vaultNumber < 1 || vaultNumber > 7) return;
+        if (categoryKey == null || categoryKey.isEmpty()) return;
+        try {
+            PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer(32));
+            buf.writeByte(Protocol.PKT_PV_AFFINITY_TOGGLE);
+            buf.writeByte(vaultNumber & 0xFF);
+            buf.writeString(clamp(categoryKey, 64));
+            sendBuf(buf);
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send pv affinity toggle failed", t);
+        }
+    }
+
+    /** "Clear every affinity bound to this vault." */
+    public static void sendPvAffinityClear(int vaultNumber) {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        if (vaultNumber < 1 || vaultNumber > 7) return;
+        try {
+            ClientPlayNetworking.send(new RawPayload(new byte[] {
+                    Protocol.PKT_PV_AFFINITY_CLEAR, (byte) (vaultNumber & 0xFF) }));
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send pv affinity clear failed", t);
+        }
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private static void sendString(byte typeId, String s) {

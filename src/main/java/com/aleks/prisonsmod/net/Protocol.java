@@ -453,6 +453,11 @@ public final class Protocol {
      * affinity picker for that vault. Wire format: single byte vault (1..7).
      */
     public static final byte PKT_PV_AFFINITY_OPEN_REQ = (byte) 114;
+    /** Toggle a single category on a vault. Server enforces exclusivity and
+     *  replies with PKT_PV_BUNDLE. Wire: byte vault, varint+string key. */
+    public static final byte PKT_PV_AFFINITY_TOGGLE = (byte) 115;
+    /** Clear every affinity bound to a vault. Wire: byte vault. */
+    public static final byte PKT_PV_AFFINITY_CLEAR = (byte) 116;
 
     // --- Hard size caps (wire-level) ---
     /** Maximum bytes for any single cosmetic S2C payload. Larger packets are dropped. */

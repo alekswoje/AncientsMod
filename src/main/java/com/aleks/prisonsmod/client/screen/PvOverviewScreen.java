@@ -40,7 +40,7 @@ public final class PvOverviewScreen extends Screen {
     private static final int TITLE_BAR_H = 24;
     private static final int FOOTER_H = 18;
 
-    private final PvBundlePayload bundle;
+    private PvBundlePayload bundle;
 
     /** Hovered vault number (1..7) or 0 if none. Used to highlight the card. */
     private int hoveredVault = 0;
@@ -52,6 +52,11 @@ public final class PvOverviewScreen extends Screen {
     public PvOverviewScreen(PvBundlePayload bundle) {
         super(Text.literal("Personal Vaults"));
         this.bundle = bundle;
+    }
+
+    /** Refresh in place from a post-toggle bundle update. */
+    public void onBundleUpdated(PvBundlePayload payload) {
+        this.bundle = payload;
     }
 
     @Override
@@ -226,21 +231,28 @@ public final class PvOverviewScreen extends Screen {
             }
         }
 
-        // Affinities row (left) + right-click hint (right).
+        // Affinities row — truncated with ellipsis to fit the card width.
+        // The "edit" affordance lives in the title bar hint so we get the full
+        // width here for actual content.
         int affY = y + CARD_H - 14;
+        int maxAffW = CARD_W - 12;
         String affText = formatAffinity(vault.affinityCsv);
         if (affText.isEmpty()) {
-            ctx.drawText(this.textRenderer, Text.literal("§8No affinities"),
+            ctx.drawText(this.textRenderer, Text.literal("§8No affinities · §oRMB to edit"),
                     x + 6, affY, 0xFF777777, false);
         } else {
-            ctx.drawText(this.textRenderer, Text.literal("§b" + affText),
+            String trimmed = trimAffinityToWidth(affText, maxAffW);
+            ctx.drawText(this.textRenderer, Text.literal("§b" + trimmed),
                     x + 6, affY, 0xFF88EEFF, false);
         }
+    }
 
-        String rmbHint = hover ? "§eRMB: edit" : "§8RMB: edit";
-        int rmbW = this.textRenderer.getWidth(rmbHint);
-        ctx.drawText(this.textRenderer, Text.literal(rmbHint),
-                x + CARD_W - rmbW - 6, affY, hover ? 0xFFFFCC33 : 0xFF666666, false);
+    private String trimAffinityToWidth(String text, int maxWidth) {
+        if (this.textRenderer.getWidth(text) <= maxWidth) return text;
+        String ellipsis = "…";
+        int ellipsisW = this.textRenderer.getWidth(ellipsis);
+        String trimmed = this.textRenderer.trimToWidth(text, Math.max(0, maxWidth - ellipsisW));
+        return trimmed + ellipsis;
     }
 
     private ItemStack resolveStack(PvBundlePayload.Slot slot) {
