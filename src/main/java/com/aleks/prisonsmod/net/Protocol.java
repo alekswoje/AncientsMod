@@ -475,7 +475,11 @@ public final class Protocol {
     public static final int MAX_PV_BUNDLE_BYTES = 65_536;
 
     // --- PV bundle bounds ---
-    public static final int PV_MAX_VAULTS = 8;
+    // Set well above the current server-side cap so future bumps don't break
+    // older jars. The decoder rejects bundles only when the server claims
+    // MORE vaults than this — a tighter cap would force a coordinated
+    // re-release of the mod every time VAULTS_PER_PLAYER goes up.
+    public static final int PV_MAX_VAULTS = 16;
     public static final int PV_MAX_SLOTS = 162; // 6 rows × 9 cols × multiple rows of extras
     public static final int PV_MAX_MATERIAL_KEY_CHARS = 48;
     public static final int PV_MAX_DISPLAY_NAME_CHARS = 64;
