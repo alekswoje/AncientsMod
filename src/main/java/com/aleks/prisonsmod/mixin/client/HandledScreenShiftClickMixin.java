@@ -1,7 +1,7 @@
 package com.aleks.prisonsmod.mixin.client;
 
+import com.aleks.prisonsmod.PrisonsMod;
 import com.aleks.prisonsmod.client.ServerAllowlist;
-import com.aleks.prisonsmod.client.pv.PvClient;
 import com.aleks.prisonsmod.net.NetworkHandler;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.entity.player.PlayerInventory;
@@ -54,20 +54,21 @@ public abstract class HandledScreenShiftClickMixin {
         if (slot == null) return;
         if (!ServerAllowlist.isAllowed()) return;
 
-        // Only intercept on PV per-vault inventories. The /pv overview chest
-        // (title "Personal Vaults" plural) and the affinity picker have their
-        // own titles and we ignore them — they're handled by mod-side screens
-        // anyway, not vanilla shift-clicks.
+        // Only intercept on PV per-vault inventories. Strip legacy § color
+        // codes — Paper sends the title with embedded §8 codes for DARK_GRAY
+        // styling, and Text.getString() can include them depending on how
+        // the component was constructed.
         @SuppressWarnings("unchecked")
         HandledScreen<?> self = (HandledScreen<?>)(Object) this;
         Text titleText = self.getTitle();
         if (titleText == null) return;
-        String title = titleText.getString();
-        if (title == null || !title.startsWith("Personal Vault ")) return;
-        // Plural "Personal Vaults" overview is a chest — must not match. The
-        // "starts with Personal Vault " (note trailing space before the
-        // number) check above excludes it because the overview's title is
-        // exactly "Personal Vaults" (no trailing space, no number).
+        String rawTitle = titleText.getString();
+        if (rawTitle == null) return;
+        String title = stripLegacyColors(rawTitle);
+        if (!title.startsWith("Personal Vault ")) return;
+        // Exclude the overview chest "Personal Vaults" (plural, no trailing
+        // space + number) — startsWith("Personal Vault ") with the trailing
+        // space rules it out automatically.
 
         // Only intercept shift-clicks ORIGINATING in the player inventory.
         // PV → player-inv shift-clicks (the other direction) should stay
@@ -76,11 +77,33 @@ public abstract class HandledScreenShiftClickMixin {
         int playerInvSlot = slot.getIndex();
         if (playerInvSlot < 0 || playerInvSlot > 35) return; // skip armor (36-39) / offhand (40)
 
-        // Cheap skip: no affinity set anywhere → vanilla shift-click is the
-        // correct behavior; don't burn a packet round-trip for it.
-        if (!PvClient.hasAnyAffinity()) return;
-
+        // No hasAnyAffinity gate — the server falls back to vanilla shift-click
+        // if no affinity matches, so it's safe to always route through us. This
+        // also avoids a race: the cached PvBundle might not yet exist if the
+        // player opened a PV via "/pv 4" directly (bypassing the overview).
+        if (!loggedFirstIntercept) {
+            loggedFirstIntercept = true;
+            PrisonsMod.LOGGER.info("[PvShiftClick] intercepting QUICK_MOVE in PV menu — title='" + title
+                    + "' playerInvSlot=" + playerInvSlot);
+        }
         NetworkHandler.sendPvShiftClick(playerInvSlot);
         ci.cancel();
+    }
+
+    private static volatile boolean loggedFirstIntercept = false;
+
+    private static String stripLegacyColors(String s) {
+        if (s.indexOf('§') < 0) return s;
+        StringBuilder out = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '§' && i + 1 < s.length()) {
+                // skip the § and the next style code char
+                i++;
+            } else {
+                out.append(c);
+            }
+        }
+        return out.toString();
     }
 }
