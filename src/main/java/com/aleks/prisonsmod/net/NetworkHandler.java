@@ -512,6 +512,23 @@ public final class NetworkHandler {
         }
     }
 
+    /** Tell the server to route a player-inventory shift-click through PV
+     *  affinity rules instead of vanilla container click handling. Eliminates
+     *  the client-prediction flicker that happens when the server cancels
+     *  the vanilla event and reroutes to a different PV. */
+    public static void sendPvShiftClick(int playerInvSlot) {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer(8));
+            buf.writeByte(Protocol.PKT_PV_SHIFT_CLICK_REQ);
+            buf.writeInt(playerInvSlot);
+            sendBuf(buf);
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send pv shift-click failed", t);
+        }
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private static void sendString(byte typeId, String s) {

@@ -474,6 +474,14 @@ public final class Protocol {
      * flips. Wire format: type byte + single state byte (1 = HUD on, 0 = off).
      */
     public static final byte PKT_BOOSTER_HUD_STATE = (byte) 119;
+    /** Sent by the shift-click mixin when the player shift-clicks a player-
+     *  inventory slot while a PV menu is open. The server runs affinity
+     *  routing in place of the vanilla container click, so the client never
+     *  applies its predicted "item lands in open container" state — no
+     *  flicker as the server corrects the prediction. Wire: type byte +
+     *  {@code int playerInvSlot} (0..35, Bukkit ordering — hotbar 0..8,
+     *  main inv 9..35). */
+    public static final byte PKT_PV_SHIFT_CLICK_REQ = (byte) 120;
 
     // --- Hard size caps (wire-level) ---
     /** Maximum bytes for any single cosmetic S2C payload. Larger packets are dropped. */

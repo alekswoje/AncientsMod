@@ -218,6 +218,25 @@ public final class PvClient {
         return expectingMenuReopen;
     }
 
+    /** Cached PV bundle from the last server-side PKT_PV_BUNDLE. Used by the
+     *  shift-click mixin to decide whether to intercept (only when at least
+     *  one vault has an affinity bound). May be null until the first /pv. */
+    public static PvBundlePayload latestBundle() {
+        return latestBundle;
+    }
+
+    /** True if the cached bundle indicates at least one vault has a non-empty
+     *  affinity binding. Cheap call — used per shift-click. */
+    public static boolean hasAnyAffinity() {
+        PvBundlePayload b = latestBundle;
+        if (b == null) return false;
+        for (PvBundlePayload.Vault v : b.vaults) {
+            String csv = v.affinityCsv;
+            if (csv != null && !csv.isEmpty()) return true;
+        }
+        return false;
+    }
+
     public static void clearExpectingMenuReopen() {
         expectingMenuReopen = false;
     }
