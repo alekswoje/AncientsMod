@@ -464,6 +464,16 @@ public final class Protocol {
     /** Trigger /pvsort and re-send the bundle so the overview refreshes
      *  in place. No payload. */
     public static final byte PKT_PV_SORT_REQ = (byte) 118;
+    /**
+     * Report the current state of the client-side booster HUD toggle. Server
+     * uses this to default the action-bar booster line OFF while the mod is
+     * rendering boosters in its widget — players can still flip it back on
+     * via {@code /toggles} → Action Bar → Show Boosters.
+     *
+     * <p>Sent on every join (right after the handshake) and whenever the toggle
+     * flips. Wire format: type byte + single state byte (1 = HUD on, 0 = off).
+     */
+    public static final byte PKT_BOOSTER_HUD_STATE = (byte) 119;
 
     // --- Hard size caps (wire-level) ---
     /** Maximum bytes for any single cosmetic S2C payload. Larger packets are dropped. */

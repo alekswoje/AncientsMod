@@ -215,6 +215,9 @@ public final class FeatureToggles {
         if (boosterHud == value) return;
         boosterHud = value;
         save();
+        // Re-notify the server so it can keep the action-bar booster default in
+        // sync with the widget being on/off. No-op when not connected.
+        com.aleks.prisonsmod.net.NetworkHandler.sendBoosterHudState(value);
     }
 
     public static boolean isMeteoriteHudEnabled() { return meteoriteHud; }

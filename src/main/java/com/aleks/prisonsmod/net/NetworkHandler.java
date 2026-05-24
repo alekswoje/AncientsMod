@@ -247,6 +247,24 @@ public final class NetworkHandler {
     }
 
     /**
+     * Report whether the client-side booster HUD is enabled. Server uses this
+     * to default the action-bar booster line off while the widget is rendering
+     * the same info; players can still flip it back on via {@code /toggles}.
+     * Sent right after the handshake on join and on every toggle change.
+     */
+    public static void sendBoosterHudState(boolean on) {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            ClientPlayNetworking.send(new RawPayload(new byte[] {
+                    Protocol.PKT_BOOSTER_HUD_STATE, (byte) (on ? 1 : 0)
+            }));
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send booster hud state failed", t);
+        }
+    }
+
+    /**
      * Buff-screen refresh request. Single-byte payload — server identifies the
      * sender from the channel connection. Server enforces a 1Hz rate limit.
      */

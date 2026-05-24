@@ -89,6 +89,10 @@ public final class PrisonsModClient implements ClientModInitializer {
                 client.send(() -> {
                     PrisonsMod.LOGGER.info("PrisonsMod: scheduling handshake send");
                     NetworkHandler.sendHandshake();
+                    // Tell the server whether the booster HUD widget is on so it
+                    // can default the action-bar booster line off when we're
+                    // already rendering the same info.
+                    NetworkHandler.sendBoosterHudState(FeatureToggles.isBoosterHudEnabled());
                 });
             }
         });
