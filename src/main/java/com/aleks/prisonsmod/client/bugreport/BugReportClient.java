@@ -68,7 +68,6 @@ public final class BugReportClient {
         if (command == null || command.isEmpty()) return true;
         if (!ServerAllowlist.isAllowed()) return true;        // off-server: vanilla flow
         if (!FeatureToggles.isBugReportUiEnabled()) return true; // disabled in settings
-        if (state != State.IDLE) return true;                 // mid-conversation — let server reject
 
         // Match `bugreport` or `bugreport <args>` (case-insensitive).
         String lower = command.toLowerCase(java.util.Locale.ROOT);
@@ -77,6 +76,14 @@ public final class BugReportClient {
         String args = command.length() > "bugreport".length()
                 ? command.substring("bugreport".length()).trim()
                 : "";
+
+        // If a previous session is still active, close it cleanly before starting a new one.
+        // Letting the command fall through to the server here used to file a context-free
+        // legacy bug report (no description) and auto-open a no-context Discord ticket.
+        if (state != State.IDLE) {
+            close(false);
+        }
+
         prefill = args;
         chatLines.clear();
         sections = List.of();

@@ -21,6 +21,7 @@
 ## Networking & Server Integration
 
 - New **Auto-rejoin** toggle (Settings → Network, off by default). When the server kicks you, restarts, or your connection drops, the mod waits 5 s and reconnects to the same server address, then keeps retrying every 5 s until you're back in. The proxy puts you back on the backend you were last playing on (or queues you if it's still booting). Click any button on the disconnect screen to cancel.
+- Running `/bugreport` again while a previous bug-report window is still open (waiting on the AI, resolved, or escalated) now **cleanly closes the old session and starts a fresh one** instead of falling through to the server as a context-free legacy chat command. Previously this silently filed a second no-description report and auto-opened an empty Discord ticket.
 
 ## Updates & Installation
 
