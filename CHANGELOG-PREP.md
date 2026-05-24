@@ -22,6 +22,9 @@
 - **`/buffs` Damage Dealt now lists every damage-proc enchant on your weapon** — Lightning, Scorch, Electrocution, Poison (swords), Bleed (axes), Pummel (either) — with its proc chance, per-proc damage, and average damage per hit. Numbers are computed from your held weapon's actual base damage.
 - **`/buffs` Damage Taken now leads with your total damage reduction** (`-85.0% (15.0% taken)`) and adds a Total damage reduction summary row under the armor list. Empty armor slots also explain why they're blank in the row detail.
 - **`/buffs` Damage Taken now lists every defensive enchant on your armor** — Titan Blood / Crouch as always-on DR multipliers, Tank / Armoured as conditional (vs axe / sword attackers), and Painkiller, Blood Magic, Damage Limiter, Voodoo, Aegis, Deflect, Maneuver, Anti Gank, Elemental Master, Extinguish, Tough Skin, Cactus, Last Stand, Adrenaline, Escapist as informational proc/conditional rows. Each row shows what triggers it and what it does.
+- **Proc-damage enchants and conditional-DR enchants in `/buffs` are now toggleable** with checkboxes — tick Lightning to see how much expected damage per hit it adds, tick Tank to see "what's my DR vs an axe attacker", tick Painkiller to see the average per-hit reduction. The total at the top of the channel updates live as you toggle.
+- **New Lucky toggle in `/buffs` Damage Dealt.** Combines your Lucky levels across armor + main hand (capped at 4) plus any Cavern Luck levels and shows the proc-chance multiplier; toggle on to see roughly how Lucky impacts your expected per-hit damage.
+- **`/buffs` Total damage reduction row now does the math correctly** when Titan Blood, Crouch, or other multiplicative passive layers are active — previously it summed DR percentages additively which over-estimated.
 
 ## Input & Keybinds
 
