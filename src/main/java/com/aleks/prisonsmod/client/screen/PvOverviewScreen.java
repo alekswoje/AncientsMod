@@ -18,14 +18,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Mod-side overview of all 7 PVs with item previews. Opens when the player
- * runs {@code /pv} (no args) and the server replies with a
+ * Mod-side overview of every accessible PV with item previews. Opens when the
+ * player runs {@code /pv} (no args) and the server replies with a
  * {@link PvBundlePayload}. Clicking a card sends {@code /pv N} to the server
  * and the vanilla chest GUI opens normally.
  *
- * <p>Items are rendered as vanilla icons resolved from the server-sent
- * material id. Custom display names and PDC are not transferred — they show
- * up in tooltip form (display name) but the icon is the plain Material.
+ * <p>Cards are arranged in a 4-wide grid. When the player has more rows of
+ * cards than fit on screen, a scrollbar appears on the right and the
+ * mouse-wheel scrolls the viewport.
  */
 public final class PvOverviewScreen extends Screen {
 
@@ -33,48 +33,47 @@ public final class PvOverviewScreen extends Screen {
     private static final int CARD_H = 124;
     private static final int CARD_GAP = 8;
     private static final int CARDS_PER_ROW = 4;
-    private static final int CARD_ROWS = 2;
 
     private static final int SLOT_PX = 14;
     private static final int GRID_COLS = 9;
     private static final int GRID_ROWS = 6;
 
     private static final int TITLE_BAR_H = 24;
-    /** Bumped from 18 to 28 to fit a 20px Sort button + padding. */
     private static final int FOOTER_H = 28;
+
+    private static final int PANEL_PADDING = 8;
+    private static final int SCROLLBAR_W = 6;
+    private static final int SCROLLBAR_GAP = 4;
+
+    /** Minimum + maximum visible card-rows. The viewport sizes between these
+     *  based on the window height. */
+    private static final int MIN_VIEW_ROWS = 2;
+    private static final int MAX_VIEW_ROWS = 4;
 
     private PvBundlePayload bundle;
 
-    /** Hovered vault number (1..7) or 0 if none. Used to highlight the card. */
     private int hoveredVault = 0;
-
-    /** Hovered slot info — cached per frame so the tooltip survives the
-     *  drawable child render pass. */
     private Text hoverTooltip = null;
+
+    /** Vertical scroll in pixels. 0 = top. */
+    private double scrollY = 0;
 
     public PvOverviewScreen(PvBundlePayload bundle) {
         super(Text.literal("Personal Vaults"));
         this.bundle = bundle;
     }
 
-    /** Refresh in place from a post-toggle bundle update. */
     public void onBundleUpdated(PvBundlePayload payload) {
         this.bundle = payload;
+        scrollY = Math.max(0, Math.min(scrollY, maxScroll()));
     }
 
     @Override
     protected void init() {
-        // Click handling for cards lives in mouseClicked override below so we
-        // can distinguish left vs right button (ButtonWidget only fires on
-        // left). Hit boxes are computed from the grid layout in render().
-        // Add a single Sort button at the bottom-right of the panel — runs
-        // /pvsort via PKT_PV_SORT_REQ and refreshes the bundle.
-        int totalW = gridWidth();
-        int totalH = gridHeight();
-        int panelX = (this.width - totalW) / 2 - 8;
-        int panelY = (this.height - totalH) / 2 - 8;
-        int panelW = totalW + 16;
-        int panelH = totalH + 16;
+        int panelW = panelWidth();
+        int panelH = panelHeight();
+        int panelX = (this.width - panelW) / 2;
+        int panelY = (this.height - panelH) / 2;
         int btnW = 90;
         int btnY = panelY + panelH - FOOTER_H + 4;
         ButtonWidget sortBtn = ButtonWidget.builder(Text.literal("Sort"), b -> NetworkHandler.sendPvSortRequest())
@@ -83,25 +82,95 @@ public final class PvOverviewScreen extends Screen {
         this.addDrawableChild(sortBtn);
     }
 
+    /** How many cards to render: every accessible vault, plus the next locked
+     *  one as a "next up" preview (so the player can see what they're working
+     *  toward). When every vault is accessible, all are shown. */
+    private int displayCount() {
+        if (bundle == null || bundle.vaults.isEmpty()) return 0;
+        int lastAccessible = -1;
+        for (int i = 0; i < bundle.vaults.size(); i++) {
+            if (bundle.vaults.get(i).isAccessible()) lastAccessible = i;
+        }
+        if (lastAccessible < 0) return Math.min(1, bundle.vaults.size());
+        int withPreview = lastAccessible + 2; // include one locked tease
+        return Math.min(withPreview, bundle.vaults.size());
+    }
+
+    private int displayedRows() {
+        int n = displayCount();
+        return Math.max(1, (n + CARDS_PER_ROW - 1) / CARDS_PER_ROW);
+    }
+
+    private int rowStep() { return CARD_H + CARD_GAP; }
+
+    private int contentHeight() {
+        int rows = displayedRows();
+        return rows * CARD_H + Math.max(0, rows - 1) * CARD_GAP;
+    }
+
+    private int viewRowsForWindow() {
+        int avail = this.height - TITLE_BAR_H - FOOTER_H - PANEL_PADDING * 2 - 40;
+        int fits = Math.max(MIN_VIEW_ROWS, (avail + CARD_GAP) / rowStep());
+        return Math.min(MAX_VIEW_ROWS, fits);
+    }
+
+    private int viewportHeight() {
+        int rows = Math.min(displayedRows(), viewRowsForWindow());
+        return rows * CARD_H + Math.max(0, rows - 1) * CARD_GAP;
+    }
+
+    private int gridContentWidth() {
+        return CARDS_PER_ROW * CARD_W + (CARDS_PER_ROW - 1) * CARD_GAP;
+    }
+
+    private int panelWidth() {
+        return gridContentWidth() + PANEL_PADDING * 2 + SCROLLBAR_W + SCROLLBAR_GAP;
+    }
+
+    private int panelHeight() {
+        return TITLE_BAR_H + PANEL_PADDING + viewportHeight() + PANEL_PADDING + FOOTER_H;
+    }
+
+    private double maxScroll() {
+        return Math.max(0, contentHeight() - viewportHeight());
+    }
+
+    private int viewportX() {
+        int panelX = (this.width - panelWidth()) / 2;
+        return panelX + PANEL_PADDING;
+    }
+
+    private int viewportY() {
+        int panelY = (this.height - panelHeight()) / 2;
+        return panelY + TITLE_BAR_H + PANEL_PADDING;
+    }
+
     @Override
     public boolean mouseClicked(Click click, boolean doubleClick) {
-        // Left = open vault. Right = open affinity picker.
         int button = click.button();
         if (button != 0 && button != 1) {
             return super.mouseClicked(click, doubleClick);
         }
         double mouseX = click.x();
         double mouseY = click.y();
-        int gridX = (this.width - gridWidth()) / 2;
-        int gridY = (this.height - gridHeight()) / 2 + TITLE_BAR_H;
-        for (int idx = 0; idx < bundle.vaults.size(); idx++) {
+
+        int vpX = viewportX();
+        int vpY = viewportY();
+        int vpW = gridContentWidth();
+        int vpH = viewportHeight();
+        if (mouseX < vpX || mouseX >= vpX + vpW || mouseY < vpY || mouseY >= vpY + vpH) {
+            return super.mouseClicked(click, doubleClick);
+        }
+
+        int limit = displayCount();
+        for (int idx = 0; idx < limit; idx++) {
             PvBundlePayload.Vault vault = bundle.vaults.get(idx);
             int col = idx % CARDS_PER_ROW;
             int row = idx / CARDS_PER_ROW;
-            if (row >= CARD_ROWS) break;
+            int cx = vpX + col * (CARD_W + CARD_GAP);
+            int cy = vpY + row * (CARD_H + CARD_GAP) - (int) scrollY;
+            if (cy + CARD_H <= vpY || cy >= vpY + vpH) continue;
             if (!vault.isAccessible()) continue;
-            int cx = gridX + col * (CARD_W + CARD_GAP);
-            int cy = gridY + row * (CARD_H + CARD_GAP);
             if (mouseX < cx || mouseX >= cx + CARD_W) continue;
             if (mouseY < cy || mouseY >= cy + CARD_H) continue;
             if (button == 1) {
@@ -115,26 +184,55 @@ public final class PvOverviewScreen extends Screen {
     }
 
     @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+        if (maxScroll() <= 0) return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+        scrollY -= verticalAmount * rowStep();
+        scrollY = Math.max(0, Math.min(scrollY, maxScroll()));
+        return true;
+    }
+
+    @Override
     public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
         super.render(ctx, mouseX, mouseY, delta);
         hoverTooltip = null;
-
-        int gridX = (this.width - gridWidth()) / 2;
-        int gridY = (this.height - gridHeight()) / 2 + TITLE_BAR_H;
-
         hoveredVault = 0;
-        for (int idx = 0; idx < bundle.vaults.size(); idx++) {
-            PvBundlePayload.Vault vault = bundle.vaults.get(idx);
-            int col = idx % CARDS_PER_ROW;
-            int row = idx / CARDS_PER_ROW;
-            if (row >= CARD_ROWS) break;
-            int cx = gridX + col * (CARD_W + CARD_GAP);
-            int cy = gridY + row * (CARD_H + CARD_GAP);
-            boolean hover = vault.isAccessible()
-                    && mouseX >= cx && mouseX < cx + CARD_W
-                    && mouseY >= cy && mouseY < cy + CARD_H;
-            if (hover) hoveredVault = vault.vaultNumber;
-            renderCard(ctx, vault, cx, cy, hover, mouseX, mouseY);
+
+        int vpX = viewportX();
+        int vpY = viewportY();
+        int vpW = gridContentWidth();
+        int vpH = viewportHeight();
+
+        ctx.enableScissor(vpX, vpY, vpX + vpW, vpY + vpH);
+        try {
+            int limit = displayCount();
+            for (int idx = 0; idx < limit; idx++) {
+                PvBundlePayload.Vault vault = bundle.vaults.get(idx);
+                int col = idx % CARDS_PER_ROW;
+                int row = idx / CARDS_PER_ROW;
+                int cx = vpX + col * (CARD_W + CARD_GAP);
+                int cy = vpY + row * (CARD_H + CARD_GAP) - (int) scrollY;
+                if (cy + CARD_H <= vpY || cy >= vpY + vpH) continue;
+                boolean hover = vault.isAccessible()
+                        && mouseX >= cx && mouseX < cx + CARD_W
+                        && mouseY >= cy && mouseY < cy + CARD_H
+                        && mouseY >= vpY && mouseY < vpY + vpH;
+                if (hover) hoveredVault = vault.vaultNumber;
+                renderCard(ctx, vault, cx, cy, hover, mouseX, mouseY);
+            }
+        } finally {
+            ctx.disableScissor();
+        }
+
+        if (maxScroll() > 0) {
+            int sbX = vpX + vpW + SCROLLBAR_GAP;
+            int sbY = vpY;
+            int sbH = vpH;
+            ctx.fill(sbX, sbY, sbX + SCROLLBAR_W, sbY + sbH, 0x80000000);
+            double trackRatio = (double) vpH / contentHeight();
+            int thumbH = Math.max(20, (int) (sbH * trackRatio));
+            int range = sbH - thumbH;
+            int thumbY = sbY + (int) (range * (scrollY / maxScroll()));
+            ctx.fill(sbX, thumbY, sbX + SCROLLBAR_W, thumbY + thumbH, 0xFF888888);
         }
 
         if (hoverTooltip != null) {
@@ -146,21 +244,17 @@ public final class PvOverviewScreen extends Screen {
     public void renderBackground(DrawContext ctx, int mouseX, int mouseY, float delta) {
         super.renderBackground(ctx, mouseX, mouseY, delta);
 
-        int totalW = gridWidth();
-        int totalH = gridHeight();
-        int panelX = (this.width - totalW) / 2 - 8;
-        int panelY = (this.height - totalH) / 2 - 8;
-        int panelW = totalW + 16;
-        int panelH = totalH + 16;
+        int panelW = panelWidth();
+        int panelH = panelHeight();
+        int panelX = (this.width - panelW) / 2;
+        int panelY = (this.height - panelH) / 2;
 
-        // Panel
         ctx.fill(panelX, panelY, panelX + panelW, panelY + panelH, 0xF0101010);
         ctx.fill(panelX, panelY, panelX + panelW, panelY + 1, 0xFF555555);
         ctx.fill(panelX, panelY + panelH - 1, panelX + panelW, panelY + panelH, 0xFF555555);
         ctx.fill(panelX, panelY, panelX + 1, panelY + panelH, 0xFF555555);
         ctx.fill(panelX + panelW - 1, panelY, panelX + panelW, panelY + panelH, 0xFF555555);
 
-        // Title bar
         ctx.fill(panelX, panelY, panelX + panelW, panelY + TITLE_BAR_H, 0xFF1A1A1A);
         ctx.drawText(this.textRenderer, Text.literal("§ePersonal Vaults"),
                 panelX + 10, panelY + 8, 0xFFFFFFFF, true);
@@ -175,7 +269,6 @@ public final class PvOverviewScreen extends Screen {
         int bg = vault.isAccessible() ? (hover ? 0xFF2A2A2A : 0xFF1E1E1E) : 0xFF181010;
         int border = vault.isAccessible() ? (hover ? 0xFFFFCC33 : 0xFF444444) : 0xFF552222;
 
-        // Card background
         ctx.fill(x, y, x + CARD_W, y + CARD_H, bg);
         ctx.fill(x, y, x + CARD_W, y + 1, border);
         ctx.fill(x, y + CARD_H - 1, x + CARD_W, y + CARD_H, border);
@@ -187,10 +280,15 @@ public final class PvOverviewScreen extends Screen {
                     x + 6, y + 6, 0xFFFF6666, false);
             ctx.drawText(this.textRenderer, Text.literal("§8Locked"),
                     x + 6, y + 18, 0xFF888888, false);
+            ctx.drawText(this.textRenderer, Text.literal("§7Use a PV"),
+                    x + 6, y + 36, 0xFF999999, false);
+            ctx.drawText(this.textRenderer, Text.literal("§7Expansion to"),
+                    x + 6, y + 46, 0xFF999999, false);
+            ctx.drawText(this.textRenderer, Text.literal("§7unlock."),
+                    x + 6, y + 56, 0xFF999999, false);
             return;
         }
 
-        // Title: "PV N — used/total"
         int totalSlots = vault.slotCount;
         int usedSlots = vault.slots.size();
         ctx.drawText(this.textRenderer, Text.literal("§ePV " + vault.vaultNumber),
@@ -200,11 +298,9 @@ public final class PvOverviewScreen extends Screen {
         ctx.drawText(this.textRenderer, Text.literal(counts),
                 x + CARD_W - countsW - 6, y + 5, 0xFFAAAAAA, false);
 
-        // Item grid
         int gridStartX = x + (CARD_W - GRID_COLS * SLOT_PX) / 2;
         int gridStartY = y + 18;
 
-        // Slot background grid (dim cells so empty slots are visible)
         for (int gx = 0; gx < GRID_COLS; gx++) {
             for (int gy = 0; gy < GRID_ROWS; gy++) {
                 int sx = gridStartX + gx * SLOT_PX;
@@ -213,10 +309,9 @@ public final class PvOverviewScreen extends Screen {
             }
         }
 
-        // Render items at their actual slot indices.
         for (PvBundlePayload.Slot slot : vault.slots) {
             int displayIndex = slot.slotIndex;
-            int gridSlot = displayIndex; // first 54 slots map 1:1; beyond that we clamp.
+            int gridSlot = displayIndex;
             if (gridSlot >= GRID_COLS * GRID_ROWS) continue;
             int gx = gridSlot % GRID_COLS;
             int gy = gridSlot / GRID_COLS;
@@ -226,17 +321,11 @@ public final class PvOverviewScreen extends Screen {
             ItemStack stack = resolveStack(slot);
             if (stack.isEmpty()) continue;
 
-            // Vanilla items are rendered at 16x16 — scale down to SLOT_PX by
-            // letting the matrix push push the items into a tighter grid.
-            // DrawContext.drawItem renders at fixed 16x16, so we accept a 1px
-            // overlap with the grid border to keep them readable.
             ctx.drawItem(stack, sx - 1, sy - 1);
             if (slot.amount > 1) {
                 ctx.drawStackOverlay(this.textRenderer, stack, sx - 1, sy - 1);
             }
 
-            // Hover tooltip — use the captured display name if present, else
-            // the vanilla item name. Append amount.
             if (mouseX >= sx && mouseX < sx + SLOT_PX && mouseY >= sy && mouseY < sy + SLOT_PX) {
                 Text label;
                 if (slot.displayName != null && !slot.displayName.isEmpty()) {
@@ -248,9 +337,6 @@ public final class PvOverviewScreen extends Screen {
             }
         }
 
-        // Affinities row — truncated with ellipsis to fit the card width.
-        // The "edit" affordance lives in the title bar hint so we get the full
-        // width here for actual content.
         int affY = y + CARD_H - 14;
         int maxAffW = CARD_W - 12;
         String affText = formatAffinity(vault.affinityCsv);
@@ -295,8 +381,6 @@ public final class PvOverviewScreen extends Screen {
     }
 
     private static String prettifyKey(String storageKey) {
-        // enchant_dust → Enchant Dust. Keep it simple — server may add new
-        // categories that the client doesn't know yet.
         StringBuilder out = new StringBuilder(storageKey.length());
         boolean upperNext = true;
         for (int i = 0; i < storageKey.length(); i++) {
@@ -312,14 +396,6 @@ public final class PvOverviewScreen extends Screen {
             }
         }
         return out.toString();
-    }
-
-    private int gridWidth() {
-        return CARDS_PER_ROW * CARD_W + (CARDS_PER_ROW - 1) * CARD_GAP;
-    }
-
-    private int gridHeight() {
-        return CARD_ROWS * CARD_H + (CARD_ROWS - 1) * CARD_GAP + TITLE_BAR_H + FOOTER_H;
     }
 
     @Override

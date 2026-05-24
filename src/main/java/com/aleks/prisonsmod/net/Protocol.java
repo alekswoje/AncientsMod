@@ -497,7 +497,7 @@ public final class Protocol {
     // older jars. The decoder rejects bundles only when the server claims
     // MORE vaults than this — a tighter cap would force a coordinated
     // re-release of the mod every time VAULTS_PER_PLAYER goes up.
-    public static final int PV_MAX_VAULTS = 16;
+    public static final int PV_MAX_VAULTS = 64;
     public static final int PV_MAX_SLOTS = 162; // 6 rows × 9 cols × multiple rows of extras
     public static final int PV_MAX_MATERIAL_KEY_CHARS = 48;
     public static final int PV_MAX_DISPLAY_NAME_CHARS = 64;

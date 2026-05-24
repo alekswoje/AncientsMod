@@ -427,7 +427,7 @@ public final class NetworkHandler {
     public static void sendPvOpenRequest(int vaultNumber) {
         if (!ServerAllowlist.isAllowed()) return;
         if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
-        if (vaultNumber < 1 || vaultNumber > 7) return;
+        if (vaultNumber < 1 || vaultNumber > Protocol.PV_MAX_VAULTS) return;
         try {
             ClientPlayNetworking.send(new RawPayload(new byte[] {
                     Protocol.PKT_PV_OPEN_REQ, (byte) (vaultNumber & 0xFF) }));
@@ -444,7 +444,7 @@ public final class NetworkHandler {
     public static void sendPvAffinityOpenRequest(int vaultNumber) {
         if (!ServerAllowlist.isAllowed()) return;
         if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
-        if (vaultNumber < 1 || vaultNumber > 7) return;
+        if (vaultNumber < 1 || vaultNumber > Protocol.PV_MAX_VAULTS) return;
         try {
             ClientPlayNetworking.send(new RawPayload(new byte[] {
                     Protocol.PKT_PV_AFFINITY_OPEN_REQ, (byte) (vaultNumber & 0xFF) }));
@@ -459,7 +459,7 @@ public final class NetworkHandler {
     public static void sendPvAffinityToggle(int vaultNumber, String categoryKey) {
         if (!ServerAllowlist.isAllowed()) return;
         if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
-        if (vaultNumber < 1 || vaultNumber > 7) return;
+        if (vaultNumber < 1 || vaultNumber > Protocol.PV_MAX_VAULTS) return;
         if (categoryKey == null || categoryKey.isEmpty()) return;
         try {
             PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer(32));
@@ -476,7 +476,7 @@ public final class NetworkHandler {
     public static void sendPvAffinityClear(int vaultNumber) {
         if (!ServerAllowlist.isAllowed()) return;
         if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
-        if (vaultNumber < 1 || vaultNumber > 7) return;
+        if (vaultNumber < 1 || vaultNumber > Protocol.PV_MAX_VAULTS) return;
         try {
             ClientPlayNetworking.send(new RawPayload(new byte[] {
                     Protocol.PKT_PV_AFFINITY_CLEAR, (byte) (vaultNumber & 0xFF) }));

@@ -7,6 +7,7 @@ import com.aleks.prisonsmod.client.screen.PvAffinityPickerScreen;
 import com.aleks.prisonsmod.client.screen.PvOverviewScreen;
 import com.aleks.prisonsmod.client.screen.PvPresetsScreen;
 import com.aleks.prisonsmod.net.NetworkHandler;
+import com.aleks.prisonsmod.net.Protocol;
 import com.aleks.prisonsmod.net.payload.PvBundlePayload;
 import net.fabricmc.fabric.api.client.message.v1.ClientSendMessageEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
@@ -190,7 +191,7 @@ public final class PvClient {
         state = State.IDLE;
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null || client.getNetworkHandler() == null) return;
-        if (vaultNumber < 1 || vaultNumber > 7) return;
+        if (vaultNumber < 1 || vaultNumber > Protocol.PV_MAX_VAULTS) return;
         expectingMenuReopen = true;
         client.setScreen(null);
         NetworkHandler.sendPvOpenRequest(vaultNumber);
@@ -204,7 +205,7 @@ public final class PvClient {
     public static void openAffinityPicker(int vaultNumber) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null || client.getNetworkHandler() == null) return;
-        if (vaultNumber < 1 || vaultNumber > 7) return;
+        if (vaultNumber < 1 || vaultNumber > Protocol.PV_MAX_VAULTS) return;
         if (latestBundle == null) {
             // No data yet — kick off a bundle request and the post-bundle path
             // will open the overview; user can right-click again.

@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Decoded {@code PKT_PV_BUNDLE}: a snapshot of all 7 PVs' contents, used by
+ * Decoded {@code PKT_PV_BUNDLE}: a snapshot of every PV's contents, used by
  * the mod's custom {@code /pv} overview screen.
  *
  * <p>Bundles {@link Vault} entries each containing slot count, affinity csv,
