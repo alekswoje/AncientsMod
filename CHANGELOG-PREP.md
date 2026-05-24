@@ -14,17 +14,9 @@
 
 ## UI & Screens
 
-- New **Personal Vaults overview screen** — running `/pv` now opens a single screen showing all 8 of your PVs side-by-side with item previews and the affinity bindings for each vault. Click any vault card to open it normally. Toggleable in Settings → Custom Screens. `/pv 1`, `/pv 2`, `/pvsort` etc. still go to the server unchanged.
-- **Smooth shift-click in Personal Vaults** — shift-clicking an item from your inventory into a PV used to flicker (item briefly appeared in the open PV before disappearing) because the client predicted vanilla shift-click would dump it into the open vault while the server rerouted it to its affinity PV. The mod now intercepts these clicks and sends a custom routing packet so the only inventory update you see is the final, authoritative one — no flicker.
-- Settings reorganised: the **PV overview** and **bug-report UI** toggles moved out of *Network* into their own **Custom Screens** section, so Network now lists only true network behaviors (update alert, auto-rejoin).
-
 ## Input & Keybinds
 
 ## Networking & Server Integration
-
-- New **Auto-rejoin** toggle (Settings → Network, off by default). When the server kicks you, restarts, or your connection drops, the mod waits 5 s and reconnects to the same server address, then keeps retrying every 5 s until you're back in. The proxy puts you back on the backend you were last playing on (or queues you if it's still booting). Click any button on the disconnect screen to cancel.
-- Running `/bugreport` again while a previous bug-report window is still open (waiting on the AI, resolved, or escalated) now **cleanly closes the old session and starts a fresh one** instead of falling through to the server as a context-free legacy chat command. Previously this silently filed a second no-description report and auto-opened an empty Discord ticket.
-- The mod now tells the server when your **Booster HUD widget** is on, so the server's action-bar booster line defaults off and the same info isn't shown twice. Flips automatically when you toggle the widget. If you want both, re-enable **Show Boosters** in `/toggles` → **Action Bar** in-game.
 
 ## Updates & Installation
 
