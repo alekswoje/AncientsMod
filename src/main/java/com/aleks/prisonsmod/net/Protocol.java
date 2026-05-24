@@ -475,7 +475,7 @@ public final class Protocol {
     public static final int MAX_PV_BUNDLE_BYTES = 65_536;
 
     // --- PV bundle bounds ---
-    public static final int PV_MAX_VAULTS = 7;
+    public static final int PV_MAX_VAULTS = 8;
     public static final int PV_MAX_SLOTS = 162; // 6 rows × 9 cols × multiple rows of extras
     public static final int PV_MAX_MATERIAL_KEY_CHARS = 48;
     public static final int PV_MAX_DISPLAY_NAME_CHARS = 64;
