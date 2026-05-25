@@ -81,6 +81,16 @@ public final class MeteoriteLabelRenderer {
         Matrix4f viewRot = new Matrix4f().rotation(invRot);
         Matrix4f viewProj = new Matrix4f(proj).mul(viewRot);
 
+        // Zoom mods narrow the effective FOV — the meteorite block grows in
+        // the 3D pass but the HUD label stays at a fixed pixel size unless we
+        // scale it the same way perspective does. tan(base/2)/tan(current/2)
+        // matches the projection scale; clamp ≥ 1.0 so the sprint FOV bump
+        // never shrinks the label below baseline.
+        float baseFov = client.options.getFov().getValue().floatValue();
+        float zoomFactor = (float) Math.max(1.0,
+                Math.tan(Math.toRadians(baseFov / 2.0))
+                        / Math.tan(Math.toRadians(fov / 2.0)));
+
         int sw = client.getWindow().getScaledWidth();
         int sh = client.getWindow().getScaledHeight();
 
@@ -103,7 +113,7 @@ public final class MeteoriteLabelRenderer {
 
             drawProjectedLabel(context, client, s,
                     cx, cy + LABEL_WORLD_Y_OFFSET, cz,
-                    dist, camPos, viewProj, sw, sh);
+                    dist, camPos, viewProj, sw, sh, zoomFactor);
         }
     }
 
@@ -112,7 +122,7 @@ public final class MeteoriteLabelRenderer {
                                            double wx, double wy, double wz,
                                            double distance,
                                            Vec3d camPos, Matrix4f viewProj,
-                                           int sw, int sh) {
+                                           int sw, int sh, float zoomFactor) {
         float rx = (float) (wx - camPos.x);
         float ry = (float) (wy - camPos.y);
         float rz = (float) (wz - camPos.z);
@@ -159,8 +169,11 @@ public final class MeteoriteLabelRenderer {
         // Distance-based scale so distant meteorites read as small dots, not
         // full-size labels floating in the sky. Matrix3x2fStack push +
         // translate + scale shrinks both glyphs and the backdrop in lockstep.
+        // zoomFactor (≥ 1.0) tracks the world-projection so the label grows
+        // with the meteorite block when a zoom mod narrows the FOV.
         float scale = (float) Math.max(LABEL_SCALE_FLOOR,
                 Math.min(1.0, LABEL_SCALE_REFERENCE_DISTANCE / Math.max(distance, 1.0)));
+        scale *= zoomFactor;
 
         org.joml.Matrix3x2fStack hudMatrices = context.getMatrices();
         hudMatrices.pushMatrix();

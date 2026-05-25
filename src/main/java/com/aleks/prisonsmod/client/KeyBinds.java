@@ -6,6 +6,7 @@ import com.aleks.prisonsmod.render.MinePredictRenderer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.input.KeyInput;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.text.Text;
@@ -44,10 +45,29 @@ public final class KeyBinds {
             KeyBinding.Category.MISC
     );
 
+    /**
+     * Toggle item lock on the slot currently hovered in any inventory screen.
+     * Default Z (unbound in vanilla 1.21). Consumed by the screen-key mixin,
+     * not a tick handler — vanilla key bindings don't fire while a Screen is
+     * open, so the mixin reads {@link #matchesKey(int, int)} directly.
+     */
+    public static final KeyBinding TOGGLE_ITEM_LOCK = new KeyBinding(
+            "key.prisonsmod.toggleItemLock",
+            InputUtil.Type.KEYSYM,
+            GLFW.GLFW_KEY_Z,
+            KeyBinding.Category.INVENTORY
+    );
+
+    /** Returns true if the given keyboard event matches the lock keybind's currently-bound key. Used by the screen mixin. */
+    public static boolean matchesItemLockKey(KeyInput input) {
+        return TOGGLE_ITEM_LOCK.matchesKey(input);
+    }
+
     public static void register() {
         KeyBindingHelper.registerKeyBinding(TOGGLE_MINE_PREDICT);
         KeyBindingHelper.registerKeyBinding(GANG_PING);
         KeyBindingHelper.registerKeyBinding(OPEN_SETTINGS);
+        KeyBindingHelper.registerKeyBinding(TOGGLE_ITEM_LOCK);
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (TOGGLE_MINE_PREDICT.wasPressed()) {

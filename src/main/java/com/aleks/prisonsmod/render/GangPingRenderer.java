@@ -151,6 +151,18 @@ public final class GangPingRenderer {
         Matrix4f viewRot = new Matrix4f().rotation(invRot);
         Matrix4f viewProj = new Matrix4f(proj).mul(viewRot);
 
+        // Zoom mods (Zoomify / OkZoomer / Lunar / etc.) narrow the effective
+        // FOV. The beam visibly grows because it's projected in 3D, but the
+        // HUD label is drawn at a constant pixel size — so without this scale
+        // factor the text stays tiny while the beam blows up. tan(base/2) /
+        // tan(current/2) matches the perspective-projection scale exactly.
+        // Clamp to ≥ 1.0 so the sprint/speed FOV bump (effective > base) never
+        // *shrinks* the text — we only grow on zoom-in.
+        float baseFov = client.options.getFov().getValue().floatValue();
+        float zoomFactor = (float) Math.max(1.0,
+                Math.tan(Math.toRadians(baseFov / 2.0))
+                        / Math.tan(Math.toRadians(fov / 2.0)));
+
         int sw = client.getWindow().getScaledWidth();
         int sh = client.getWindow().getScaledHeight();
 
@@ -165,7 +177,7 @@ public final class GangPingRenderer {
             drawProjectedLabel(context, client, ping.senderName, ping.worldName,
                     ping.colorRgb, alpha,
                     ping.x, ping.y + LABEL_WORLD_Y_OFFSET, ping.z,
-                    playerPos, camPos, viewProj, sw, sh);
+                    playerPos, camPos, viewProj, sw, sh, zoomFactor);
         }
 
         if (GangPingInput.isPreviewActive()) {
@@ -177,7 +189,7 @@ public final class GangPingRenderer {
                         client.player.getName().getString(), world,
                         0xFFFFFF, 0.45f,
                         target.x, target.y + LABEL_WORLD_Y_OFFSET, target.z,
-                        playerPos, camPos, viewProj, sw, sh);
+                        playerPos, camPos, viewProj, sw, sh, zoomFactor);
             }
         }
     }
@@ -193,7 +205,7 @@ public final class GangPingRenderer {
                                            double wx, double wy, double wz,
                                            Vec3d playerPos, Vec3d camPos,
                                            Matrix4f viewProj,
-                                           int sw, int sh) {
+                                           int sw, int sh, float zoomFactor) {
         if (senderName == null || senderName.isEmpty()) return;
 
         // Pre-translate to camera-relative — the view matrix doesn't carry
@@ -228,9 +240,12 @@ public final class GangPingRenderer {
 
         // Distance-based scale: full size up to LABEL_SCALE_REFERENCE_DISTANCE,
         // then 1/distance falloff (matches how vanilla entity nameplates shrink
-        // with apparent screen size). Floor keeps it readable far out.
+        // with apparent screen size). Floor keeps it readable far out. The
+        // zoomFactor multiplier (≥ 1.0) makes the label grow in lockstep with
+        // the world-projected beam when a zoom mod narrows the FOV.
         float scale = (float) Math.max(LABEL_SCALE_FLOOR,
                 Math.min(1.0, LABEL_SCALE_REFERENCE_DISTANCE / Math.max(distMeters, 1)));
+        scale *= zoomFactor;
 
         int lineHeight = tr.fontHeight + 1;
 

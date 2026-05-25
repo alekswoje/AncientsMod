@@ -31,10 +31,11 @@ public final class StatsHudSettingsScreen extends WidgetSettingsScreen {
         // Section toggles.
         for (String section : StatsHud.ALL_SECTIONS) {
             String label = switch (section) {
-                case "world" -> "Show world name";
-                case "kills" -> "Show kills section";
-                case "drops" -> "Show drops section";
-                default -> "Show " + section;
+                case "world"  -> "Show world name";
+                case "mining" -> "Show mining (XP/h, Energy/h, $/h)";
+                case "kills"  -> "Show kills section";
+                case "drops"  -> "Show drops section";
+                default       -> "Show " + section;
             };
             addToggle(label,
                     () -> stats.enabledSections().contains(section),
@@ -42,8 +43,19 @@ public final class StatsHudSettingsScreen extends WidgetSettingsScreen {
                         Set<String> current = new LinkedHashSet<>(stats.enabledSections());
                         if (v) current.add(section); else current.remove(section);
                         HudSettings.setStringSet(stats.id(), StatsHud.KEY_SECTIONS, current);
+                        // Re-notify the server so it can flip the action-bar
+                        // XP/h / Energy/h / $/h trio off (or back on) to match.
+                        if ("mining".equals(section)) {
+                            com.aleks.prisonsmod.net.NetworkHandler.sendMiningHudState(
+                                    StatsHud.isMiningEffectivelyEnabled());
+                        }
                     });
         }
+
+        addSection("Drops");
+        addToggle("Show lootbox subtypes",
+                stats::splitLootboxSubtypes,
+                v -> HudSettings.setBoolean(stats.id(), StatsHud.KEY_SPLIT_LOOTBOX_SUBTYPES, v));
 
         addSection("Visible kills");
         // Per-mob visibility — empty set means "show every kind".

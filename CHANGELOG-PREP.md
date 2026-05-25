@@ -13,6 +13,7 @@
 - **Stats HUD now hides itself when you have no kills or drops to show** instead of sitting around in spawn/hub displaying just the world name. It pops back up as soon as you start farming again. Set the widget's "Always show" toggle if you want it pinned regardless.
 - **Stats HUD — "Show lootbox subtypes" toggle.** New per-widget setting (Drops section). Off (default): every lootbox / lockbox / seasonal crate drop rolls up to a single "Lootbox" / "Lockbox" / "Seasonal Crate" row. On: each rarity / subtype gets its own row (e.g. "Common Booster Box", "Rare Booster Box", "Epic Booster Box"). Same wire data either way — the mod aggregates locally.
 - **Stats HUD now stays accurate when the server adds new drop categories.** The decoder consumes the whole packet even if it has more rows than the mod can display, so older mods will still see a truncated-but-correct view instead of silently corrupting the rest of the stats packet.
+- **Stats HUD — new Mining section (XP/h, Energy/h, $/h).** Shows live per-hour rates while you're actively mining, with the same compact formatting the action bar uses (e.g. `12.5K`). Section auto-hides a few seconds after you stop mining. Toggle it under the widget settings ("Show mining (XP/h, Energy/h, $/h)"); enabling it also tells the server to default the action-bar rates off so the same numbers don't show twice (re-enable in-game via `/toggles` → Action Bar → Show Rates if you want both).
 
 ## Rendering & Visuals
 

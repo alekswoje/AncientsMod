@@ -1,6 +1,7 @@
 package com.aleks.prisonsmod.client.screen;
 
 import com.aleks.prisonsmod.client.FeatureToggles;
+import com.aleks.prisonsmod.client.ItemLocks;
 import com.aleks.prisonsmod.client.hud.HudEditScreen;
 import com.aleks.prisonsmod.client.hud.WidgetSettingsScreen;
 import net.minecraft.client.gui.screen.Screen;
@@ -69,5 +70,10 @@ public final class SettingsScreen extends WidgetSettingsScreen {
                 FeatureToggles::isUpdateAlertEnabled, FeatureToggles::setUpdateAlert);
         addToggle("Auto-rejoin after kick (retry every 5s)",
                 FeatureToggles::isAutoRejoinEnabled, FeatureToggles::setAutoRejoin);
+
+        addSection("Inventory");
+        addToggle("Item lock (Z while hovering blocks drop/move)",
+                FeatureToggles::isItemLockEnabled, FeatureToggles::setItemLock);
+        addAction("Clear all locked slots", ItemLocks::clear);
     }
 }
