@@ -10,6 +10,10 @@
 
 ## HUDs
 
+- **Stats HUD now hides itself when you have no kills or drops to show** instead of sitting around in spawn/hub displaying just the world name. It pops back up as soon as you start farming again. Set the widget's "Always show" toggle if you want it pinned regardless.
+- **Stats HUD — "Show lootbox subtypes" toggle.** New per-widget setting (Drops section). Off (default): every lootbox / lockbox / seasonal crate drop rolls up to a single "Lootbox" / "Lockbox" / "Seasonal Crate" row. On: each rarity / subtype gets its own row (e.g. "Common Booster Box", "Rare Booster Box", "Epic Booster Box"). Same wire data either way — the mod aggregates locally.
+- **Stats HUD now stays accurate when the server adds new drop categories.** The decoder consumes the whole packet even if it has more rows than the mod can display, so older mods will still see a truncated-but-correct view instead of silently corrupting the rest of the stats packet.
+
 ## Rendering & Visuals
 
 - **Gang pings and meteorite labels now scale with zoom.** Using a zoom mod (Zoomify / OkZoomer / Lunar zoom / OptiFine zoom) narrows your FOV, which made the beam grow while the floating text stayed tiny — now the text grows in lockstep with the beam and the meteorite block, matching what you see through the zoom.
@@ -34,6 +38,8 @@
 - **New keybind: Item Lock (default Z).** Open any inventory screen, hover a slot, press Z to flag it as locked. A small yellow padlock appears in the slot's corner. Locked slots refuse Q-drops, Ctrl+Q stack drops, drag-into-void, shift-clicks into chests/vaults, and number-key hotbar swaps — the slot becomes read-only until you press Z again to unlock. Works on hotbar, main inventory, armor, and offhand. Rebind under Options → Controls → Inventory. Manage all locks (clear-all) under PrisonsMod Settings → Inventory.
 
 ## Networking & Server Integration
+
+- **Disabling the PV overview now also disables server-side affinity routing.** When PrisonsMod Settings → PV Overview is off, the shift-click mixin stops intercepting (vanilla shift-click runs) AND the server is told to skip affinity routing for you, so your stored affinity bindings don't silently re-route items into the wrong vault. State is synced on join and on every toggle change; uninstalling the mod has the same effect.
 
 ## Updates & Installation
 

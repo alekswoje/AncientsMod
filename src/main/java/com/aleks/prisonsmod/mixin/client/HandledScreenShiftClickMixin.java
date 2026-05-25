@@ -1,6 +1,7 @@
 package com.aleks.prisonsmod.mixin.client;
 
 import com.aleks.prisonsmod.PrisonsMod;
+import com.aleks.prisonsmod.client.FeatureToggles;
 import com.aleks.prisonsmod.client.ServerAllowlist;
 import com.aleks.prisonsmod.net.NetworkHandler;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
@@ -53,6 +54,13 @@ public abstract class HandledScreenShiftClickMixin {
         if (actionType != SlotActionType.QUICK_MOVE) return;
         if (slot == null) return;
         if (!ServerAllowlist.isAllowed()) return;
+        // If the player turned off the mod's PV overview feature, let vanilla
+        // shift-click handle it. The server-side affinity gate also keys off
+        // the same toggle (via PKT_PV_FEATURES_STATE), so without this we'd
+        // intercept the click only for the server to fall back — extra round-
+        // trip with no benefit. Keeping vanilla also means a vanilla shift-
+        // click event fires for any other server listener that cares.
+        if (!FeatureToggles.isPvOverviewEnabled()) return;
 
         // Only intercept on PV per-vault inventories. Strip legacy § color
         // codes — Paper sends the title with embedded §8 codes for DARK_GRAY

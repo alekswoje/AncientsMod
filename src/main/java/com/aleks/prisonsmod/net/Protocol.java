@@ -178,7 +178,7 @@ public final class Protocol {
     public static final byte PKT_PVE_STATS = 15;
 
     /** Hard cap on rows per PvE stats snapshot (kills or drops). */
-    public static final int MAX_PVE_STAT_ROWS = 32;
+    public static final int MAX_PVE_STAT_ROWS = 64;
 
     /**
      * Server response to a {@link #PKT_BUGREPORT_INTENT}: opens the in-game
@@ -261,6 +261,14 @@ public final class Protocol {
      * {@code /pv} overview screen. Bounded by {@link #MAX_PV_BUNDLE_BYTES}.
      */
     public static final byte PKT_PV_BUNDLE = 23;
+
+    /**
+     * Live mining rates snapshot (XP/h, Energy/h, $/h) for the Stats HUD
+     * mining section. Server emits at 1 Hz only while a live mining window is
+     * active — when the wire goes quiet, the client section stales out and
+     * disappears. Wire: type byte + 3× varint (xp/h, energy/h, $/h).
+     */
+    public static final byte PKT_MINING_STATS = 24;
 
     // Suggest category enum-bytes (must match plugin PrisonsModChannel).
     public static final byte SUGGEST_CAT_MOD    = 0;
@@ -488,6 +496,30 @@ public final class Protocol {
      *  fresh PKT_PV_BUNDLE so the screen re-renders. */
     public static final byte PKT_PV_SWAP_REQ = (byte) 121;
 
+    /**
+     * Report the current state of the Stats HUD mining-section toggle. Server
+     * uses this to default the action-bar XP/h / Energy/h / $/h trio OFF while
+     * the mod is rendering those same values in its widget — players can still
+     * flip it back on via {@code /toggles} → Action Bar → Show Rates.
+     *
+     * <p>Sent on every join (right after the handshake) and whenever the toggle
+     * flips. Wire format: type byte + single state byte (1 = section on, 0 = off).
+     */
+    public static final byte PKT_MINING_HUD_STATE = (byte) 122;
+
+    /**
+     * Report whether the PV-overview / affinity-routing feature is enabled
+     * in the mod's settings. Server uses this to gate affinity routing
+     * (shift-click cascade, /pvsort, preset apply) — when the player turns
+     * this off, the server falls back to vanilla shift-click behavior so
+     * items aren't silently rerouted by stale affinity bindings.
+     *
+     * <p>Sent on every join (right after the handshake) and whenever the
+     * toggle flips. Wire format: type byte + single state byte
+     * (1 = features on, 0 = off).
+     */
+    public static final byte PKT_PV_FEATURES_STATE = (byte) 123;
+
     // --- Hard size caps (wire-level) ---
     /** Maximum bytes for any single cosmetic S2C payload. Larger packets are dropped. */
     public static final int MAX_PAYLOAD_BYTES = 256;
@@ -533,6 +565,8 @@ public final class Protocol {
     public static final int RATE_COOLDOWNS_PER_SEC = 5;
     /** PvE stats heartbeat — same shape. */
     public static final int RATE_PVE_STATS_PER_SEC = 5;
+    /** Mining stats heartbeat — same shape. */
+    public static final int RATE_MINING_STATS_PER_SEC = 5;
     /** Per-block-break + right-click. A meteorite is 200–300 blocks; cap at theoretical max mining cadence. */
     public static final int RATE_METEORITE_HUD_PER_SEC = 40;
     /** Buff snapshot is on-demand (only on /pickbuffs or refresh-button). */

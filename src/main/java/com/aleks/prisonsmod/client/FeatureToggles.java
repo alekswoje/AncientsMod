@@ -73,6 +73,9 @@ public final class FeatureToggles {
     /** Auto-rejoin the server after an involuntary disconnect (kick, restart, network drop). Retries every 5s while the disconnect screen is showing. Backend routing + queueing on the way back in is handled by the proxy. */
     private static volatile boolean autoRejoin = false;
 
+    /** Item lock — block Q-drop, Ctrl+Q drop-stack, inventory drag-out, and 1-9 hotbar swap on player-inv slots flagged via the lock keybind ({@link KeyBinds#TOGGLE_ITEM_LOCK}). Per-slot state lives in {@link ItemLocks} (separate file). When off, locks are ignored but not forgotten. */
+    private static volatile boolean itemLock = true;
+
     // ─────────────────────────────────────────────────────────────────────────
 
     private static Path configPath() {
@@ -105,6 +108,7 @@ public final class FeatureToggles {
             riftTexturePack = parseBool(props.getProperty("riftTexturePack"), riftTexturePack);
             evenSpacingSnap = parseBool(props.getProperty("evenSpacingSnap"), evenSpacingSnap);
             autoRejoin = parseBool(props.getProperty("autoRejoin"), autoRejoin);
+            itemLock = parseBool(props.getProperty("itemLock"), itemLock);
         } catch (IOException e) {
             PrisonsMod.LOGGER.warn("failed to load {}: {}", FILE_NAME, e.getMessage());
         }
@@ -129,6 +133,7 @@ public final class FeatureToggles {
         props.setProperty("riftTexturePack", Boolean.toString(riftTexturePack));
         props.setProperty("evenSpacingSnap", Boolean.toString(evenSpacingSnap));
         props.setProperty("autoRejoin", Boolean.toString(autoRejoin));
+        props.setProperty("itemLock", Boolean.toString(itemLock));
         try {
             Files.createDirectories(configPath().getParent());
             try (var out = Files.newOutputStream(configPath())) {
@@ -250,6 +255,11 @@ public final class FeatureToggles {
         if (statsHud == value) return;
         statsHud = value;
         save();
+        // Mining suppression on the server keys off whether the widget is
+        // effectively rendering the mining section — re-send when the master
+        // toggle flips so the action-bar default flips with it.
+        com.aleks.prisonsmod.net.NetworkHandler.sendMiningHudState(
+                com.aleks.prisonsmod.client.hud.StatsHud.isMiningEffectivelyEnabled());
     }
 
     public static boolean isUpdateAlertEnabled() { return updateAlert; }
@@ -282,6 +292,11 @@ public final class FeatureToggles {
         if (pvOverview == value) return;
         pvOverview = value;
         save();
+        // Notify the server so it can gate server-side affinity routing —
+        // when this is off, vanilla shift-click behavior applies and the
+        // mod's shift-click mixin also stops intercepting. No-op when not
+        // connected.
+        com.aleks.prisonsmod.net.NetworkHandler.sendPvFeaturesState(value);
     }
 
     public static boolean isRiftTexturePackEnabled() { return riftTexturePack; }
@@ -305,6 +320,14 @@ public final class FeatureToggles {
     public static void setAutoRejoin(boolean value) {
         if (autoRejoin == value) return;
         autoRejoin = value;
+        save();
+    }
+
+    public static boolean isItemLockEnabled() { return itemLock; }
+
+    public static void setItemLock(boolean value) {
+        if (itemLock == value) return;
+        itemLock = value;
         save();
     }
 

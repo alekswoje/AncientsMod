@@ -12,6 +12,7 @@ import com.aleks.prisonsmod.client.hud.BoosterState;
 import com.aleks.prisonsmod.client.hud.CooldownState;
 import com.aleks.prisonsmod.client.hud.EventState;
 import com.aleks.prisonsmod.client.hud.MeteoriteState;
+import com.aleks.prisonsmod.client.hud.MiningStatsState;
 import com.aleks.prisonsmod.client.hud.PveStatsState;
 import com.aleks.prisonsmod.net.payload.BoosterUpdatePayload;
 import com.aleks.prisonsmod.net.payload.BugReportAiReplyPayload;
@@ -24,6 +25,7 @@ import com.aleks.prisonsmod.net.payload.SuggestOpenPayload;
 import com.aleks.prisonsmod.net.payload.CooldownsPayload;
 import com.aleks.prisonsmod.net.payload.EventTimersPayload;
 import com.aleks.prisonsmod.net.payload.MeteoriteHudPayload;
+import com.aleks.prisonsmod.net.payload.MiningStatsPayload;
 import com.aleks.prisonsmod.net.payload.PveStatsPayload;
 import com.aleks.prisonsmod.net.payload.DuelStatePayload;
 import com.aleks.prisonsmod.net.payload.GangPingPayload;
@@ -155,6 +157,11 @@ public final class NetworkHandler {
                     PveStatsPayload p = PveStatsPayload.decode(buf);
                     PveStatsState.update(p);
                 }
+                case Protocol.PKT_MINING_STATS -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.MINING_STATS)) return;
+                    MiningStatsPayload p = MiningStatsPayload.decode(buf);
+                    MiningStatsState.update(p);
+                }
                 case Protocol.PKT_BUFF_SNAPSHOT -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.BUFF_SNAPSHOT)) {
                         PrisonsMod.LOGGER.info("BUFF_SNAPSHOT rate-limited");
@@ -261,6 +268,43 @@ public final class NetworkHandler {
             }));
         } catch (Throwable t) {
             PrisonsMod.LOGGER.debug("send booster hud state failed", t);
+        }
+    }
+
+    /**
+     * Report whether the Stats HUD mining section is enabled. Server uses this
+     * to default the action-bar XP/h / Energy/h / $/h rates off while the
+     * widget is rendering the same info; players can still flip them back on
+     * via {@code /toggles} → Action Bar → Show Rates.
+     * Sent right after the handshake on join and on every toggle change.
+     */
+    public static void sendMiningHudState(boolean on) {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            ClientPlayNetworking.send(new RawPayload(new byte[] {
+                    Protocol.PKT_MINING_HUD_STATE, (byte) (on ? 1 : 0)
+            }));
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send mining hud state failed", t);
+        }
+    }
+
+    /**
+     * Report whether the mod's PV-overview / affinity-routing feature is on.
+     * Server gates server-side affinity routing on this — when off, vanilla
+     * shift-click behavior applies (no auto-routing to bound vaults).
+     * Sent right after the handshake on join and on every toggle change.
+     */
+    public static void sendPvFeaturesState(boolean on) {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            ClientPlayNetworking.send(new RawPayload(new byte[] {
+                    Protocol.PKT_PV_FEATURES_STATE, (byte) (on ? 1 : 0)
+            }));
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send pv features state failed", t);
         }
     }
 

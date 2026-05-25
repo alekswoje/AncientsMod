@@ -55,6 +55,7 @@ public final class PrisonsModClient implements ClientModInitializer {
         FeatureToggles.load();
         HudPositions.load();
         HudSettings.load();
+        ItemLocks.load();
         KeyBinds.register();
         RiftTexturePackManager.register();
         NetworkHandler.register();
@@ -93,6 +94,14 @@ public final class PrisonsModClient implements ClientModInitializer {
                     // can default the action-bar booster line off when we're
                     // already rendering the same info.
                     NetworkHandler.sendBoosterHudState(FeatureToggles.isBoosterHudEnabled());
+                    // Same idea for the Stats HUD mining section: if it's on,
+                    // the action-bar XP/h / Energy/h / $/h trio defaults off.
+                    NetworkHandler.sendMiningHudState(
+                            com.aleks.prisonsmod.client.hud.StatsHud.isMiningEffectivelyEnabled());
+                    // Tell the server whether the PV-overview / affinity feature
+                    // is on so it can gate server-side affinity routing (smart
+                    // shift-click, /pvsort) to match.
+                    NetworkHandler.sendPvFeaturesState(FeatureToggles.isPvOverviewEnabled());
                 });
             }
         });
