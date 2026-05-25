@@ -54,6 +54,16 @@ jobs:
         run: |
           chmod +x ./gradlew
           ./gradlew build --no-daemon
+          # action-gh-release@v2 doesn't reliably handle negation glob patterns
+          # alongside fail_on_unmatched_files: true — the exclusion entries
+          # always report "no match" and fail the step. Delete the variant jars
+          # BEFORE the upload step so a single inclusion glob is sufficient.
+          # The in-mod auto-updater also defensively skips these jar variants
+          # since v0.2.3, but removing them at the source keeps the release
+          # assets clean for any other consumer.
+          rm -f build/libs/prisonsmod-*-sources.jar \
+                build/libs/prisonsmod-*-dev.jar \
+                build/libs/prisonsmod-*-shadow.jar
           ls -la build/libs/
 
       - name: Extract release body from CHANGELOG-PREP.md
@@ -90,19 +100,11 @@ jobs:
           tag_name: ${{ env.TAG }}
           name: ${{ env.TAG }}
           body_path: ${{ steps.notes.outputs.notes_file }}
-          # Exclude -sources.jar (and -dev/-shadow if Loom ever emits them):
-          # the in-mod auto-updater used to grab whichever prisonsmod-*.jar
-          # asset the GitHub API listed first, and the sources jar (no
-          # compiled classes) crashed the game on next launch with
-          # "MixinApplyError: EquipmentRendererMixin not found".
-          # UpdateChecker.findJarAsset now defensively skips these on the
-          # client side too (since v0.2.3), but the cleanest fix is to not
-          # publish them in the first place.
-          files: |
-            build/libs/prisonsmod-*.jar
-            !build/libs/prisonsmod-*-sources.jar
-            !build/libs/prisonsmod-*-dev.jar
-            !build/libs/prisonsmod-*-shadow.jar
+          # Sources/dev/shadow jar variants are stripped by the Build step,
+          # so a single inclusion glob is enough. (Negation patterns + the
+          # `fail_on_unmatched_files: true` setting interact badly — the
+          # action errors out reporting the negation didn't match any file.)
+          files: build/libs/prisonsmod-*.jar
           fail_on_unmatched_files: true
           generate_release_notes: false
 
