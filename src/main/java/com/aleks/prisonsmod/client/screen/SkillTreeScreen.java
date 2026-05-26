@@ -138,6 +138,10 @@ public final class SkillTreeScreen extends Screen {
                 .dimensions(width - 130, height - 30, 120, 20)
                 .build();
         addDrawableChild(respecButton);
+
+        // Reclamp on window resize so a smaller window doesn't leave the
+        // pan offset out of bounds from a previous wider layout.
+        clampPan();
     }
 
     private void onSearchChanged(String s) {
@@ -519,6 +523,7 @@ public final class SkillTreeScreen extends Screen {
             panX = dragStartPanX + (float) (click.x() - dragStartMouseX);
             panY = dragStartPanY + (float) (click.y() - dragStartMouseY);
             dragMovePx += Math.abs(offsetX) + Math.abs(offsetY);
+            clampPan();
             return true;
         }
         return super.mouseDragged(click, offsetX, offsetY);
@@ -542,7 +547,41 @@ public final class SkillTreeScreen extends Screen {
         panX = cx - (cx - panX) * (next / old);
         panY = cy - (cy - panY) * (next / old);
         zoom = next;
+        clampPan();
         return true;
+    }
+
+    /**
+     * Stop the player from panning the tree completely off-screen. Always
+     * keeps at least {@link #PAN_KEEP_MARGIN_PX} of the node bounding box
+     * visible on every edge.
+     */
+    private static final float PAN_KEEP_MARGIN_PX = 80f;
+
+    private void clampPan() {
+        SkillTreeOpenPayload layout = SkillTreeClient.layout();
+        if (layout == null || layout.nodes.isEmpty()) return;
+        int minGx = Integer.MAX_VALUE, maxGx = Integer.MIN_VALUE;
+        int minGy = Integer.MAX_VALUE, maxGy = Integer.MIN_VALUE;
+        for (SkillTreeOpenPayload.Node n : layout.nodes) {
+            if (n.gx < minGx) minGx = n.gx;
+            if (n.gx > maxGx) maxGx = n.gx;
+            if (n.gy < minGy) minGy = n.gy;
+            if (n.gy > maxGy) maxGy = n.gy;
+        }
+        float leftPx  = minGx * GRID_PITCH * zoom;
+        float rightPx = maxGx * GRID_PITCH * zoom;
+        float topPx   = minGy * GRID_PITCH * zoom;
+        float botPx   = maxGy * GRID_PITCH * zoom;
+        // Require the tree's screen rect to overlap [margin, screen - margin].
+        //   screenLeft  = width/2  + leftPx  + panX  must be <= width - margin
+        //   screenRight = width/2  + rightPx + panX  must be >= margin
+        float panXMin = PAN_KEEP_MARGIN_PX - width * 0.5f - rightPx;
+        float panXMax = width - PAN_KEEP_MARGIN_PX - width * 0.5f - leftPx;
+        panX = Math.max(panXMin, Math.min(panXMax, panX));
+        float panYMin = PAN_KEEP_MARGIN_PX - height * 0.5f - botPx;
+        float panYMax = height - PAN_KEEP_MARGIN_PX - height * 0.5f - topPx;
+        panY = Math.max(panYMin, Math.min(panYMax, panY));
     }
 
     /**
