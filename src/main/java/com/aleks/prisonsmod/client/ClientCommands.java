@@ -1,6 +1,7 @@
 package com.aleks.prisonsmod.client;
 
 import com.aleks.prisonsmod.client.screen.SettingsScreen;
+import com.aleks.prisonsmod.client.skilltree.SkillTreeClient;
 import com.aleks.prisonsmod.client.update.UpdateInstaller;
 import com.mojang.brigadier.Command;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
@@ -34,7 +35,20 @@ public final class ClientCommands {
                             .then(ClientCommandManager.literal("update")
                                     .executes(ctx -> runUpdate()))
             );
+            // /skilltree — re-open the Tartarus Vision screen without
+            // walking back to the Oracle. Requests a fresh layout + state
+            // from the server every time so balance edits show up.
+            dispatcher.register(
+                    ClientCommandManager.literal("skilltree")
+                            .executes(ctx -> requestSkillTreeOpen())
+            );
         });
+    }
+
+    private static int requestSkillTreeOpen() {
+        if (!ServerAllowlist.isAllowed()) return 0;
+        SkillTreeClient.requestOpen();
+        return Command.SINGLE_SUCCESS;
     }
 
     private static int openSettings() {

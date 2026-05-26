@@ -28,11 +28,35 @@ public final class SkillTreeClient {
     /** Monotonic counter — the screen polls this to detect updates without comparing payloads. */
     private static volatile long version;
 
+    /** Per-node "just unlocked" timestamps, so the screen can render a brief amethyst pulse. */
+    private static final java.util.Map<String, Long> recentlyUnlockedAtMs = new java.util.concurrent.ConcurrentHashMap<>();
+    /** Per-node "just refunded" timestamps — dimmer pulse, mirrors the chisel feedback. */
+    private static final java.util.Map<String, Long> recentlyRefundedAtMs = new java.util.concurrent.ConcurrentHashMap<>();
+    /** Animation lifetime — pulses fade to zero over this window. */
+    public static final long PULSE_LIFETIME_MS = 800L;
+
     private SkillTreeClient() {}
 
     public static SkillTreeOpenPayload layout() { return layout; }
     public static SkillTreeStatePayload state() { return state; }
     public static long version() { return version; }
+
+    /** 1.0 → fresh pulse, 0.0 → expired. Caller scales alpha / radius by this value. */
+    public static float unlockPulse(String nodeId) {
+        Long at = recentlyUnlockedAtMs.get(nodeId);
+        if (at == null) return 0f;
+        long age = System.currentTimeMillis() - at;
+        if (age >= PULSE_LIFETIME_MS) return 0f;
+        return 1f - (float) age / (float) PULSE_LIFETIME_MS;
+    }
+
+    public static float refundPulse(String nodeId) {
+        Long at = recentlyRefundedAtMs.get(nodeId);
+        if (at == null) return 0f;
+        long age = System.currentTimeMillis() - at;
+        if (age >= PULSE_LIFETIME_MS) return 0f;
+        return 1f - (float) age / (float) PULSE_LIFETIME_MS;
+    }
 
     /**
      * Server sent a fresh layout — store it and open the screen if it
@@ -52,10 +76,27 @@ public final class SkillTreeClient {
     }
 
     /**
-     * Server sent fresh per-player state — update + bump version so the
-     * screen re-renders.
+     * Server sent fresh per-player state — diff against the previous
+     * snapshot to capture per-node "just changed" timestamps for the
+     * unlock pulse animation, then bump version so the screen re-renders.
      */
     public static void onState(SkillTreeStatePayload payload) {
+        SkillTreeStatePayload prev = state;
+        long now = System.currentTimeMillis();
+        if (prev != null) {
+            // Diff: newly unlocked = in new but not old.
+            for (String id : payload.unlocked) {
+                if (!prev.unlocked.contains(id)) recentlyUnlockedAtMs.put(id, now);
+            }
+            // Diff: newly refunded = in old but not new.
+            for (String id : prev.unlocked) {
+                if (!payload.unlocked.contains(id)) recentlyRefundedAtMs.put(id, now);
+            }
+        }
+        // Prune ancient pulse timestamps so the map doesn't grow forever.
+        long cutoff = now - PULSE_LIFETIME_MS * 4;
+        recentlyUnlockedAtMs.entrySet().removeIf(e -> e.getValue() < cutoff);
+        recentlyRefundedAtMs.entrySet().removeIf(e -> e.getValue() < cutoff);
         state = payload;
         version++;
     }
@@ -161,6 +202,8 @@ public final class SkillTreeClient {
     public static void reset() {
         layout = null;
         state = null;
+        recentlyUnlockedAtMs.clear();
+        recentlyRefundedAtMs.clear();
         version++;
         PrisonsMod.LOGGER.debug("SkillTreeClient: reset");
     }

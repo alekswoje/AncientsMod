@@ -300,6 +300,19 @@ public final class SkillTreeScreen extends Screen {
                 ctx.fill(sx - halo, sy - halo, sx + halo, sy + halo, COL_AMETHYST_DIM);
             }
 
+            // Just-changed pulse halo — fades over PULSE_LIFETIME_MS.
+            float pulse = SkillTreeClient.unlockPulse(n.id);
+            float refund = SkillTreeClient.refundPulse(n.id);
+            float ringStrength = Math.max(pulse, refund);
+            if (ringStrength > 0f) {
+                int alpha = (int) (0xCC * ringStrength) & 0xFF;
+                int color = pulse > refund ? withAlpha(COL_AMETHYST, alpha)
+                                            : withAlpha(0xFF7AA5FF, alpha);
+                int extra = Math.round((4 + 8 * (1f - ringStrength)) * zoom);
+                int hr = r + Math.max(2, extra);
+                ctx.fill(sx - hr, sy - hr, sx + hr, sy + hr, color);
+            }
+
             // Hover ring drawn first so the node sits on top.
             if (n.id.equals(hoveredNodeId)) {
                 int hr = r + Math.max(2, Math.round(3 * zoom));
@@ -450,12 +463,19 @@ public final class SkillTreeScreen extends Screen {
 
     @Override
     public boolean mouseClicked(net.minecraft.client.gui.Click click, boolean doubleClick) {
-        // Widget hits (search field, respec button) take precedence.
-        if (super.mouseClicked(click, doubleClick)) return true;
-
         double mouseX = click.x();
         double mouseY = click.y();
         int button = click.button();
+
+        // Auto-defocus the search field if the click missed it. Otherwise
+        // typing while panning the tree silently lands in the search box.
+        if (searchField != null && searchField.isFocused() && !isInSearchBounds(mouseX, mouseY)) {
+            searchField.setFocused(false);
+            setFocused(null);
+        }
+
+        // Widget hits (search field, respec button) take precedence.
+        if (super.mouseClicked(click, doubleClick)) return true;
 
         SkillTreeOpenPayload layout = SkillTreeClient.layout();
         if (layout == null) return false;
@@ -514,6 +534,12 @@ public final class SkillTreeScreen extends Screen {
         panY = cy - (cy - panY) * (next / old);
         zoom = next;
         return true;
+    }
+
+    private boolean isInSearchBounds(double x, double y) {
+        if (searchField == null) return false;
+        return x >= searchField.getX() && x < searchField.getX() + searchField.getWidth()
+                && y >= searchField.getY() && y < searchField.getY() + searchField.getHeight();
     }
 
     // ── Picking + path BFS ──────────────────────────────────────────────────
