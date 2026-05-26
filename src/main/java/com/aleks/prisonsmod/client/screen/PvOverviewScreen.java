@@ -113,7 +113,7 @@ public final class PvOverviewScreen extends Screen {
         this.searchField = new TextFieldWidget(this.textRenderer, searchX, searchY, searchW, 18,
                 Text.literal("Search items…"));
         this.searchField.setMaxLength(64);
-        this.searchField.setPlaceholder(Text.literal("§7Search items, lore, or material id…"));
+        this.searchField.setPlaceholder(Text.literal("§7Search items or material id…"));
         this.searchField.setText(searchQuery);
         this.searchField.setChangedListener(s -> {
             searchQuery = s == null ? "" : s;
@@ -174,8 +174,6 @@ public final class PvOverviewScreen extends Screen {
         if (slot.displayName != null && !slot.displayName.isEmpty()
                 && stripColor(slot.displayName).toLowerCase(Locale.ROOT).contains(q)) return true;
         if (slot.materialKey != null && slot.materialKey.toLowerCase(Locale.ROOT).contains(q)) return true;
-        if (slot.lore != null && !slot.lore.isEmpty()
-                && stripColor(slot.lore).toLowerCase(Locale.ROOT).contains(q)) return true;
         // Vanilla items have no custom displayName but should still be findable
         // by their localized name (e.g. "Diamond Sword"). resolveStack is cheap
         // — registry lookup + tiny stack alloc — and only runs while filtering.

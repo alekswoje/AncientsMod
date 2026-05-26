@@ -538,7 +538,6 @@ public final class Protocol {
     public static final int PV_MAX_SLOTS = 162; // 6 rows × 9 cols × multiple rows of extras
     public static final int PV_MAX_MATERIAL_KEY_CHARS = 48;
     public static final int PV_MAX_DISPLAY_NAME_CHARS = 64;
-    public static final int PV_MAX_LORE_CHARS = 512;
     public static final int PV_MAX_AFFINITY_CSV_CHARS = 256;
 
     // --- Semantic bounds (validated post-decode) ---
