@@ -17,6 +17,8 @@
 
 ## UI & Screens
 
+- **Tartarus Vision** — brand-new fullscreen skill-tree screen. Right-click the Oracle of Tartarus NPC and pick "Tartarus Vision" to open a Path-of-Exile-style overview of the whole dungeon skill tree. **Drag** to pan, **scroll** to zoom, **left-click** a node to allocate, **right-click** to refund, **bottom-right button** (twice) to respec all. Live points HUD top-left, search bar at the top, and a soft amethyst halo shows the chain of nodes you'd need to allocate to reach a hovered one. Falls back to the in-world chisel for vanilla players — chisel allocations push live to any open Vision screen so the two stay in sync.
+
 ## Input & Keybinds
 
 ## Networking & Server Integration

@@ -133,6 +133,7 @@ public final class PrisonsModClient implements ClientModInitializer {
             BugReportClient.reset();
             SuggestClient.reset();
             com.aleks.prisonsmod.client.Fullbright.clear();
+            com.aleks.prisonsmod.client.skilltree.SkillTreeClient.reset();
             lastWorldKey = null;
         });
 

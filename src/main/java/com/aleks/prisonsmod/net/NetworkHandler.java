@@ -222,6 +222,24 @@ public final class NetworkHandler {
                     PvBundlePayload p = PvBundlePayload.decode(buf);
                     PvClient.onBundle(p);
                 }
+                case Protocol.PKT_SKILLTREE_OPEN -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.SKILLTREE_OPEN)) return;
+                    com.aleks.prisonsmod.net.payload.SkillTreeOpenPayload p =
+                            com.aleks.prisonsmod.net.payload.SkillTreeOpenPayload.decode(buf);
+                    com.aleks.prisonsmod.client.skilltree.SkillTreeClient.onOpen(p);
+                }
+                case Protocol.PKT_SKILLTREE_STATE -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.SKILLTREE_STATE)) return;
+                    com.aleks.prisonsmod.net.payload.SkillTreeStatePayload p =
+                            com.aleks.prisonsmod.net.payload.SkillTreeStatePayload.decode(buf);
+                    com.aleks.prisonsmod.client.skilltree.SkillTreeClient.onState(p);
+                }
+                case Protocol.PKT_SKILLTREE_ACK -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.SKILLTREE_ACK)) return;
+                    com.aleks.prisonsmod.net.payload.SkillTreeAckPayload p =
+                            com.aleks.prisonsmod.net.payload.SkillTreeAckPayload.decode(buf);
+                    com.aleks.prisonsmod.client.skilltree.SkillTreeClient.onAck(p);
+                }
                 default -> {
                     // Unknown type — silently ignore. A future server may emit
                     // newer packet types that older clients don't recognize; we
@@ -595,6 +613,42 @@ public final class NetworkHandler {
             sendBuf(buf);
         } catch (Throwable t) {
             PrisonsMod.LOGGER.debug("send pv shift-click failed", t);
+        }
+    }
+
+    // ── Skill tree sends ────────────────────────────────────────────────────
+
+    /** "Open the Tartarus Vision screen — push me the layout + state." */
+    public static void sendSkillTreeOpenRequest() {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            ClientPlayNetworking.send(new RawPayload(new byte[] { Protocol.PKT_SKILLTREE_OPEN_REQ }));
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send skilltree open req failed", t);
+        }
+    }
+
+    /** "Allocate this node." Server validates + replies with ACK + STATE. */
+    public static void sendSkillTreeAllocate(String nodeId) {
+        sendString(Protocol.PKT_SKILLTREE_ALLOCATE,
+                clamp(nodeId, Protocol.SKILLTREE_MAX_NODE_ID_CHARS));
+    }
+
+    /** "Refund this allocated node (free, no money cost)." Same wire as allocate. */
+    public static void sendSkillTreeRefund(String nodeId) {
+        sendString(Protocol.PKT_SKILLTREE_REFUND,
+                clamp(nodeId, Protocol.SKILLTREE_MAX_NODE_ID_CHARS));
+    }
+
+    /** "Respec all allocated nodes (charges money per dungeon level)." */
+    public static void sendSkillTreeRespec() {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            ClientPlayNetworking.send(new RawPayload(new byte[] { Protocol.PKT_SKILLTREE_RESPEC }));
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send skilltree respec failed", t);
         }
     }
 

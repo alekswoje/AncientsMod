@@ -33,7 +33,10 @@ public final class RateLimiter {
         BUGREPORT(Protocol.RATE_BUGREPORT_PER_SEC),
         SUGGEST(Protocol.RATE_SUGGEST_PER_SEC),
         PV_BUNDLE(Protocol.RATE_PV_BUNDLE_PER_SEC),
-        FULLBRIGHT_BLACKLIST(Protocol.RATE_FULLBRIGHT_BLACKLIST_PER_SEC);
+        FULLBRIGHT_BLACKLIST(Protocol.RATE_FULLBRIGHT_BLACKLIST_PER_SEC),
+        SKILLTREE_OPEN(Protocol.RATE_SKILLTREE_OPEN_PER_SEC),
+        SKILLTREE_STATE(Protocol.RATE_SKILLTREE_STATE_PER_SEC),
+        SKILLTREE_ACK(Protocol.RATE_SKILLTREE_ACK_PER_SEC);
 
         final int perSecond;
         Kind(int perSecond) { this.perSecond = perSecond; }

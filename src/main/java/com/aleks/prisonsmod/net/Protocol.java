@@ -283,6 +283,74 @@ public final class Protocol {
     /** Hard cap on a single blacklisted world name length (mirrors plugin). */
     public static final int MAX_FULLBRIGHT_WORLD_NAME_CHARS = 64;
 
+    /**
+     * S2C — full dungeon skill tree layout. Pushed when a player clicks
+     * "Tartarus Vision" on the Oracle NPC. Bounded by
+     * {@link #MAX_SKILLTREE_PAYLOAD_BYTES}. The mod's screen opens on receipt
+     * and renders the tree using the bundled layout (positions, names,
+     * effects, adjacency).
+     */
+    public static final byte PKT_SKILLTREE_OPEN = 28;
+
+    /**
+     * S2C — per-player skill-tree state (unlocked set + banked/available/spent
+     * points + live respec cost). Sent immediately after a SKILLTREE_OPEN
+     * and on every successful allocate / refund / respec (mod- or chisel-
+     * driven). The mod's open screen re-renders live on each push.
+     */
+    public static final byte PKT_SKILLTREE_STATE = 29;
+
+    /**
+     * S2C — result of a mod-initiated allocate / refund / respec. Mostly used
+     * for failure toasts; success is implied by the matching STATE push.
+     */
+    public static final byte PKT_SKILLTREE_ACK = 30;
+
+    // Skill tree wire bounds (mirror plugin PrisonsModChannel).
+    public static final int MAX_SKILLTREE_PAYLOAD_BYTES = 32_768;
+    public static final int SKILLTREE_MAX_NODES = 512;
+    public static final int SKILLTREE_MAX_EDGES = 1024;
+    public static final int SKILLTREE_MAX_NODE_ID_CHARS = 32;
+    public static final int SKILLTREE_MAX_NODE_NAME_CHARS = 48;
+
+    // Branch byte values (must match plugin BRANCH_*).
+    public static final byte BRANCH_GATE      = 0;
+    public static final byte BRANCH_ASSAULT   = 1;
+    public static final byte BRANCH_ENDURANCE = 2;
+    public static final byte BRANCH_AGILITY   = 3;
+    public static final byte BRANCH_FORTUNE   = 4;
+
+    // Skill effect type bytes (must match plugin SKILL_EFFECT_*).
+    public static final byte SKILL_EFFECT_DUNGEON_DAMAGE_PCT            = 0;
+    public static final byte SKILL_EFFECT_DUNGEON_BOSS_DAMAGE_PCT       = 1;
+    public static final byte SKILL_EFFECT_DUNGEON_DAMAGE_REDUCTION_PCT  = 2;
+    public static final byte SKILL_EFFECT_DUNGEON_MAX_HP_FLAT           = 3;
+    public static final byte SKILL_EFFECT_DUNGEON_MOVE_SPEED_PCT        = 4;
+    public static final byte SKILL_EFFECT_DUNGEON_JUMP_BOOST_FLAT       = 5;
+    public static final byte SKILL_EFFECT_CHEST_COST_REDUCTION_PCT      = 6;
+    public static final byte SKILL_EFFECT_RUNE_RARITY_UPGRADE_CHANCE    = 7;
+    public static final byte SKILL_EFFECT_BONUS_RUNE_DROP_CHANCE        = 8;
+    public static final byte SKILL_EFFECT_DUNGEON_LIFESTEAL_PCT         = 9;
+    public static final byte SKILL_EFFECT_DUNGEON_CULLING_THRESHOLD_PCT = 10;
+    public static final byte SKILL_EFFECT_DUNGEON_DOUBLE_JUMP_FLAT      = 11;
+
+    // Skill tree ACK action codes.
+    public static final byte SKILL_ACTION_ALLOCATE = 0;
+    public static final byte SKILL_ACTION_REFUND   = 1;
+    public static final byte SKILL_ACTION_RESPEC   = 2;
+
+    // Skill tree ACK result codes.
+    public static final byte SKILL_RESULT_SUCCESS           = 0;
+    public static final byte SKILL_RESULT_ALREADY_UNLOCKED  = 1;
+    public static final byte SKILL_RESULT_PREREQ_MISSING    = 2;
+    public static final byte SKILL_RESULT_NOT_ENOUGH_POINTS = 3;
+    public static final byte SKILL_RESULT_NOT_UNLOCKED      = 4;
+    public static final byte SKILL_RESULT_HAS_DEPENDENTS    = 5;
+    public static final byte SKILL_RESULT_NOT_ENOUGH_MONEY  = 6;
+    public static final byte SKILL_RESULT_INVALID           = 7;
+    public static final byte SKILL_RESULT_NOTHING_TO_RESPEC = 8;
+    public static final byte SKILL_RESULT_ECONOMY_ERROR     = 9;
+
     // Suggest category enum-bytes (must match plugin PrisonsModChannel).
     public static final byte SUGGEST_CAT_MOD    = 0;
     public static final byte SUGGEST_CAT_SERVER = 1;
@@ -533,6 +601,21 @@ public final class Protocol {
      */
     public static final byte PKT_PV_FEATURES_STATE = (byte) 123;
 
+    /** C2S — player clicked "Tartarus Vision" on the Oracle NPC or asked the
+     *  mod to reopen the screen. Server replies with PKT_SKILLTREE_OPEN +
+     *  PKT_SKILLTREE_STATE. No payload. */
+    public static final byte PKT_SKILLTREE_OPEN_REQ  = (byte) 124;
+
+    /** C2S — allocate a node. Wire: varint+string nodeId. Server replies with
+     *  PKT_SKILLTREE_ACK + PKT_SKILLTREE_STATE. */
+    public static final byte PKT_SKILLTREE_ALLOCATE  = (byte) 125;
+
+    /** C2S — refund a single node (free, no money cost). Same wire shape. */
+    public static final byte PKT_SKILLTREE_REFUND    = (byte) 126;
+
+    /** C2S — full respec (charges money per dungeon level). No payload. */
+    public static final byte PKT_SKILLTREE_RESPEC    = (byte) 127;
+
     // --- Hard size caps (wire-level) ---
     /** Maximum bytes for any single cosmetic S2C payload. Larger packets are dropped. */
     public static final int MAX_PAYLOAD_BYTES = 256;
@@ -592,6 +675,12 @@ public final class Protocol {
     public static final int RATE_PV_BUNDLE_PER_SEC = 3;
     /** Fullbright blacklist is one-shot per handshake — tight cap. */
     public static final int RATE_FULLBRIGHT_BLACKLIST_PER_SEC = 2;
+    /** Skill tree layout pushed only when the screen opens — tight cap. */
+    public static final int RATE_SKILLTREE_OPEN_PER_SEC  = 2;
+    /** State pushed after every chisel / mod allocation — 1 Hz typical, allow burst. */
+    public static final int RATE_SKILLTREE_STATE_PER_SEC = 10;
+    /** Ack arrives at most once per mod action — burst limit is the player's click rate. */
+    public static final int RATE_SKILLTREE_ACK_PER_SEC   = 10;
 
     // --- Meteorite HUD tunables ---
     /** Max tier-name length the server can send us (e.g. "Ancient Debris" → 14). */
