@@ -34,8 +34,15 @@ public final class RiftTexturePackManager {
     /** Mod-namespaced ID — Fabric resolves jar path {@code resourcepacks/ancients_rift_pack/}. */
     public static final Identifier PACK_ID = Identifier.of(PrisonsMod.MOD_ID, "ancients_rift_pack");
 
-    /** Server dimension key for the rift; matches PrisonsCore's {@code tartarus_rift} world. */
+    /** Server dimension key for the primary rift; matches PrisonsCore's {@code tartarus_rift} world. */
     public static final String RIFT_WORLD_NAME = "tartarus_rift";
+    /** Alt rift world — PrisonsCore swaps between primary and {@code _alt} every event for pre-gen. */
+    public static final String RIFT_WORLD_NAME_ALT = "tartarus_rift_alt";
+
+    /** True if {@code worldPath} is either rift world (primary or alt). */
+    public static boolean isRiftWorld(String worldPath) {
+        return RIFT_WORLD_NAME.equals(worldPath) || RIFT_WORLD_NAME_ALT.equals(worldPath);
+    }
 
     private static volatile boolean registered = false;
     private static volatile boolean wantActive = false;
@@ -91,7 +98,7 @@ public final class RiftTexturePackManager {
         // not at the next world tick.
         MinecraftClient mc = MinecraftClient.getInstance();
         boolean inRift = mc != null && mc.world != null
-                && RIFT_WORLD_NAME.equals(mc.world.getRegistryKey().getValue().getPath());
+                && isRiftWorld(mc.world.getRegistryKey().getValue().getPath());
         update(inRift, FeatureToggles.isRiftTexturePackEnabled());
     }
 
@@ -101,7 +108,7 @@ public final class RiftTexturePackManager {
         queuedForRift = false;
         MinecraftClient mc = MinecraftClient.getInstance();
         boolean inRift = mc != null && mc.world != null
-                && RIFT_WORLD_NAME.equals(mc.world.getRegistryKey().getValue().getPath());
+                && isRiftWorld(mc.world.getRegistryKey().getValue().getPath());
         update(inRift, FeatureToggles.isRiftTexturePackEnabled());
     }
 

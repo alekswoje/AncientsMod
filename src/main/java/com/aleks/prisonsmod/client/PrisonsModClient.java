@@ -161,7 +161,7 @@ public final class PrisonsModClient implements ClientModInitializer {
             // nothing changed). Stutter at entry/exit is the accepted trade-off
             // for keeping the recoloured ores scoped to the rift.
             boolean inRift = current != null
-                    && RiftTexturePackManager.RIFT_WORLD_NAME.equals(current.getValue().getPath());
+                    && RiftTexturePackManager.isRiftWorld(current.getValue().getPath());
             RiftTexturePackManager.update(inRift, FeatureToggles.isRiftTexturePackEnabled());
         });
 

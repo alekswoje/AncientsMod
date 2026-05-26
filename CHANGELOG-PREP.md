@@ -12,6 +12,8 @@
 
 ## Rendering & Visuals
 
+- **Rift texture pack** now stays loaded across the full event — previously it unloaded on every other round when the server swapped to the alt rift world, causing two extra 5-15s resource reloads per event.
+
 ## UI & Screens
 
 ## Input & Keybinds
