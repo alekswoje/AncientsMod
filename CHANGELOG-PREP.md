@@ -14,8 +14,6 @@
 
 ## UI & Screens
 
-- **PV overview search.** The `/pv` overview now has a search bar at the top — start typing to filter by item name or material id. Non-matching items dim and vaults with no matches collapse out so you only see the PVs that actually hold what you're looking for.
-
 ## Input & Keybinds
 
 ## Networking & Server Integration
