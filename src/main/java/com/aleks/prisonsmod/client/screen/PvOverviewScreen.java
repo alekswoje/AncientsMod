@@ -7,6 +7,7 @@ import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
+import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
@@ -17,6 +18,7 @@ import net.minecraft.util.Identifier;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -41,6 +43,7 @@ public final class PvOverviewScreen extends Screen {
     private static final int GRID_ROWS = 6;
 
     private static final int TITLE_BAR_H = 24;
+    private static final int SEARCH_BAR_H = 26;
     private static final int FOOTER_H = 28;
 
     private static final int PANEL_PADDING = 8;
@@ -66,6 +69,12 @@ public final class PvOverviewScreen extends Screen {
     private Text hoverTooltip = null;
     private double scrollY = 0;
 
+    private TextFieldWidget searchField;
+    private String searchQuery = "";
+    /** Recomputed every search-change / bundle update. Rows re-pack so PVs with
+     *  zero matches don't leave gaps. */
+    private final List<PvBundlePayload.Vault> visibleVaults = new ArrayList<>();
+
     // --- Press/drag state ---
     /** Vault number that has been left-pressed but not yet released. 0 = no press. */
     private int pressedVault = 0;
@@ -87,6 +96,7 @@ public final class PvOverviewScreen extends Screen {
 
     public void onBundleUpdated(PvBundlePayload payload) {
         this.bundle = payload;
+        recomputeVisibleVaults();
         scrollY = Math.max(0, Math.min(scrollY, maxScroll()));
     }
 
@@ -96,23 +106,102 @@ public final class PvOverviewScreen extends Screen {
         int panelH = panelHeight();
         int panelX = (this.width - panelW) / 2;
         int panelY = (this.height - panelH) / 2;
+
+        int searchW = panelW - PANEL_PADDING * 2 - SCROLLBAR_W - SCROLLBAR_GAP;
+        int searchX = panelX + PANEL_PADDING;
+        int searchY = panelY + TITLE_BAR_H + 4;
+        this.searchField = new TextFieldWidget(this.textRenderer, searchX, searchY, searchW, 18,
+                Text.literal("Search items…"));
+        this.searchField.setMaxLength(64);
+        this.searchField.setPlaceholder(Text.literal("§7Search items, lore, or material id…"));
+        this.searchField.setText(searchQuery);
+        this.searchField.setChangedListener(s -> {
+            searchQuery = s == null ? "" : s;
+            recomputeVisibleVaults();
+            scrollY = Math.max(0, Math.min(scrollY, maxScroll()));
+        });
+        this.addDrawableChild(this.searchField);
+
         int btnW = 90;
         int btnY = panelY + panelH - FOOTER_H + 4;
         ButtonWidget sortBtn = ButtonWidget.builder(Text.literal("Sort"), b -> NetworkHandler.sendPvSortRequest())
                 .dimensions(panelX + panelW - btnW - 10, btnY, btnW, 20)
                 .build();
         this.addDrawableChild(sortBtn);
+
+        recomputeVisibleVaults();
+    }
+
+    private void recomputeVisibleVaults() {
+        visibleVaults.clear();
+        if (bundle == null || bundle.vaults.isEmpty()) return;
+        String q = normalizedQuery();
+        if (q.isEmpty()) {
+            // Default mode: show every accessible vault plus a one-card preview
+            // of the next locked vault (upsell). Mirrors the old displayCount().
+            int lastAccessible = -1;
+            for (int i = 0; i < bundle.vaults.size(); i++) {
+                if (bundle.vaults.get(i).isAccessible()) lastAccessible = i;
+            }
+            if (lastAccessible < 0) {
+                visibleVaults.add(bundle.vaults.get(0));
+            } else {
+                int withPreview = Math.min(lastAccessible + 2, bundle.vaults.size());
+                for (int i = 0; i < withPreview; i++) visibleVaults.add(bundle.vaults.get(i));
+            }
+            return;
+        }
+        // Search mode: only accessible vaults that contain at least one match.
+        // Locked-vault upsell is suppressed during search.
+        for (PvBundlePayload.Vault vault : bundle.vaults) {
+            if (!vault.isAccessible()) continue;
+            for (PvBundlePayload.Slot slot : vault.slots) {
+                if (slotMatches(slot, q)) {
+                    visibleVaults.add(vault);
+                    break;
+                }
+            }
+        }
+    }
+
+    private String normalizedQuery() {
+        if (searchQuery == null) return "";
+        return searchQuery.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private boolean slotMatches(PvBundlePayload.Slot slot, String q) {
+        if (q.isEmpty()) return true;
+        if (slot.displayName != null && !slot.displayName.isEmpty()
+                && stripColor(slot.displayName).toLowerCase(Locale.ROOT).contains(q)) return true;
+        if (slot.materialKey != null && slot.materialKey.toLowerCase(Locale.ROOT).contains(q)) return true;
+        if (slot.lore != null && !slot.lore.isEmpty()
+                && stripColor(slot.lore).toLowerCase(Locale.ROOT).contains(q)) return true;
+        // Vanilla items have no custom displayName but should still be findable
+        // by their localized name (e.g. "Diamond Sword"). resolveStack is cheap
+        // — registry lookup + tiny stack alloc — and only runs while filtering.
+        ItemStack stack = resolveStack(slot);
+        if (!stack.isEmpty()) {
+            String name = stack.getName().getString();
+            if (name != null && name.toLowerCase(Locale.ROOT).contains(q)) return true;
+        }
+        return false;
+    }
+
+    /** Remove Bukkit/Minecraft §-prefixed colour codes so the user's search
+     *  matches the human-readable string. */
+    private static String stripColor(String s) {
+        if (s == null || s.isEmpty()) return "";
+        StringBuilder out = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '§' && i + 1 < s.length()) { i++; continue; }
+            out.append(c);
+        }
+        return out.toString();
     }
 
     private int displayCount() {
-        if (bundle == null || bundle.vaults.isEmpty()) return 0;
-        int lastAccessible = -1;
-        for (int i = 0; i < bundle.vaults.size(); i++) {
-            if (bundle.vaults.get(i).isAccessible()) lastAccessible = i;
-        }
-        if (lastAccessible < 0) return Math.min(1, bundle.vaults.size());
-        int withPreview = lastAccessible + 2;
-        return Math.min(withPreview, bundle.vaults.size());
+        return visibleVaults.size();
     }
 
     private int displayedRows() {
@@ -128,7 +217,7 @@ public final class PvOverviewScreen extends Screen {
     }
 
     private int viewRowsForWindow() {
-        int avail = this.height - TITLE_BAR_H - FOOTER_H - PANEL_PADDING * 2 - 40;
+        int avail = this.height - TITLE_BAR_H - SEARCH_BAR_H - FOOTER_H - PANEL_PADDING * 2 - 40;
         int fits = Math.max(MIN_VIEW_ROWS, (avail + CARD_GAP) / rowStep());
         return Math.min(MAX_VIEW_ROWS, fits);
     }
@@ -147,7 +236,7 @@ public final class PvOverviewScreen extends Screen {
     }
 
     private int panelHeight() {
-        return TITLE_BAR_H + PANEL_PADDING + viewportHeight() + PANEL_PADDING + FOOTER_H;
+        return TITLE_BAR_H + SEARCH_BAR_H + PANEL_PADDING + viewportHeight() + PANEL_PADDING + FOOTER_H;
     }
 
     private double maxScroll() {
@@ -161,7 +250,7 @@ public final class PvOverviewScreen extends Screen {
 
     private int viewportY() {
         int panelY = (this.height - panelHeight()) / 2;
-        return panelY + TITLE_BAR_H + PANEL_PADDING;
+        return panelY + TITLE_BAR_H + SEARCH_BAR_H + PANEL_PADDING;
     }
 
     /** Returns the vault number under (mx, my), or 0 if none. Accounts for
@@ -182,7 +271,7 @@ public final class PvOverviewScreen extends Screen {
             if (cy + CARD_H <= vpY || cy >= vpY + vpH) continue;
             if (mx < cx || mx >= cx + CARD_W) continue;
             if (my < cy || my >= cy + CARD_H) continue;
-            return bundle.vaults.get(idx).vaultNumber;
+            return visibleVaults.get(idx).vaultNumber;
         }
         return 0;
     }
@@ -209,6 +298,7 @@ public final class PvOverviewScreen extends Screen {
             if (v > 0) {
                 PvBundlePayload.Vault vault = vaultByNumber(v);
                 if (vault != null && vault.isAccessible()) {
+                    defocusSearch();
                     PvClient.openAffinityPicker(v);
                     return true;
                 }
@@ -223,6 +313,7 @@ public final class PvOverviewScreen extends Screen {
             if (v > 0) {
                 PvBundlePayload.Vault vault = vaultByNumber(v);
                 if (vault != null && vault.isAccessible()) {
+                    defocusSearch();
                     pressedVault = v;
                     pressStartX = mouseX;
                     pressStartY = mouseY;
@@ -232,6 +323,13 @@ public final class PvOverviewScreen extends Screen {
             }
         }
         return super.mouseClicked(click, doubleClick);
+    }
+
+    private void defocusSearch() {
+        if (searchField != null && searchField.isFocused()) {
+            searchField.setFocused(false);
+            this.setFocused(null);
+        }
     }
 
     @Override
@@ -313,8 +411,14 @@ public final class PvOverviewScreen extends Screen {
         ctx.enableScissor(vpX, vpY, vpX + vpW, vpY + vpH);
         try {
             int limit = displayCount();
+            if (limit == 0 && !normalizedQuery().isEmpty()) {
+                String msg = "§7No items match §f\"" + searchQuery + "\"";
+                int msgW = this.textRenderer.getWidth(msg);
+                ctx.drawText(this.textRenderer, Text.literal(msg),
+                        vpX + (vpW - msgW) / 2, vpY + vpH / 2 - 4, 0xFFAAAAAA, false);
+            }
             for (int idx = 0; idx < limit; idx++) {
-                PvBundlePayload.Vault vault = bundle.vaults.get(idx);
+                PvBundlePayload.Vault vault = visibleVaults.get(idx);
                 int col = idx % CARDS_PER_ROW;
                 int row = idx / CARDS_PER_ROW;
                 int cx = vpX + col * (CARD_W + CARD_GAP);
@@ -480,6 +584,9 @@ public final class PvOverviewScreen extends Screen {
             }
         }
 
+        String q = normalizedQuery();
+        boolean filtering = !q.isEmpty();
+
         for (PvBundlePayload.Slot slot : vault.slots) {
             int gridSlot = slot.slotIndex;
             if (gridSlot >= GRID_COLS * GRID_ROWS) continue;
@@ -494,6 +601,13 @@ public final class PvOverviewScreen extends Screen {
             ctx.drawItem(stack, sx - 1, sy - 1);
             if (slot.amount > 1) {
                 ctx.drawStackOverlay(this.textRenderer, stack, sx - 1, sy - 1);
+            }
+
+            boolean dimNonMatch = filtering && !slotMatches(slot, q);
+            if (dimNonMatch) {
+                // Heavy semi-transparent overlay over the slot to read as
+                // "filtered out" while still showing the icon underneath.
+                ctx.fill(sx - 1, sy - 1, sx + SLOT_PX - 1, sy + SLOT_PX - 1, 0xC8101010);
             }
 
             if (!dimmed

@@ -49,9 +49,11 @@ public final class PvBundlePayload {
                         Protocol.PV_MAX_MATERIAL_KEY_CHARS);
                 String displayName = clamp(buf.readString(Protocol.PV_MAX_DISPLAY_NAME_CHARS),
                         Protocol.PV_MAX_DISPLAY_NAME_CHARS);
+                String lore = clamp(buf.readString(Protocol.PV_MAX_LORE_CHARS),
+                        Protocol.PV_MAX_LORE_CHARS);
                 int amount = buf.readInt();
                 if (amount < 0) amount = 0;
-                slots.add(new Slot(slotIndex, materialKey, displayName, amount));
+                slots.add(new Slot(slotIndex, materialKey, displayName, lore, amount));
             }
             String affinityCsv = clamp(buf.readString(Protocol.PV_MAX_AFFINITY_CSV_CHARS),
                     Protocol.PV_MAX_AFFINITY_CSV_CHARS);
@@ -88,12 +90,14 @@ public final class PvBundlePayload {
         public final int slotIndex;
         public final String materialKey;
         public final String displayName;
+        public final String lore;
         public final int amount;
 
-        public Slot(int slotIndex, String materialKey, String displayName, int amount) {
+        public Slot(int slotIndex, String materialKey, String displayName, String lore, int amount) {
             this.slotIndex = slotIndex;
             this.materialKey = materialKey;
             this.displayName = displayName;
+            this.lore = lore == null ? "" : lore;
             this.amount = amount;
         }
     }
