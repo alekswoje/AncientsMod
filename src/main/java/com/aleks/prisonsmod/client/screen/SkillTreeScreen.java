@@ -67,6 +67,7 @@ public final class SkillTreeScreen extends Screen {
     private static final int COL_BRANCH_AGILITY   = 0xFF5CD0FF;
     private static final int COL_BRANCH_FORTUNE   = 0xFF6BE39A;
     private static final int COL_BRANCH_GATE      = 0xFFB892D9;
+    private static final int COL_SEARCH_MATCH     = 0xFFFFD854;
 
     private static final DecimalFormat MONEY_FMT = new DecimalFormat("#,###");
 
@@ -272,8 +273,9 @@ public final class SkillTreeScreen extends Screen {
 
             boolean unlocked = state.unlocked.contains(n.id) || n.autoUnlocked;
             boolean allocatable = !unlocked && SkillTreeClient.isAllocatable(n.id);
-            boolean dimmedBySearch = !searchLower.isEmpty()
-                    && !n.name.toLowerCase(Locale.ROOT).contains(searchLower);
+            boolean searchActive = !searchLower.isEmpty();
+            boolean matchesSearch = searchActive && nodeMatchesSearch(n);
+            boolean dimmedBySearch = searchActive && !matchesSearch;
             boolean onPath = pathHighlight.contains(n.id);
 
             int branchCol = branchColor(n.branch);
@@ -291,8 +293,15 @@ public final class SkillTreeScreen extends Screen {
             }
 
             if (dimmedBySearch) {
-                fill = withAlpha(fill, 0x30);
-                border = withAlpha(border, 0x40);
+                // Drop non-matches to ~6% opacity so matches really pop.
+                fill = withAlpha(fill, 0x18);
+                border = withAlpha(border, 0x20);
+            }
+            if (matchesSearch) {
+                // Bright yellow halo around every search match — drawn first
+                // so the node + ring sit on top.
+                int halo = r + Math.max(4, Math.round(6 * zoom));
+                ctx.fill(sx - halo, sy - halo, sx + halo, sy + halo, withAlpha(COL_SEARCH_MATCH, 0xA0));
             }
             if (onPath && !unlocked) {
                 // Light a faint amethyst halo behind the node.
@@ -534,6 +543,20 @@ public final class SkillTreeScreen extends Screen {
         panY = cy - (cy - panY) * (next / old);
         zoom = next;
         return true;
+    }
+
+    /**
+     * Match a node against the current search query. Matches on display
+     * name (e.g. "Phase Step"), the effect description text (so "speed"
+     * finds every {@code DUNGEON_MOVE_SPEED_PCT} node), and a handful of
+     * intuitive aliases ("damage" → DUNGEON_DAMAGE_PCT etc.).
+     */
+    private boolean nodeMatchesSearch(SkillTreeOpenPayload.Node n) {
+        if (searchLower.isEmpty()) return true;
+        if (n.name.toLowerCase(Locale.ROOT).contains(searchLower)) return true;
+        String effect = formatEffect(n).toLowerCase(Locale.ROOT);
+        if (effect.contains(searchLower)) return true;
+        return false;
     }
 
     private boolean isInSearchBounds(double x, double y) {
