@@ -95,9 +95,16 @@ public final class PvOverviewScreen extends Screen {
     }
 
     public void onBundleUpdated(PvBundlePayload payload) {
+        int prevLayoutCount = layoutVaultCount();
         this.bundle = payload;
         recomputeVisibleVaults();
         scrollY = Math.max(0, Math.min(scrollY, maxScroll()));
+        // If the bundle's layout-card count changed (e.g. player unlocked the
+        // next PV), the panel grows/shrinks and the search field + Sort button
+        // need to follow. Re-init handles both at once.
+        if (layoutVaultCount() != prevLayoutCount && this.client != null) {
+            this.clearAndInit();
+        }
     }
 
     @Override
@@ -202,8 +209,21 @@ public final class PvOverviewScreen extends Screen {
         return visibleVaults.size();
     }
 
+    /** Card count used for panel sizing — stays constant per bundle so the
+     *  panel doesn't shrink when the user types in the search box and widgets
+     *  positioned in init() (search field, Sort button) stay in the right spot. */
+    private int layoutVaultCount() {
+        if (bundle == null || bundle.vaults.isEmpty()) return 0;
+        int lastAccessible = -1;
+        for (int i = 0; i < bundle.vaults.size(); i++) {
+            if (bundle.vaults.get(i).isAccessible()) lastAccessible = i;
+        }
+        if (lastAccessible < 0) return Math.min(1, bundle.vaults.size());
+        return Math.min(lastAccessible + 2, bundle.vaults.size());
+    }
+
     private int displayedRows() {
-        int n = displayCount();
+        int n = layoutVaultCount();
         return Math.max(1, (n + CARDS_PER_ROW - 1) / CARDS_PER_ROW);
     }
 
