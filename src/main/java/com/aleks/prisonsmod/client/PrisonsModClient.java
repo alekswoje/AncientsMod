@@ -132,6 +132,7 @@ public final class PrisonsModClient implements ClientModInitializer {
             com.aleks.prisonsmod.client.buffs.BuffSnapshotState.clear();
             BugReportClient.reset();
             SuggestClient.reset();
+            com.aleks.prisonsmod.client.Fullbright.clear();
             lastWorldKey = null;
         });
 

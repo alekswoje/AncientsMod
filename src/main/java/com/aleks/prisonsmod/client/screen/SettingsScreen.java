@@ -56,6 +56,8 @@ public final class SettingsScreen extends WidgetSettingsScreen {
         });
 
         addSection("World");
+        addToggle("Fullbright (max gamma, disabled in server-blacklisted worlds)",
+                FeatureToggles::isFullbrightEnabled, FeatureToggles::setFullbright);
         addToggle("Rift texture pack (tints stone + ores white)",
                 FeatureToggles::isRiftTexturePackEnabled, FeatureToggles::setRiftTexturePack);
 

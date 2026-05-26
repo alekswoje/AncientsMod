@@ -76,6 +76,9 @@ public final class FeatureToggles {
     /** Item lock — block Q-drop, Ctrl+Q drop-stack, inventory drag-out, and 1-9 hotbar swap on player-inv slots flagged via the lock keybind ({@link KeyBinds#TOGGLE_ITEM_LOCK}). Per-slot state lives in {@link ItemLocks} (separate file). When off, locks are ignored but not forgotten. */
     private static volatile boolean itemLock = true;
 
+    /** Client-side fullbright. Overrides the gamma slider so dark areas render fully lit. Disabled in worlds the server includes in the {@code prisonsmod.fullbright.blacklist-worlds} config (see {@link Fullbright}). Default on — server NV used to do this for everyone. */
+    private static volatile boolean fullbright = true;
+
     // ─────────────────────────────────────────────────────────────────────────
 
     private static Path configPath() {
@@ -109,6 +112,7 @@ public final class FeatureToggles {
             evenSpacingSnap = parseBool(props.getProperty("evenSpacingSnap"), evenSpacingSnap);
             autoRejoin = parseBool(props.getProperty("autoRejoin"), autoRejoin);
             itemLock = parseBool(props.getProperty("itemLock"), itemLock);
+            fullbright = parseBool(props.getProperty("fullbright"), fullbright);
         } catch (IOException e) {
             PrisonsMod.LOGGER.warn("failed to load {}: {}", FILE_NAME, e.getMessage());
         }
@@ -134,6 +138,7 @@ public final class FeatureToggles {
         props.setProperty("evenSpacingSnap", Boolean.toString(evenSpacingSnap));
         props.setProperty("autoRejoin", Boolean.toString(autoRejoin));
         props.setProperty("itemLock", Boolean.toString(itemLock));
+        props.setProperty("fullbright", Boolean.toString(fullbright));
         try {
             Files.createDirectories(configPath().getParent());
             try (var out = Files.newOutputStream(configPath())) {
@@ -328,6 +333,14 @@ public final class FeatureToggles {
     public static void setItemLock(boolean value) {
         if (itemLock == value) return;
         itemLock = value;
+        save();
+    }
+
+    public static boolean isFullbrightEnabled() { return fullbright; }
+
+    public static void setFullbright(boolean value) {
+        if (fullbright == value) return;
+        fullbright = value;
         save();
     }
 

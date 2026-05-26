@@ -270,6 +270,19 @@ public final class Protocol {
      */
     public static final byte PKT_MINING_STATS = 24;
 
+    /**
+     * Fullbright blacklist for the mod's client-side fullbright feature. List
+     * of Bukkit world names where fullbright should NOT activate. Sent once
+     * after the handshake. Wire: type byte + varint count + repeating
+     * varint+UTF8 world name. Empty list = fullbright everywhere.
+     */
+    public static final byte PKT_FULLBRIGHT_BLACKLIST = 25;
+
+    /** Hard cap on worlds per blacklist packet (mirrors plugin). */
+    public static final int MAX_FULLBRIGHT_WORLDS = 32;
+    /** Hard cap on a single blacklisted world name length (mirrors plugin). */
+    public static final int MAX_FULLBRIGHT_WORLD_NAME_CHARS = 64;
+
     // Suggest category enum-bytes (must match plugin PrisonsModChannel).
     public static final byte SUGGEST_CAT_MOD    = 0;
     public static final byte SUGGEST_CAT_SERVER = 1;
@@ -577,6 +590,8 @@ public final class Protocol {
     public static final int RATE_SUGGEST_PER_SEC = 5;
     /** PV bundle is on-demand only (one packet per /pv intercept) — cap low. */
     public static final int RATE_PV_BUNDLE_PER_SEC = 3;
+    /** Fullbright blacklist is one-shot per handshake — tight cap. */
+    public static final int RATE_FULLBRIGHT_BLACKLIST_PER_SEC = 2;
 
     // --- Meteorite HUD tunables ---
     /** Max tier-name length the server can send us (e.g. "Ancient Debris" → 14). */

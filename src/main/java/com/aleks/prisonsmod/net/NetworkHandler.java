@@ -2,6 +2,7 @@ package com.aleks.prisonsmod.net;
 
 import com.aleks.prisonsmod.PrisonsMod;
 import com.aleks.prisonsmod.client.DuelState;
+import com.aleks.prisonsmod.client.Fullbright;
 import com.aleks.prisonsmod.client.GangRoster;
 import com.aleks.prisonsmod.client.ServerAllowlist;
 import com.aleks.prisonsmod.client.bugreport.BugReportClient;
@@ -24,6 +25,7 @@ import com.aleks.prisonsmod.net.payload.SuggestFiledPayload;
 import com.aleks.prisonsmod.net.payload.SuggestOpenPayload;
 import com.aleks.prisonsmod.net.payload.CooldownsPayload;
 import com.aleks.prisonsmod.net.payload.EventTimersPayload;
+import com.aleks.prisonsmod.net.payload.FullbrightBlacklistPayload;
 import com.aleks.prisonsmod.net.payload.MeteoriteHudPayload;
 import com.aleks.prisonsmod.net.payload.MiningStatsPayload;
 import com.aleks.prisonsmod.net.payload.PveStatsPayload;
@@ -161,6 +163,12 @@ public final class NetworkHandler {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.MINING_STATS)) return;
                     MiningStatsPayload p = MiningStatsPayload.decode(buf);
                     MiningStatsState.update(p);
+                }
+                case Protocol.PKT_FULLBRIGHT_BLACKLIST -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.FULLBRIGHT_BLACKLIST)) return;
+                    FullbrightBlacklistPayload p = FullbrightBlacklistPayload.decode(buf);
+                    Fullbright.setBlacklist(p.worlds());
+                    Fullbright.logReceived(p.worlds());
                 }
                 case Protocol.PKT_BUFF_SNAPSHOT -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.BUFF_SNAPSHOT)) {
