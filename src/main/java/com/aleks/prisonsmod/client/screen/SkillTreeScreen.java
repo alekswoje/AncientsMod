@@ -50,6 +50,18 @@ public final class SkillTreeScreen extends Screen {
     private static final int NODE_NOTABLE_RADIUS = 16;
     private static final int NODE_GATE_RADIUS = 20;
 
+    // ── Client-side organic transform tunables ──────────────────────────────
+    /** Global rotation applied to every node position (degrees). Breaks the
+     *  horizontal/vertical axis lock the server's grid has. */
+    private static final float GLOBAL_ROTATION_DEG = 25f;
+    /** Per-cluster small-node ring radius (in grid units). Server places the
+     *  4 small nodes in a + shape at 1 grid unit from the notable; we move
+     *  them to a smoother ring at this radius and at 45° offsets. */
+    private static final float CLUSTER_SMALL_RADIUS = 1.05f;
+    /** Each cluster gets a small per-id rotation jitter so they don't all
+     *  align — kills the "every cluster is a plus" feel. (degrees max) */
+    private static final float CLUSTER_JITTER_DEG = 22f;
+
     // ── Tartarus palette ────────────────────────────────────────────────────
     // Deep cosmic backdrop — three-stop vertical with a darker center where
     // the tree sits so nodes pop against it.
@@ -177,13 +189,99 @@ public final class SkillTreeScreen extends Screen {
     }
 
     // ── Coord transforms ────────────────────────────────────────────────────
+    //
+    // The server's SkillTreeLayout puts nodes on a strict integer grid with
+    // cardinal arms — visually that reads as a "square Manhattan grid"
+    // (notables connect to small nodes in a +, all connectors are 90° axis-
+    // aligned). To get a PoE-style organic feel without changing the server
+    // layout, we apply a client-only transform here:
+    //   1. Global rotation by GLOBAL_ROTATION_DEG, so the cardinal arms no
+    //      longer align to the screen axes.
+    //   2. Cluster smalls (the 4 "+ shape" nodes around every cluster
+    //      notable) are repositioned into a ring around their notable at
+    //      diagonal offsets, with a small per-cluster jitter so no two
+    //      clusters land at exactly the same orientation.
+    // After transform, edges become smooth diagonal lines and the tree
+    // reads as a tilted radial structure instead of an axis grid.
 
-    private float screenX(int gx) {
-        return width * 0.5f + gx * GRID_PITCH * zoom + panX;
+    /** Cached transformed (post-rotation, post-reshape) world positions per
+     *  node id. Rebuilt only when the layout changes (very rare). */
+    private final java.util.Map<String, float[]> transformedPositions = new java.util.HashMap<>();
+    private long transformLayoutVersion = -1L;
+
+    private void rebuildTransformIfNeeded() {
+        SkillTreeOpenPayload layout = SkillTreeClient.layout();
+        if (layout == null) return;
+        long v = SkillTreeClient.version();
+        if (v == transformLayoutVersion && !transformedPositions.isEmpty()) return;
+        transformLayoutVersion = v;
+        transformedPositions.clear();
+
+        final double rot = Math.toRadians(GLOBAL_ROTATION_DEG);
+        final double cosR = Math.cos(rot);
+        final double sinR = Math.sin(rot);
+
+        // Pass 1: apply global rotation to every node's grid position.
+        java.util.Map<String, float[]> base = new java.util.HashMap<>(layout.nodes.size() * 2);
+        for (SkillTreeOpenPayload.Node n : layout.nodes) {
+            float fx = n.gx;
+            float fy = n.gy;
+            float rx = (float) (fx * cosR - fy * sinR);
+            float ry = (float) (fx * sinR + fy * cosR);
+            base.put(n.id, new float[] { rx, ry });
+        }
+
+        // Pass 2: cluster smalls — replace the + shape with a ring of 4 nodes
+        // at diagonal offsets around the notable. Each cluster gets a small
+        // deterministic jitter so the ring isn't identically aligned everywhere.
+        for (SkillTreeOpenPayload.Node n : layout.nodes) {
+            int smallIdx = clusterSmallIndex(n.id);
+            if (smallIdx >= 0) {
+                String clusterPrefix = n.id.substring(0, n.id.lastIndexOf("_s"));
+                String notableId = clusterPrefix + "_notable";
+                float[] notablePos = base.get(notableId);
+                if (notablePos != null) {
+                    float jitter = (clusterPrefix.hashCode() & 0xFFFF) / 65535f; // 0..1
+                    double clusterRotDeg = (jitter - 0.5f) * 2f * CLUSTER_JITTER_DEG;
+                    double ringAngle = Math.toRadians(45 + 90 * smallIdx + clusterRotDeg);
+                    double ox = CLUSTER_SMALL_RADIUS * Math.cos(ringAngle);
+                    double oy = CLUSTER_SMALL_RADIUS * Math.sin(ringAngle);
+                    transformedPositions.put(n.id, new float[] {
+                            notablePos[0] + (float) ox,
+                            notablePos[1] + (float) oy
+                    });
+                    continue;
+                }
+            }
+            transformedPositions.put(n.id, base.get(n.id));
+        }
     }
 
-    private float screenY(int gy) {
-        return height * 0.5f + gy * GRID_PITCH * zoom + panY;
+    /** Returns the 0..3 small index if the id matches {@code <prefix>_s<idx>},
+     *  else -1. Used to detect cluster small nodes for ring-reshape. */
+    private static int clusterSmallIndex(String id) {
+        int sIdx = id.lastIndexOf("_s");
+        if (sIdx <= 0) return -1;
+        String suffix = id.substring(sIdx + 2);
+        if (suffix.isEmpty() || suffix.length() > 2) return -1;
+        try {
+            int idx = Integer.parseInt(suffix);
+            return (idx >= 0 && idx <= 3) ? idx : -1;
+        } catch (NumberFormatException e) {
+            return -1;
+        }
+    }
+
+    private float screenXOf(SkillTreeOpenPayload.Node n) {
+        float[] p = transformedPositions.get(n.id);
+        float fx = p != null ? p[0] : n.gx;
+        return width * 0.5f + fx * GRID_PITCH * zoom + panX;
+    }
+
+    private float screenYOf(SkillTreeOpenPayload.Node n) {
+        float[] p = transformedPositions.get(n.id);
+        float fy = p != null ? p[1] : n.gy;
+        return height * 0.5f + fy * GRID_PITCH * zoom + panY;
     }
 
     // ── Render ──────────────────────────────────────────────────────────────
@@ -216,6 +314,10 @@ public final class SkillTreeScreen extends Screen {
             super.render(ctx, mouseX, mouseY, delta);
             return;
         }
+
+        // Make sure the client-side organic transform map is built for the
+        // current layout. Cheap no-op if already up-to-date.
+        rebuildTransformIfNeeded();
 
         // Recompute hover + path on every frame — cheap (193 nodes max).
         String nextHover = pickNodeAt(layout, mouseX, mouseY);
@@ -264,75 +366,106 @@ public final class SkillTreeScreen extends Screen {
             boolean aUn = state.unlocked.contains(a.id) || a.autoUnlocked;
             boolean bUn = state.unlocked.contains(b.id) || b.autoUnlocked;
 
-            int sx1 = (int) screenX(a.gx);
-            int sy1 = (int) screenY(a.gy);
-            int sx2 = (int) screenX(b.gx);
-            int sy2 = (int) screenY(b.gy);
+            int sx1 = (int) screenXOf(a);
+            int sy1 = (int) screenYOf(a);
+            int sx2 = (int) screenXOf(b);
+            int sy2 = (int) screenYOf(b);
 
             if (aUn && bUn) {
-                // Active unlocked edge — glow + flowing energy spark.
+                // Active unlocked edge — gradient core blending each endpoint's
+                // branch hue, surrounded by 3 stacked alpha layers that fake
+                // additive bloom on overlap.
                 int colA = branchGlowColor(a.branch);
                 int colB = branchGlowColor(b.branch);
-                int mid  = blend(colA, colB, 0.5f);
-                // Stacked alpha layers fake an additive bloom: widest+dimmest,
-                // then medium+medium, then narrow+bright.
-                drawEdge(ctx, sx1, sy1, sx2, sy2, glowThickness + 2, withAlpha(mid, 0x22));
-                drawEdge(ctx, sx1, sy1, sx2, sy2, glowThickness,     withAlpha(mid, 0x55));
-                drawEdge(ctx, sx1, sy1, sx2, sy2, coreThickness + 1, withAlpha(COL_EDGE_UNLOCKED, 0xCC));
-                drawEdge(ctx, sx1, sy1, sx2, sy2, coreThickness,     COL_EDGE_UNLOCKED);
+                int midGlow = blend(colA, colB, 0.5f);
+                drawDiagonalLine(ctx, sx1, sy1, sx2, sy2, glowThickness + 2, withAlpha(midGlow, 0x22));
+                drawDiagonalLine(ctx, sx1, sy1, sx2, sy2, glowThickness,     withAlpha(midGlow, 0x55));
+                drawDiagonalGradient(ctx, sx1, sy1, sx2, sy2, coreThickness + 1,
+                        withAlpha(colA, 0xDD), withAlpha(colB, 0xDD));
+                drawDiagonalGradient(ctx, sx1, sy1, sx2, sy2, coreThickness,
+                        blend(COL_EDGE_UNLOCKED, colA, 0.35f),
+                        blend(COL_EDGE_UNLOCKED, colB, 0.35f));
 
-                // Flowing spark along the edge — only visible at decent zoom,
-                // otherwise it's just visual noise.
+                // Flowing spark along the edge — only at decent zoom, otherwise
+                // it's noise. Travels at constant on-screen speed.
                 if (zoom >= 0.45f) {
-                    int len = Math.max(1, Math.abs(sx2 - sx1) + Math.abs(sy2 - sy1));
-                    float t = ((now * 0.06f) % len) / (float) len;
-                    int fx = (int) (sx1 + (sx2 - sx1) * t);
-                    int fy = (int) (sy1 + (sy2 - sy1) * t);
-                    int sparkR = Math.max(2, Math.round(3.5f * zoom));
-                    drawSoftGlow(ctx, fx, fy, sparkR * 3, withAlpha(mid, 0x60));
-                    drawSoftGlow(ctx, fx, fy, sparkR, COL_EDGE_SPARK);
+                    float len = (float) Math.hypot(sx2 - sx1, sy2 - sy1);
+                    if (len > 1f) {
+                        float t = ((now * 0.06f) % len) / len;
+                        int fx = (int) (sx1 + (sx2 - sx1) * t);
+                        int fy = (int) (sy1 + (sy2 - sy1) * t);
+                        int sparkR = Math.max(2, Math.round(3.5f * zoom));
+                        drawSoftGlow(ctx, fx, fy, sparkR * 3, withAlpha(midGlow, 0x60));
+                        drawSoftGlow(ctx, fx, fy, sparkR, COL_EDGE_SPARK);
+                    }
                 }
             } else if (aUn || bUn) {
-                // One side connected — dim, no glow.
-                drawEdge(ctx, sx1, sy1, sx2, sy2, coreThickness, COL_EDGE_REACHABLE);
+                // One side connected — dim solid line, no glow.
+                drawDiagonalLine(ctx, sx1, sy1, sx2, sy2, coreThickness, COL_EDGE_REACHABLE);
             } else {
                 // Both locked — barely visible.
-                drawEdge(ctx, sx1, sy1, sx2, sy2, coreThickness, COL_EDGE_LOCKED);
+                drawDiagonalLine(ctx, sx1, sy1, sx2, sy2, coreThickness, COL_EDGE_LOCKED);
             }
         }
     }
 
-    /** Axis-aligned thick line. All edges in the live layout are orthogonal. */
-    private static void drawEdge(DrawContext ctx, int x1, int y1, int x2, int y2, int thickness, int color) {
+    /**
+     * Thick diagonal line via per-step square stamping. Steps along the
+     * longer axis and stamps a {@code thickness × thickness} filled square
+     * at every step; consecutive stamps overlap so the line reads as solid.
+     */
+    private static void drawDiagonalLine(DrawContext ctx, int x1, int y1, int x2, int y2,
+                                         int thickness, int color) {
         if ((color >>> 24) == 0 || thickness <= 0) return;
-        if (x1 == x2) {
-            int yMin = Math.min(y1, y2);
-            int yMax = Math.max(y1, y2);
+        int dx = x2 - x1, dy = y2 - y1;
+        int steps = Math.max(Math.abs(dx), Math.abs(dy));
+        if (steps <= 0) {
             int half = thickness / 2;
-            ctx.fill(x1 - half, yMin, x1 + thickness - half, yMax, color);
-        } else if (y1 == y2) {
-            int xMin = Math.min(x1, x2);
-            int xMax = Math.max(x1, x2);
+            ctx.fill(x1 - half, y1 - half, x1 + thickness - half, y1 + thickness - half, color);
+            return;
+        }
+        int half = Math.max(1, thickness / 2);
+        int rem  = thickness - half;
+        // Step every pixel for a smooth line. ~300 edges × ~60 steps × 4 layers
+        // = ~70k fills/frame — fine on modern hardware.
+        for (int i = 0; i <= steps; i++) {
+            int x = x1 + dx * i / steps;
+            int y = y1 + dy * i / steps;
+            ctx.fill(x - half, y - half, x + rem, y + rem, color);
+        }
+    }
+
+    /**
+     * Same as {@link #drawDiagonalLine} but the colour smoothly blends from
+     * {@code colorA} at the start to {@code colorB} at the end — gives each
+     * edge a branch-flavoured gradient.
+     */
+    private static void drawDiagonalGradient(DrawContext ctx, int x1, int y1, int x2, int y2,
+                                              int thickness, int colorA, int colorB) {
+        if (thickness <= 0) return;
+        int dx = x2 - x1, dy = y2 - y1;
+        int steps = Math.max(Math.abs(dx), Math.abs(dy));
+        if (steps <= 0) {
             int half = thickness / 2;
-            ctx.fill(xMin, y1 - half, xMax, y1 + thickness - half, color);
-        } else {
-            // Defensive diagonal — shouldn't occur in the current layout.
-            int steps = Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1));
-            if (steps <= 0) return;
-            int half = Math.max(1, thickness / 2);
-            for (int i = 0; i <= steps; i += 2) {
-                int x = x1 + (x2 - x1) * i / steps;
-                int y = y1 + (y2 - y1) * i / steps;
-                ctx.fill(x - half, y - half, x + half, y + half, color);
-            }
+            ctx.fill(x1 - half, y1 - half, x1 + thickness - half, y1 + thickness - half, colorA);
+            return;
+        }
+        int half = Math.max(1, thickness / 2);
+        int rem  = thickness - half;
+        for (int i = 0; i <= steps; i++) {
+            float t = (float) i / (float) steps;
+            int color = blend(colorA, colorB, t);
+            int x = x1 + dx * i / steps;
+            int y = y1 + dy * i / steps;
+            ctx.fill(x - half, y - half, x + rem, y + rem, color);
         }
     }
 
     private void renderNodes(DrawContext ctx, SkillTreeOpenPayload layout, SkillTreeStatePayload state,
                              int mouseX, int mouseY, long now) {
         for (SkillTreeOpenPayload.Node n : layout.nodes) {
-            int sx = (int) screenX(n.gx);
-            int sy = (int) screenY(n.gy);
+            int sx = (int) screenXOf(n);
+            int sy = (int) screenYOf(n);
             int baseRadius;
             if (n.autoUnlocked) baseRadius = NODE_GATE_RADIUS;
             else if (n.notable) baseRadius = NODE_NOTABLE_RADIUS;
@@ -731,18 +864,23 @@ public final class SkillTreeScreen extends Screen {
     private void clampPan() {
         SkillTreeOpenPayload layout = SkillTreeClient.layout();
         if (layout == null || layout.nodes.isEmpty()) return;
-        int minGx = Integer.MAX_VALUE, maxGx = Integer.MIN_VALUE;
-        int minGy = Integer.MAX_VALUE, maxGy = Integer.MIN_VALUE;
+        // Use transformed positions so the bbox follows the rotated tree.
+        rebuildTransformIfNeeded();
+        float minX = Float.POSITIVE_INFINITY, maxX = Float.NEGATIVE_INFINITY;
+        float minY = Float.POSITIVE_INFINITY, maxY = Float.NEGATIVE_INFINITY;
         for (SkillTreeOpenPayload.Node n : layout.nodes) {
-            if (n.gx < minGx) minGx = n.gx;
-            if (n.gx > maxGx) maxGx = n.gx;
-            if (n.gy < minGy) minGy = n.gy;
-            if (n.gy > maxGy) maxGy = n.gy;
+            float[] p = transformedPositions.get(n.id);
+            float fx = p != null ? p[0] : n.gx;
+            float fy = p != null ? p[1] : n.gy;
+            if (fx < minX) minX = fx;
+            if (fx > maxX) maxX = fx;
+            if (fy < minY) minY = fy;
+            if (fy > maxY) maxY = fy;
         }
-        float leftPx  = minGx * GRID_PITCH * zoom;
-        float rightPx = maxGx * GRID_PITCH * zoom;
-        float topPx   = minGy * GRID_PITCH * zoom;
-        float botPx   = maxGy * GRID_PITCH * zoom;
+        float leftPx  = minX * GRID_PITCH * zoom;
+        float rightPx = maxX * GRID_PITCH * zoom;
+        float topPx   = minY * GRID_PITCH * zoom;
+        float botPx   = maxY * GRID_PITCH * zoom;
         // Require the tree's screen rect to overlap [margin, screen - margin].
         //   screenLeft  = width/2  + leftPx  + panX  must be <= width - margin
         //   screenRight = width/2  + rightPx + panX  must be >= margin
@@ -780,8 +918,8 @@ public final class SkillTreeScreen extends Screen {
         String best = null;
         double bestD = Double.MAX_VALUE;
         for (SkillTreeOpenPayload.Node n : layout.nodes) {
-            double sx = screenX(n.gx);
-            double sy = screenY(n.gy);
+            double sx = screenXOf(n);
+            double sy = screenYOf(n);
             int baseR = n.autoUnlocked ? NODE_GATE_RADIUS
                     : n.notable ? NODE_NOTABLE_RADIUS : NODE_BASE_RADIUS;
             double r = Math.max(4, baseR * zoom);
