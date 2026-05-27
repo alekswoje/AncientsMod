@@ -348,14 +348,18 @@ public final class SkillTreeScreen extends Screen {
         // current layout. Cheap no-op if already up-to-date.
         rebuildTransformIfNeeded();
 
-        // Recompute hover + path on every frame — cheap (193 nodes max).
+        // Recompute hover + path. BFS is gated on zoom: at low zoom the halo
+        // is too small to read, and the BFS allocates a HashMap + ArrayDeque
+        // every call. Skipping at low zoom is free perf.
         String nextHover = pickNodeAt(layout, mouseX, mouseY);
+        boolean pathEligible = zoom >= 0.85f;
         if (!java.util.Objects.equals(nextHover, hoveredNodeId)) {
             hoveredNodeId = nextHover;
-            pathHighlight = computePathToHere(layout, state, nextHover);
+            pathHighlight = pathEligible ? computePathToHere(layout, state, nextHover)
+                                          : java.util.Collections.emptySet();
         } else if (SkillTreeClient.version() != lastSeenVersion) {
-            // State changed underneath us — recompute path against fresh state.
-            pathHighlight = computePathToHere(layout, state, nextHover);
+            pathHighlight = pathEligible ? computePathToHere(layout, state, nextHover)
+                                          : java.util.Collections.emptySet();
             lastSeenVersion = SkillTreeClient.version();
         }
 
@@ -427,8 +431,10 @@ public final class SkillTreeScreen extends Screen {
                         blend(colA, COL_EDGE_UNLOCKED, 0.45f),
                         blend(colB, COL_EDGE_UNLOCKED, 0.45f));
 
-                // Flowing spark — only when zoomed enough to actually see it.
-                if (zoom >= 0.55f) {
+                // Flowing spark — only at high zoom; at default zoom it's just
+                // overdraw nobody actually sees. Spark is the single most
+                // expensive per-edge effect, so gate it hard.
+                if (zoom >= 1.20f) {
                     float len = (float) Math.hypot(sx2 - sx1, sy2 - sy1);
                     if (len > 1f) {
                         float t = ((now * 0.06f) % len) / len;
@@ -549,28 +555,28 @@ public final class SkillTreeScreen extends Screen {
                 drawSoftGlow(ctx, sx, sy, haloR, withAlpha(COL_AMETHYST, 0x70));
             }
 
-            // ── Layer 1: search-match golden halo with slow breathing pulse.
-            //    Uses the same drawSoftGlow stack as everything else so the
-            //    falloff matches the rest of the screen instead of being a
-            //    flat opaque rectangle (the old version's "jarring yellow").
+            // ── Layer 1: search-match golden halo. Static (no per-node sin
+            //    animation) — was burning CPU on every match × every frame.
             if (matchesSearch && !unlocked) {
-                float pulse = 0.55f + 0.45f * (float) Math.sin(now * 0.0035 + n.gx * 0.13 + n.gy * 0.07);
-                int matchR = r + Math.max(6, Math.round((8 + 4 * pulse) * zoom));
-                drawSoftGlow(ctx, sx, sy, matchR, withAlpha(COL_SEARCH_MATCH_GLOW, (int) (0xA0 * (0.55f + 0.45f * pulse))));
-                drawSoftGlow(ctx, sx, sy, matchR / 2, withAlpha(COL_SEARCH_MATCH, (int) (0x90 * (0.55f + 0.45f * pulse))));
+                int matchR = r + Math.max(6, Math.round(10 * zoom));
+                drawSoftGlow(ctx, sx, sy, matchR, withAlpha(COL_SEARCH_MATCH_GLOW, 0x90));
             }
 
-            // ── Layer 2: persistent branch-colour halo for unlocked nodes,
-            //    with a subtle breathing animation so the tree feels alive.
-            if (unlocked && !dimmedBySearch) {
-                float breathe = 0.85f + 0.15f * (float) Math.sin(now * 0.0018 + n.gx * 0.05 + n.gy * 0.05);
-                int glowR = (int) (r * 2.0f * breathe);
-                drawSoftGlow(ctx, sx, sy, glowR, withAlpha(branchGlow, (int) (0x70 * breathe)));
-            } else if (allocatable && !dimmedBySearch) {
-                // Allocatable: pulse to invite the click.
-                float pulse = 0.5f + 0.5f * (float) Math.sin(now * 0.003 + n.gx * 0.07);
-                int glowR = (int) (r * 1.45f);
-                drawSoftGlow(ctx, sx, sy, glowR, withAlpha(branchGlow, (int) (0x50 + 0x30 * pulse)));
+            // ── Layer 2: persistent branch-colour halo — only on allocatable
+            //    nodes (to invite the click) or hovered/unlocked nodes. The
+            //    per-frame Math.sin pulse was eating CPU on 50+ unlocked
+            //    nodes at once — replaced with a static brightness here and
+            //    a single global animation tick at the bottom of the loop.
+            if (allocatable && !dimmedBySearch) {
+                int glowR = (int) (r * 1.4f);
+                drawSoftGlow(ctx, sx, sy, glowR, withAlpha(branchGlow, 0x60));
+            }
+            // Unlocked nodes get a static branch halo only when the player is
+            // zoomed in enough to actually see them — at zoom-out it's just
+            // overdraw cost with no visible benefit.
+            if (unlocked && !dimmedBySearch && zoom >= 0.85f) {
+                int glowR = (int) (r * 1.6f);
+                drawSoftGlow(ctx, sx, sy, glowR, withAlpha(branchGlow, 0x60));
             }
 
             // ── Layer 3: just-changed unlock / refund pulse (fades over PULSE_LIFETIME_MS).
@@ -616,25 +622,16 @@ public final class SkillTreeScreen extends Screen {
                 int tint;
                 if (tintSprite) {
                     tint = branchSpriteTint(n.branch, unlocked, allocatable);
-                    if (dimmedBySearch) {
-                        tint = withAlpha(tint, 0x30);
-                    } else if (unlocked) {
-                        // Subtle breathing on allocated nodes via alpha pulse.
-                        float breathe = 0.92f + 0.08f * (float) Math.sin(now * 0.0022 + n.gx * 0.05);
-                        tint = withAlpha(tint, Math.round(255 * breathe));
-                    }
+                    if (dimmedBySearch) tint = withAlpha(tint, 0x30);
                 } else {
-                    // Gate: keep full colour. Just modulate alpha for state.
+                    // Gate: keep full colour, just modulate alpha for state.
                     int gateAlpha;
-                    if (dimmedBySearch)   gateAlpha = 0x30;
-                    else if (unlocked) {
-                        float breathe = 0.92f + 0.08f * (float) Math.sin(now * 0.0022);
-                        gateAlpha = Math.round(255 * breathe);
-                    } else if (allocatable) gateAlpha = 0xE0;
-                    else                    gateAlpha = 0xA0;
+                    if (dimmedBySearch)      gateAlpha = 0x30;
+                    else if (unlocked)       gateAlpha = 0xFF;
+                    else if (allocatable)    gateAlpha = 0xE0;
+                    else                     gateAlpha = 0xA0;
                     tint = withAlpha(0xFFFFFFFF, gateAlpha);
-                    // Gates render larger because the AI artwork has more aura.
-                    spriteR = Math.round(r * 1.35f);
+                    spriteR = Math.round(r * 1.35f); // gate sprite has more aura
                 }
                 drawSpriteTinted(ctx, chosenSprite, sx, sy, spriteR, tint);
             } else {
@@ -764,23 +761,22 @@ public final class SkillTreeScreen extends Screen {
     }
 
     /**
-     * Multi-layer radial glow approximation. Stacks 3-4 concentric squares
-     * with decreasing alpha so overlapping nodes blend into a brighter
-     * core — fakes additive bloom without dropping into RenderLayer plumbing.
+     * Cheap 2-layer radial glow approximation. One outer dim square + one
+     * inner bright square — covers the same visual ground as the older
+     * 4-layer stack at half the fill cost. Critical for keeping the screen
+     * smooth with hundreds of glowing nodes + edges per frame.
      */
     private static void drawSoftGlow(DrawContext ctx, int cx, int cy, int radius, int color) {
         int alpha = (color >>> 24) & 0xFF;
         if (alpha == 0 || radius < 1) return;
         int rgb = color & 0x00FFFFFF;
-        // 4 stacked layers, each tighter and brighter than the last.
-        int[] sizes  = { radius, (radius * 3) / 4, radius / 2, Math.max(1, radius / 3) };
-        int[] alphas = { alpha / 6, alpha / 3, (alpha * 2) / 3, alpha };
-        for (int i = 0; i < sizes.length; i++) {
-            int s = sizes[i];
-            int a = alphas[i] & 0xFF;
-            if (a == 0 || s <= 0) continue;
-            ctx.fill(cx - s, cy - s, cx + s, cy + s, rgb | (a << 24));
+        int aOuter = (alpha / 3) & 0xFF;
+        int aInner = ((alpha * 4) / 5) & 0xFF;
+        int rInner = Math.max(1, (radius * 2) / 3);
+        if (aOuter > 0) {
+            ctx.fill(cx - radius, cy - radius, cx + radius, cy + radius, rgb | (aOuter << 24));
         }
+        ctx.fill(cx - rInner, cy - rInner, cx + rInner, cy + rInner, rgb | (aInner << 24));
     }
 
     /** Outline rect with given thickness — 4 thin fills. */
@@ -817,9 +813,12 @@ public final class SkillTreeScreen extends Screen {
 
     private void renderStars(DrawContext ctx, long now) {
         rebuildStarsIfNeeded();
+        // Update twinkle phase at 4 Hz instead of 60+ — invisible visually,
+        // huge CPU win vs. 70 Math.sin calls every frame.
+        float globalPhase = (float) ((now / 250L) * 0.25);
         for (int i = 0; i < starData.length; i += 5) {
-            float t = 0.4f + 0.6f * (0.5f + 0.5f * (float) Math.sin(now * starData[i + 3] + starData[i + 4]));
-            int alpha = (int) (0x70 * t);
+            float t = 0.5f + 0.5f * (float) Math.sin(globalPhase * starData[i + 3] * 100f + starData[i + 4]);
+            int alpha = (int) (0x60 * (0.5f + 0.5f * t));
             int x = (int) starData[i];
             int y = (int) starData[i + 1];
             int size = (int) starData[i + 2];
