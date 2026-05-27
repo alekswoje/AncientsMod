@@ -49,9 +49,9 @@ public final class SkillTreeScreen extends Screen {
     private static final float ZOOM_MAX = 2.50f;
     private static final float ZOOM_DEFAULT = 0.65f;
 
-    private static final int NODE_BASE_RADIUS = 11;
-    private static final int NODE_NOTABLE_RADIUS = 16;
-    private static final int NODE_GATE_RADIUS = 20;
+    private static final int NODE_BASE_RADIUS = 14;
+    private static final int NODE_NOTABLE_RADIUS = 20;
+    private static final int NODE_GATE_RADIUS = 26;
 
     // ── Client-side organic transform tunables ──────────────────────────────
     /** Global rotation applied to every node position (degrees). Breaks the
@@ -376,50 +376,59 @@ public final class SkillTreeScreen extends Screen {
         int coreThickness = Math.max(1, Math.round(2f * zoom));
         int glowThickness = coreThickness + Math.max(2, Math.round(3f * zoom));
 
+        // Viewport rect — anything entirely outside this is culled before we
+        // touch a single fill call. Saves enormous work when the player
+        // zooms in and most of the tree falls off-screen.
+        final int viewMinX = -100;
+        final int viewMaxX = width + 100;
+        final int viewMinY = -100;
+        final int viewMaxY = height + 100;
+
         for (int[] e : layout.edges) {
             SkillTreeOpenPayload.Node a = layout.nodes.get(e[0]);
             SkillTreeOpenPayload.Node b = layout.nodes.get(e[1]);
-            boolean aUn = state.unlocked.contains(a.id) || a.autoUnlocked;
-            boolean bUn = state.unlocked.contains(b.id) || b.autoUnlocked;
 
             int sx1 = (int) screenXOf(a);
             int sy1 = (int) screenYOf(a);
             int sx2 = (int) screenXOf(b);
             int sy2 = (int) screenYOf(b);
 
+            // AABB cull — both endpoints outside the same side of the screen
+            // means the line can't intersect the viewport.
+            if ((sx1 < viewMinX && sx2 < viewMinX) || (sx1 > viewMaxX && sx2 > viewMaxX)
+             || (sy1 < viewMinY && sy2 < viewMinY) || (sy1 > viewMaxY && sy2 > viewMaxY)) {
+                continue;
+            }
+
+            boolean aUn = state.unlocked.contains(a.id) || a.autoUnlocked;
+            boolean bUn = state.unlocked.contains(b.id) || b.autoUnlocked;
+
             if (aUn && bUn) {
-                // Active unlocked edge — gradient core blending each endpoint's
-                // branch hue, surrounded by 3 stacked alpha layers that fake
-                // additive bloom on overlap.
+                // Active unlocked edge — 2 layers (wide glow + branch-gradient
+                // core) instead of 4. Visually identical at default zoom.
                 int colA = branchGlowColor(a.branch);
                 int colB = branchGlowColor(b.branch);
                 int midGlow = blend(colA, colB, 0.5f);
-                drawDiagonalLine(ctx, sx1, sy1, sx2, sy2, glowThickness + 2, withAlpha(midGlow, 0x22));
-                drawDiagonalLine(ctx, sx1, sy1, sx2, sy2, glowThickness,     withAlpha(midGlow, 0x55));
+                drawDiagonalLine(ctx, sx1, sy1, sx2, sy2, glowThickness + 2, withAlpha(midGlow, 0x44));
                 drawDiagonalGradient(ctx, sx1, sy1, sx2, sy2, coreThickness + 1,
-                        withAlpha(colA, 0xDD), withAlpha(colB, 0xDD));
-                drawDiagonalGradient(ctx, sx1, sy1, sx2, sy2, coreThickness,
-                        blend(COL_EDGE_UNLOCKED, colA, 0.35f),
-                        blend(COL_EDGE_UNLOCKED, colB, 0.35f));
+                        blend(colA, COL_EDGE_UNLOCKED, 0.45f),
+                        blend(colB, COL_EDGE_UNLOCKED, 0.45f));
 
-                // Flowing spark along the edge — only at decent zoom, otherwise
-                // it's noise. Travels at constant on-screen speed.
-                if (zoom >= 0.45f) {
+                // Flowing spark — only when zoomed enough to actually see it.
+                if (zoom >= 0.55f) {
                     float len = (float) Math.hypot(sx2 - sx1, sy2 - sy1);
                     if (len > 1f) {
                         float t = ((now * 0.06f) % len) / len;
                         int fx = (int) (sx1 + (sx2 - sx1) * t);
                         int fy = (int) (sy1 + (sy2 - sy1) * t);
                         int sparkR = Math.max(2, Math.round(3.5f * zoom));
-                        drawSoftGlow(ctx, fx, fy, sparkR * 3, withAlpha(midGlow, 0x60));
+                        drawSoftGlow(ctx, fx, fy, sparkR * 2, withAlpha(midGlow, 0x70));
                         drawSoftGlow(ctx, fx, fy, sparkR, COL_EDGE_SPARK);
                     }
                 }
             } else if (aUn || bUn) {
-                // One side connected — dim solid line, no glow.
                 drawDiagonalLine(ctx, sx1, sy1, sx2, sy2, coreThickness, COL_EDGE_REACHABLE);
             } else {
-                // Both locked — barely visible.
                 drawDiagonalLine(ctx, sx1, sy1, sx2, sy2, coreThickness, COL_EDGE_LOCKED);
             }
         }
@@ -442,13 +451,17 @@ public final class SkillTreeScreen extends Screen {
         }
         int half = Math.max(1, thickness / 2);
         int rem  = thickness - half;
-        // Step every pixel for a smooth line. ~300 edges × ~60 steps × 4 layers
-        // = ~70k fills/frame — fine on modern hardware.
-        for (int i = 0; i <= steps; i++) {
+        // Stride by ~thickness/2 so consecutive square stamps just overlap.
+        // Cuts ctx.fill calls roughly in half versus per-pixel stepping while
+        // keeping the line visually continuous.
+        int stride = Math.max(1, thickness / 2);
+        for (int i = 0; i <= steps; i += stride) {
             int x = x1 + dx * i / steps;
             int y = y1 + dy * i / steps;
             ctx.fill(x - half, y - half, x + rem, y + rem, color);
         }
+        // Always stamp the endpoint so the line doesn't fall short.
+        ctx.fill(x2 - half, y2 - half, x2 + rem, y2 + rem, color);
     }
 
     /**
@@ -468,20 +481,36 @@ public final class SkillTreeScreen extends Screen {
         }
         int half = Math.max(1, thickness / 2);
         int rem  = thickness - half;
-        for (int i = 0; i <= steps; i++) {
+        int stride = Math.max(1, thickness / 2);
+        for (int i = 0; i <= steps; i += stride) {
             float t = (float) i / (float) steps;
             int color = blend(colorA, colorB, t);
             int x = x1 + dx * i / steps;
             int y = y1 + dy * i / steps;
             ctx.fill(x - half, y - half, x + rem, y + rem, color);
         }
+        ctx.fill(x2 - half, y2 - half, x2 + rem, y2 + rem, colorB);
     }
 
     private void renderNodes(DrawContext ctx, SkillTreeOpenPayload layout, SkillTreeStatePayload state,
                              int mouseX, int mouseY, long now) {
+        // Hoist out of the loop — both are constant for this frame.
+        final boolean useSprite = textureExists(SPRITE_NODE_TEMPLATE);
+        final boolean searchActive = !searchLower.isEmpty();
+        // Viewport — anything fully outside this rect (with node-radius margin)
+        // gets skipped before we touch any fill call.
+        final int viewMinX = -80;
+        final int viewMaxX = width + 80;
+        final int viewMinY = -80;
+        final int viewMaxY = height + 80;
+
         for (SkillTreeOpenPayload.Node n : layout.nodes) {
             int sx = (int) screenXOf(n);
             int sy = (int) screenYOf(n);
+            // Cheap reject: node fully off-screen (using max-radius bound).
+            if (sx < viewMinX || sx > viewMaxX || sy < viewMinY || sy > viewMaxY) {
+                continue;
+            }
             int baseRadius;
             if (n.autoUnlocked) baseRadius = NODE_GATE_RADIUS;
             else if (n.notable) baseRadius = NODE_NOTABLE_RADIUS;
@@ -490,7 +519,6 @@ public final class SkillTreeScreen extends Screen {
 
             boolean unlocked = state.unlocked.contains(n.id) || n.autoUnlocked;
             boolean allocatable = !unlocked && SkillTreeClient.isAllocatable(n.id);
-            boolean searchActive = !searchLower.isEmpty();
             boolean matchesSearch = searchActive && nodeMatchesSearch(n);
             boolean dimmedBySearch = searchActive && !matchesSearch;
             boolean onPath = pathHighlight.contains(n.id);
@@ -548,8 +576,6 @@ public final class SkillTreeScreen extends Screen {
 
             // ── Body: either a sprite (preferred — branch-tinted grayscale
             //    template) or procedural rectangles as graceful fallback.
-            boolean useSprite = textureExists(SPRITE_NODE_TEMPLATE);
-
             if (useSprite) {
                 // Sprite mode — render a tinted PNG centered on the node.
                 int spriteR = r + Math.max(2, Math.round(2 * zoom)); // slight pad for the glow rim
@@ -736,19 +762,37 @@ public final class SkillTreeScreen extends Screen {
         ctx.fill(x2 - thickness, y1, x2, y2, color);                 // right
     }
 
-    /** Deterministic starfield drawn behind the tree. ~70 stars, each with
-     *  its own sine-driven twinkle phase. Cheap (one fill per star). */
-    private void renderStars(DrawContext ctx, long now) {
+    /** Pre-baked starfield. Rebuilt once on init (and on window resize) and
+     *  reused every frame — saves ~70 RNG calls + 70 nextInt per frame
+     *  compared to the previous per-frame generator. */
+    private float[] starData; // packed: x, y, size, speed, phase × N
+    private int starWidth = -1, starHeight = -1;
+
+    private void rebuildStarsIfNeeded() {
+        if (starData != null && starWidth == width && starHeight == height) return;
+        starWidth = width;
+        starHeight = height;
         java.util.Random r = new java.util.Random(0xA72ECL ^ (long) width * 131L ^ (long) height * 1733L);
         int count = 70;
+        starData = new float[count * 5];
         for (int i = 0; i < count; i++) {
-            int x = r.nextInt(width);
-            int y = r.nextInt(height);
-            int size = r.nextInt(100) < 12 ? 2 : 1;
-            float phase = r.nextFloat() * (float) Math.PI * 2f;
-            float speed = 0.0008f + r.nextFloat() * 0.0022f;
-            float t = 0.4f + 0.6f * (0.5f + 0.5f * (float) Math.sin(now * speed + phase));
+            int o = i * 5;
+            starData[o]     = r.nextInt(width);
+            starData[o + 1] = r.nextInt(height);
+            starData[o + 2] = r.nextInt(100) < 12 ? 2 : 1;
+            starData[o + 3] = 0.0008f + r.nextFloat() * 0.0022f;
+            starData[o + 4] = r.nextFloat() * (float) Math.PI * 2f;
+        }
+    }
+
+    private void renderStars(DrawContext ctx, long now) {
+        rebuildStarsIfNeeded();
+        for (int i = 0; i < starData.length; i += 5) {
+            float t = 0.4f + 0.6f * (0.5f + 0.5f * (float) Math.sin(now * starData[i + 3] + starData[i + 4]));
             int alpha = (int) (0x70 * t);
+            int x = (int) starData[i];
+            int y = (int) starData[i + 1];
+            int size = (int) starData[i + 2];
             ctx.fill(x, y, x + size, y + size, withAlpha(COL_STAR, alpha));
         }
     }
