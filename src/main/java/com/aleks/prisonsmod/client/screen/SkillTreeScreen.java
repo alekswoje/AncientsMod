@@ -120,9 +120,11 @@ public final class SkillTreeScreen extends Screen {
     private static final Identifier SPRITE_GATE =
             Identifier.of(PrisonsMod.MOD_ID, "textures/gui/skilltree/node_gate.png");
 
-    /** Source dimensions for the drawTexture call (the AI Studio output is
-     *  always 1024² for our pipeline). */
-    private static final int SPRITE_TEMPLATE_PX = 1024;
+    /** Source texture dimensions. AI Studio originally outputs 1024² but we
+     *  ship them downsampled to 256² because the rendered size is never more
+     *  than ~60 px — the 1024² source was creating massive GPU sampling +
+     *  binding overhead per node × per frame. */
+    private static final int SPRITE_TEMPLATE_PX = 256;
 
     /** Per-Identifier cache for the resource-manager existence check.
      *  Populated lazily so the first frame doesn't stall on disk I/O. */
