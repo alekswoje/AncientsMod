@@ -1,9 +1,11 @@
 package com.aleks.prisonsmod.client.screen;
 
+import com.aleks.prisonsmod.PrisonsMod;
 import com.aleks.prisonsmod.client.skilltree.SkillTreeClient;
 import com.aleks.prisonsmod.net.Protocol;
 import com.aleks.prisonsmod.net.payload.SkillTreeOpenPayload;
 import com.aleks.prisonsmod.net.payload.SkillTreeStatePayload;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
@@ -12,6 +14,7 @@ import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
+import net.minecraft.util.Identifier;
 
 import java.text.DecimalFormat;
 import java.util.ArrayDeque;
@@ -98,6 +101,19 @@ public final class SkillTreeScreen extends Screen {
 
     private static final int COL_SEARCH_MATCH       = 0xFFFFD854;
     private static final int COL_SEARCH_MATCH_GLOW  = 0xFFFFAA22;
+
+    // ── Sprite assets ───────────────────────────────────────────────────────
+    /** Grayscale template — branch colour is multiplied in at draw time.
+     *  If missing the renderer silently falls back to procedural rectangles. */
+    private static final Identifier SPRITE_NODE_TEMPLATE =
+            Identifier.of(PrisonsMod.MOD_ID, "textures/gui/skilltree/node_base_template.png");
+    /** Source dimensions of the template — used for the drawTexture call so
+     *  Minecraft's scaler doesn't have to guess. */
+    private static final int SPRITE_TEMPLATE_PX = 1024;
+
+    /** Per-Identifier cache for the resource-manager existence check.
+     *  Populated lazily so the first frame doesn't stall on disk I/O. */
+    private final java.util.Map<Identifier, Boolean> textureExistsCache = new java.util.HashMap<>();
 
     private static final DecimalFormat MONEY_FMT = new DecimalFormat("#,###");
 
@@ -530,68 +546,96 @@ public final class SkillTreeScreen extends Screen {
                 drawSoftGlow(ctx, sx, sy, hoverR, withAlpha(COL_AMETHYST, 0x80));
             }
 
-            // ── Layer 5: drop shadow (small offset, dark, low alpha).
-            if (!dimmedBySearch) {
-                int shadowOff = Math.max(1, Math.round(2 * zoom));
-                ctx.fill(sx - r + shadowOff, sy + r - 1,
-                         sx + r + shadowOff, sy + r + shadowOff + 1,
-                         withAlpha(0xFF000000, 0x55));
-            }
+            // ── Body: either a sprite (preferred — branch-tinted grayscale
+            //    template) or procedural rectangles as graceful fallback.
+            boolean useSprite = textureExists(SPRITE_NODE_TEMPLATE);
 
-            // ── Layer 6: node body with a vertical fake-3D inner gradient.
-            int bodyCore;
-            if (unlocked)         bodyCore = blend(branchCore, 0xFFFFFFFF, 0.15f);
-            else if (allocatable) bodyCore = withAlpha(branchCore, 0xD0);
-            else                  bodyCore = withAlpha(0xFF2A1A48, 0xE0);
-            if (dimmedBySearch)   bodyCore = withAlpha(bodyCore, 0x12);
+            if (useSprite) {
+                // Sprite mode — render a tinted PNG centered on the node.
+                int spriteR = r + Math.max(2, Math.round(2 * zoom)); // slight pad for the glow rim
+                int tint = branchSpriteTint(n.branch, unlocked, allocatable);
+                if (dimmedBySearch) {
+                    tint = withAlpha(tint, 0x30);
+                } else {
+                    // Slight breathing on allocated nodes — modulate alpha.
+                    if (unlocked) {
+                        float breathe = 0.92f + 0.08f * (float) Math.sin(now * 0.0022 + n.gx * 0.05);
+                        int a = Math.round(255 * breathe);
+                        tint = withAlpha(tint, a);
+                    }
+                }
+                drawSpriteTinted(ctx, SPRITE_NODE_TEMPLATE, sx, sy, spriteR, tint);
 
-            ctx.fill(sx - r, sy - r, sx + r, sy + r, bodyCore);
-            // Inner top highlight (lighter strip on the top third)
-            if (!dimmedBySearch) {
-                int topH = Math.max(1, r / 2);
-                ctx.fillGradient(sx - r, sy - r, sx + r, sy - r + topH,
-                        withAlpha(0xFFFFFFFF, 0x30), withAlpha(0xFFFFFFFF, 0));
-                // Bottom darkening (depth)
-                int botH = Math.max(1, r / 3);
-                ctx.fillGradient(sx - r, sy + r - botH, sx + r, sy + r,
-                        withAlpha(0xFF000000, 0), withAlpha(0xFF000000, 0x40));
-            }
-
-            // ── Layer 7: border ring — amethyst on unlocked, branch-tinted on
-            //    allocatable, very faint on locked.
-            int borderCol;
-            if (unlocked)         borderCol = COL_AMETHYST;
-            else if (allocatable) borderCol = blend(branchCore, COL_AMETHYST, 0.55f);
-            else                  borderCol = withAlpha(branchCore, 0x55);
-            if (dimmedBySearch)   borderCol = withAlpha(borderCol, 0x18);
-            int bt = Math.max(1, Math.round(1.5f * zoom));
-            drawRect(ctx, sx - r, sy - r, sx + r, sy + r, bt, borderCol);
-
-            // ── Layer 8: notable inner pip (cluster notables + branch caps + grand caps)
-            if (n.notable && !n.autoUnlocked && r > 4) {
-                int p = Math.max(2, r / 3);
-                int pipCore = withAlpha(COL_AMETHYST, dimmedBySearch ? 0x20 : 0xFF);
-                ctx.fill(sx - p, sy - p, sx + p, sy + p, pipCore);
-                if (!dimmedBySearch) {
-                    // Tiny highlight on the pip for the "gem" look.
+                // Notable inner pip overlaid on top so visually-important
+                // nodes still stand out at distance.
+                if (n.notable && !n.autoUnlocked && r > 4 && !dimmedBySearch) {
+                    int p = Math.max(2, r / 4);
+                    ctx.fill(sx - p, sy - p, sx + p, sy + p, COL_AMETHYST);
                     ctx.fill(sx - p + 1, sy - p + 1, sx + p - 1, sy - p + 2,
                             withAlpha(0xFFFFFFFF, 0x90));
                 }
-            }
 
-            // ── Layer 9: gate marker (only the real gate — pulsing amethyst cross).
-            if (n.autoUnlocked && r > 6) {
-                float gpulse = 0.7f + 0.3f * (float) Math.sin(now * 0.002);
-                int p = (int) (r * 0.5f * gpulse);
-                int gateCol = withAlpha(COL_AMETHYST, dimmedBySearch ? 0x20 : 0xFF);
-                ctx.fill(sx - p, sy - p, sx + p, sy + p, gateCol);
-                int armW = Math.max(2, Math.round(2.5f * zoom));
-                ctx.fill(sx - armW / 2, sy - r, sx + armW - armW / 2, sy + r, gateCol);
-                ctx.fill(sx - r, sy - armW / 2, sx + r, sy + armW - armW / 2, gateCol);
-                if (!dimmedBySearch) {
-                    // Bright core pip
-                    int cp = Math.max(1, p / 3);
+                // Gate marker overlay — a small radiant pulse on top of the sprite.
+                if (n.autoUnlocked && r > 6 && !dimmedBySearch) {
+                    float gpulse = 0.7f + 0.3f * (float) Math.sin(now * 0.002);
+                    int cp = Math.max(2, Math.round(r * 0.25f * gpulse));
                     ctx.fill(sx - cp, sy - cp, sx + cp, sy + cp, 0xFFFFFFFF);
+                }
+            } else {
+                // ── Procedural fallback path ───────────────────────────────
+                // Drop shadow
+                if (!dimmedBySearch) {
+                    int shadowOff = Math.max(1, Math.round(2 * zoom));
+                    ctx.fill(sx - r + shadowOff, sy + r - 1,
+                             sx + r + shadowOff, sy + r + shadowOff + 1,
+                             withAlpha(0xFF000000, 0x55));
+                }
+                // Body
+                int bodyCore;
+                if (unlocked)         bodyCore = blend(branchCore, 0xFFFFFFFF, 0.15f);
+                else if (allocatable) bodyCore = withAlpha(branchCore, 0xD0);
+                else                  bodyCore = withAlpha(0xFF2A1A48, 0xE0);
+                if (dimmedBySearch)   bodyCore = withAlpha(bodyCore, 0x12);
+                ctx.fill(sx - r, sy - r, sx + r, sy + r, bodyCore);
+                if (!dimmedBySearch) {
+                    int topH = Math.max(1, r / 2);
+                    ctx.fillGradient(sx - r, sy - r, sx + r, sy - r + topH,
+                            withAlpha(0xFFFFFFFF, 0x30), withAlpha(0xFFFFFFFF, 0));
+                    int botH = Math.max(1, r / 3);
+                    ctx.fillGradient(sx - r, sy + r - botH, sx + r, sy + r,
+                            withAlpha(0xFF000000, 0), withAlpha(0xFF000000, 0x40));
+                }
+                // Border ring
+                int borderCol;
+                if (unlocked)         borderCol = COL_AMETHYST;
+                else if (allocatable) borderCol = blend(branchCore, COL_AMETHYST, 0.55f);
+                else                  borderCol = withAlpha(branchCore, 0x55);
+                if (dimmedBySearch)   borderCol = withAlpha(borderCol, 0x18);
+                int bt = Math.max(1, Math.round(1.5f * zoom));
+                drawRect(ctx, sx - r, sy - r, sx + r, sy + r, bt, borderCol);
+                // Notable pip
+                if (n.notable && !n.autoUnlocked && r > 4) {
+                    int p = Math.max(2, r / 3);
+                    int pipCore = withAlpha(COL_AMETHYST, dimmedBySearch ? 0x20 : 0xFF);
+                    ctx.fill(sx - p, sy - p, sx + p, sy + p, pipCore);
+                    if (!dimmedBySearch) {
+                        ctx.fill(sx - p + 1, sy - p + 1, sx + p - 1, sy - p + 2,
+                                withAlpha(0xFFFFFFFF, 0x90));
+                    }
+                }
+                // Gate cross
+                if (n.autoUnlocked && r > 6) {
+                    float gpulse = 0.7f + 0.3f * (float) Math.sin(now * 0.002);
+                    int p = (int) (r * 0.5f * gpulse);
+                    int gateCol = withAlpha(COL_AMETHYST, dimmedBySearch ? 0x20 : 0xFF);
+                    ctx.fill(sx - p, sy - p, sx + p, sy + p, gateCol);
+                    int armW = Math.max(2, Math.round(2.5f * zoom));
+                    ctx.fill(sx - armW / 2, sy - r, sx + armW - armW / 2, sy + r, gateCol);
+                    ctx.fill(sx - r, sy - armW / 2, sx + r, sy + armW - armW / 2, gateCol);
+                    if (!dimmedBySearch) {
+                        int cp = Math.max(1, p / 3);
+                        ctx.fill(sx - cp, sy - cp, sx + cp, sy + cp, 0xFFFFFFFF);
+                    }
                 }
             }
 
@@ -601,6 +645,65 @@ public final class SkillTreeScreen extends Screen {
                 int ringT = Math.max(1, Math.round(1.5f * zoom));
                 drawRect(ctx, sx - ringR, sy - ringR, sx + ringR, sy + ringR, ringT, COL_SEARCH_MATCH);
             }
+        }
+    }
+
+    /** Lazy resource-manager check — true if a texture file is actually
+     *  bundled with the mod. False positives are impossible; false negatives
+     *  only on the first call before the resource manager is ready (which
+     *  should never happen by the time render() fires). */
+    private boolean textureExists(Identifier id) {
+        Boolean cached = textureExistsCache.get(id);
+        if (cached != null) return cached;
+        boolean exists;
+        try {
+            exists = MinecraftClient.getInstance().getResourceManager().getResource(id).isPresent();
+        } catch (Throwable t) {
+            exists = false;
+        }
+        textureExistsCache.put(id, exists);
+        return exists;
+    }
+
+    /** Branch tint applied to the grayscale template — multiplied with the
+     *  sprite's luminance to produce a branch-coloured node. Allocatable +
+     *  unlocked variants brighten the tint; locked dims it. */
+    private static int branchSpriteTint(byte branch, boolean unlocked, boolean allocatable) {
+        int hue = switch (branch) {
+            case Protocol.BRANCH_ASSAULT   -> 0xFFFF6B6B;
+            case Protocol.BRANCH_ENDURANCE -> 0xFFFFD24A;
+            case Protocol.BRANCH_AGILITY   -> 0xFF66E6FF;
+            case Protocol.BRANCH_FORTUNE   -> 0xFF7BFFAA;
+            default                         -> 0xFFD4B0F0;
+        };
+        if (unlocked)         return brighten(hue, 1.10f);
+        if (allocatable)      return hue;
+        // Locked: dim and slightly desaturate.
+        return blend(hue, 0xFF3A2A5A, 0.55f);
+    }
+
+    private static int brighten(int argb, float factor) {
+        int a = (argb >>> 24) & 0xFF;
+        int r = Math.min(255, Math.round(((argb >> 16) & 0xFF) * factor));
+        int g = Math.min(255, Math.round(((argb >> 8)  & 0xFF) * factor));
+        int b = Math.min(255, Math.round((argb         & 0xFF) * factor));
+        return (a << 24) | (r << 16) | (g << 8) | b;
+    }
+
+    /** Draw a square-cropped sprite centered at (cx, cy) with the given
+     *  radius (half-size in pixels) and ARGB tint multiplier (modulates
+     *  the sprite's per-channel intensity). */
+    private void drawSpriteTinted(DrawContext ctx, Identifier id, int cx, int cy, int radius, int tint) {
+        int size = Math.max(2, radius * 2);
+        int x = cx - radius;
+        int y = cy - radius;
+        try {
+            ctx.drawTexture(net.minecraft.client.gl.RenderPipelines.GUI_TEXTURED, id,
+                    x, y, 0f, 0f, size, size,
+                    SPRITE_TEMPLATE_PX, SPRITE_TEMPLATE_PX, tint);
+        } catch (Throwable t) {
+            textureExistsCache.put(id, false);
+            PrisonsMod.LOGGER.debug("drawSpriteTinted failed for {}: {}", id, t.toString());
         }
     }
 
