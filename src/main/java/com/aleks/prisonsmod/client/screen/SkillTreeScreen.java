@@ -103,12 +103,25 @@ public final class SkillTreeScreen extends Screen {
     private static final int COL_SEARCH_MATCH_GLOW  = 0xFFFFAA22;
 
     // ── Sprite assets ───────────────────────────────────────────────────────
-    /** Grayscale template — branch colour is multiplied in at draw time.
-     *  If missing the renderer silently falls back to procedural rectangles. */
+    /** Grayscale template for SMALL / TRUNK / BRIDGE nodes. Branch colour is
+     *  multiplied in at draw time. If missing the renderer silently falls
+     *  back to procedural rectangles. */
     private static final Identifier SPRITE_NODE_TEMPLATE =
             Identifier.of(PrisonsMod.MOD_ID, "textures/gui/skilltree/node_base_template.png");
-    /** Source dimensions of the template — used for the drawTexture call so
-     *  Minecraft's scaler doesn't have to guess. */
+    /** Grayscale template for cluster NOTABLES + BRANCH CAPS — more ornate
+     *  scrollwork rim than the base. Tinted at draw time. */
+    private static final Identifier SPRITE_NOTABLE_TEMPLATE =
+            Identifier.of(PrisonsMod.MOD_ID, "textures/gui/skilltree/node_notable_template.png");
+    /** Grayscale template for GRAND CAPS — climactic radiating-spike rim.
+     *  Tinted at draw time. */
+    private static final Identifier SPRITE_GRAND_TEMPLATE =
+            Identifier.of(PrisonsMod.MOD_ID, "textures/gui/skilltree/node_grand_template.png");
+    /** Full-colour amethyst star for the single central GATE node. Not tinted. */
+    private static final Identifier SPRITE_GATE =
+            Identifier.of(PrisonsMod.MOD_ID, "textures/gui/skilltree/node_gate.png");
+
+    /** Source dimensions for the drawTexture call (the AI Studio output is
+     *  always 1024² for our pipeline). */
     private static final int SPRITE_TEMPLATE_PX = 1024;
 
     /** Per-Identifier cache for the resource-manager existence check.
@@ -494,9 +507,12 @@ public final class SkillTreeScreen extends Screen {
 
     private void renderNodes(DrawContext ctx, SkillTreeOpenPayload layout, SkillTreeStatePayload state,
                              int mouseX, int mouseY, long now) {
-        // Hoist out of the loop — both are constant for this frame.
-        final boolean useSprite = textureExists(SPRITE_NODE_TEMPLATE);
-        final boolean searchActive = !searchLower.isEmpty();
+        // Hoist constant-for-this-frame state out of the per-node loop.
+        final boolean hasBaseSprite    = textureExists(SPRITE_NODE_TEMPLATE);
+        final boolean hasNotableSprite = textureExists(SPRITE_NOTABLE_TEMPLATE);
+        final boolean hasGrandSprite   = textureExists(SPRITE_GRAND_TEMPLATE);
+        final boolean hasGateSprite    = textureExists(SPRITE_GATE);
+        final boolean searchActive     = !searchLower.isEmpty();
         // Viewport — anything fully outside this rect (with node-radius margin)
         // gets skipped before we touch any fill call.
         final int viewMinX = -80;
@@ -574,39 +590,53 @@ public final class SkillTreeScreen extends Screen {
                 drawSoftGlow(ctx, sx, sy, hoverR, withAlpha(COL_AMETHYST, 0x80));
             }
 
-            // ── Body: either a sprite (preferred — branch-tinted grayscale
-            //    template) or procedural rectangles as graceful fallback.
-            if (useSprite) {
-                // Sprite mode — render a tinted PNG centered on the node.
-                int spriteR = r + Math.max(2, Math.round(2 * zoom)); // slight pad for the glow rim
-                int tint = branchSpriteTint(n.branch, unlocked, allocatable);
-                if (dimmedBySearch) {
-                    tint = withAlpha(tint, 0x30);
-                } else {
-                    // Slight breathing on allocated nodes — modulate alpha.
-                    if (unlocked) {
+            // ── Body: pick the highest-tier sprite that's available for this
+            //    node kind, fall through to less specific templates, or to
+            //    procedural rectangles if no sprite is bundled at all.
+            //
+            //    Tiers: gate → grand cap → notable → base. Each tier has its
+            //    own AI-Studio-generated 1024² PNG (gate full-colour amethyst;
+            //    others are grayscale templates tinted to the node's branch).
+            boolean isGrandCap = n.id.endsWith("_grand");
+            Identifier chosenSprite = null;
+            boolean tintSprite = true;
+            if (n.autoUnlocked && hasGateSprite) {
+                chosenSprite = SPRITE_GATE;
+                tintSprite = false;
+            } else if (isGrandCap && hasGrandSprite) {
+                chosenSprite = SPRITE_GRAND_TEMPLATE;
+            } else if (n.notable && hasNotableSprite) {
+                chosenSprite = SPRITE_NOTABLE_TEMPLATE;
+            } else if (hasBaseSprite) {
+                chosenSprite = SPRITE_NODE_TEMPLATE;
+            }
+
+            if (chosenSprite != null) {
+                int spriteR = r + Math.max(2, Math.round(2 * zoom)); // pad for glow rim
+                int tint;
+                if (tintSprite) {
+                    tint = branchSpriteTint(n.branch, unlocked, allocatable);
+                    if (dimmedBySearch) {
+                        tint = withAlpha(tint, 0x30);
+                    } else if (unlocked) {
+                        // Subtle breathing on allocated nodes via alpha pulse.
                         float breathe = 0.92f + 0.08f * (float) Math.sin(now * 0.0022 + n.gx * 0.05);
-                        int a = Math.round(255 * breathe);
-                        tint = withAlpha(tint, a);
+                        tint = withAlpha(tint, Math.round(255 * breathe));
                     }
+                } else {
+                    // Gate: keep full colour. Just modulate alpha for state.
+                    int gateAlpha;
+                    if (dimmedBySearch)   gateAlpha = 0x30;
+                    else if (unlocked) {
+                        float breathe = 0.92f + 0.08f * (float) Math.sin(now * 0.0022);
+                        gateAlpha = Math.round(255 * breathe);
+                    } else if (allocatable) gateAlpha = 0xE0;
+                    else                    gateAlpha = 0xA0;
+                    tint = withAlpha(0xFFFFFFFF, gateAlpha);
+                    // Gates render larger because the AI artwork has more aura.
+                    spriteR = Math.round(r * 1.35f);
                 }
-                drawSpriteTinted(ctx, SPRITE_NODE_TEMPLATE, sx, sy, spriteR, tint);
-
-                // Notable inner pip overlaid on top so visually-important
-                // nodes still stand out at distance.
-                if (n.notable && !n.autoUnlocked && r > 4 && !dimmedBySearch) {
-                    int p = Math.max(2, r / 4);
-                    ctx.fill(sx - p, sy - p, sx + p, sy + p, COL_AMETHYST);
-                    ctx.fill(sx - p + 1, sy - p + 1, sx + p - 1, sy - p + 2,
-                            withAlpha(0xFFFFFFFF, 0x90));
-                }
-
-                // Gate marker overlay — a small radiant pulse on top of the sprite.
-                if (n.autoUnlocked && r > 6 && !dimmedBySearch) {
-                    float gpulse = 0.7f + 0.3f * (float) Math.sin(now * 0.002);
-                    int cp = Math.max(2, Math.round(r * 0.25f * gpulse));
-                    ctx.fill(sx - cp, sy - cp, sx + cp, sy + cp, 0xFFFFFFFF);
-                }
+                drawSpriteTinted(ctx, chosenSprite, sx, sy, spriteR, tint);
             } else {
                 // ── Procedural fallback path ───────────────────────────────
                 // Drop shadow
