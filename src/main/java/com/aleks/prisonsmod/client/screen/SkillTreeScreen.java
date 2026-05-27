@@ -51,23 +51,41 @@ public final class SkillTreeScreen extends Screen {
     private static final int NODE_GATE_RADIUS = 20;
 
     // ── Tartarus palette ────────────────────────────────────────────────────
-    private static final int COL_BG_TOP     = 0xFF1A0A2A;
-    private static final int COL_BG_BOTTOM  = 0xFF0A0518;
-    private static final int COL_HUD_BG     = 0xCC1A0A2A;
-    private static final int COL_HUD_BORDER = 0xFF6B3EAA;
-    private static final int COL_AMETHYST   = 0xFFB892D9;
-    private static final int COL_AMETHYST_DIM = 0x4DB892D9;
+    // Deep cosmic backdrop — three-stop vertical with a darker center where
+    // the tree sits so nodes pop against it.
+    private static final int COL_BG_TOP        = 0xFF1B0E36;
+    private static final int COL_BG_MID        = 0xFF0A0418;
+    private static final int COL_BG_BOTTOM     = 0xFF1B0E36;
+    private static final int COL_VIGNETTE      = 0xC8000000;
+    private static final int COL_HUD_BG        = 0xE61A0A2A;
+    private static final int COL_HUD_BORDER    = 0xFF6B3EAA;
+    private static final int COL_HUD_BORDER_HI = 0xFFA070E0;
+    private static final int COL_AMETHYST      = 0xFFD4B0F0;
+    private static final int COL_AMETHYST_DIM  = 0x55D4B0F0;
+    private static final int COL_STAR          = 0xFFFFFFFF;
 
-    private static final int COL_EDGE_LOCKED   = 0x553A2D55;
-    private static final int COL_EDGE_REACHABLE = 0xAA8B6FCC;
-    private static final int COL_EDGE_UNLOCKED = 0xFFD8B4FF;
+    private static final int COL_EDGE_LOCKED    = 0x40231840;
+    private static final int COL_EDGE_REACHABLE = 0x806B4FAA;
+    private static final int COL_EDGE_UNLOCKED  = 0xFFE9C8FF;
+    private static final int COL_EDGE_SPARK     = 0xFFFFFFFF;
 
-    private static final int COL_BRANCH_ASSAULT   = 0xFFFF5C5C;
-    private static final int COL_BRANCH_ENDURANCE = 0xFFFFC857;
-    private static final int COL_BRANCH_AGILITY   = 0xFF5CD0FF;
-    private static final int COL_BRANCH_FORTUNE   = 0xFF6BE39A;
-    private static final int COL_BRANCH_GATE      = 0xFFB892D9;
-    private static final int COL_SEARCH_MATCH     = 0xFFFFD854;
+    // Cores (the solid node fill) — saturated but not blinding.
+    private static final int COL_BRANCH_ASSAULT      = 0xFFFF6B6B;
+    private static final int COL_BRANCH_ENDURANCE    = 0xFFFFD24A;
+    private static final int COL_BRANCH_AGILITY      = 0xFF66E6FF;
+    private static final int COL_BRANCH_FORTUNE      = 0xFF7BFFAA;
+    private static final int COL_BRANCH_GATE         = 0xFFD4B0F0;
+
+    // Glow colours — pure, higher-luminance hue used for halos so the
+    // additive-feeling stacked alpha layers look like real bloom.
+    private static final int COL_BRANCH_ASSAULT_GLOW   = 0xFFFF3030;
+    private static final int COL_BRANCH_ENDURANCE_GLOW = 0xFFFFAA00;
+    private static final int COL_BRANCH_AGILITY_GLOW   = 0xFF22BBFF;
+    private static final int COL_BRANCH_FORTUNE_GLOW   = 0xFF22DD66;
+    private static final int COL_BRANCH_GATE_GLOW      = 0xFFB892F5;
+
+    private static final int COL_SEARCH_MATCH       = 0xFFFFD854;
+    private static final int COL_SEARCH_MATCH_GLOW  = 0xFFFFAA22;
 
     private static final DecimalFormat MONEY_FMT = new DecimalFormat("#,###");
 
@@ -172,8 +190,23 @@ public final class SkillTreeScreen extends Screen {
 
     @Override
     public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
-        // Backdrop — vertical gradient.
-        ctx.fillGradient(0, 0, width, height, COL_BG_TOP, COL_BG_BOTTOM);
+        long now = System.currentTimeMillis();
+
+        // Backdrop — vertical 3-stop gradient (dark cosmic above, deeper purple-
+        // black in the middle where the tree sits, fade back up at the bottom).
+        ctx.fillGradient(0, 0, width, height / 2, COL_BG_TOP, COL_BG_MID);
+        ctx.fillGradient(0, height / 2, width, height, COL_BG_MID, COL_BG_BOTTOM);
+
+        // Twinkling stars — deterministic positions so they don't shimmer
+        // randomly between frames, but each star's brightness drifts on its
+        // own phase so the field feels alive.
+        renderStars(ctx, now);
+
+        // Vignette — darken top and bottom strips so the eye centres on the
+        // tree. Horizontal gradients aren't directly supported, so we accept
+        // a slight asymmetry (corners get the most darkening from the overlap).
+        ctx.fillGradient(0, 0, width, 120, COL_VIGNETTE, withAlpha(0xFF000000, 0));
+        ctx.fillGradient(0, height - 120, width, height, withAlpha(0xFF000000, 0), COL_VIGNETTE);
 
         SkillTreeOpenPayload layout = SkillTreeClient.layout();
         SkillTreeStatePayload state = SkillTreeClient.state();
@@ -196,8 +229,8 @@ public final class SkillTreeScreen extends Screen {
         }
 
         // Edges first so nodes draw on top.
-        renderEdges(ctx, layout, state);
-        renderNodes(ctx, layout, state, mouseX, mouseY);
+        renderEdges(ctx, layout, state, now);
+        renderNodes(ctx, layout, state, mouseX, mouseY, now);
 
         renderPointsHud(ctx, state);
         renderHelpFooter(ctx);
@@ -221,51 +254,82 @@ public final class SkillTreeScreen extends Screen {
         }
     }
 
-    private void renderEdges(DrawContext ctx, SkillTreeOpenPayload layout, SkillTreeStatePayload state) {
+    private void renderEdges(DrawContext ctx, SkillTreeOpenPayload layout, SkillTreeStatePayload state, long now) {
+        int coreThickness = Math.max(1, Math.round(2f * zoom));
+        int glowThickness = coreThickness + Math.max(2, Math.round(3f * zoom));
+
         for (int[] e : layout.edges) {
             SkillTreeOpenPayload.Node a = layout.nodes.get(e[0]);
             SkillTreeOpenPayload.Node b = layout.nodes.get(e[1]);
             boolean aUn = state.unlocked.contains(a.id) || a.autoUnlocked;
             boolean bUn = state.unlocked.contains(b.id) || b.autoUnlocked;
-            int color;
-            if (aUn && bUn) color = COL_EDGE_UNLOCKED;
-            else if (aUn || bUn) color = COL_EDGE_REACHABLE;
-            else color = COL_EDGE_LOCKED;
 
             int sx1 = (int) screenX(a.gx);
             int sy1 = (int) screenY(a.gy);
             int sx2 = (int) screenX(b.gx);
             int sy2 = (int) screenY(b.gy);
-            // Axis-aligned only (all edges in the live tree are 1-cell orthogonal).
-            int thickness = Math.max(2, Math.round(3 * zoom));
-            if (sx1 == sx2) {
-                int yMin = Math.min(sy1, sy2);
-                int yMax = Math.max(sy1, sy2);
-                ctx.fill(sx1 - thickness / 2, yMin, sx1 + (thickness - thickness / 2), yMax, color);
-            } else if (sy1 == sy2) {
-                int xMin = Math.min(sx1, sx2);
-                int xMax = Math.max(sx1, sx2);
-                ctx.fill(xMin, sy1 - thickness / 2, xMax, sy1 + (thickness - thickness / 2), color);
+
+            if (aUn && bUn) {
+                // Active unlocked edge — glow + flowing energy spark.
+                int colA = branchGlowColor(a.branch);
+                int colB = branchGlowColor(b.branch);
+                int mid  = blend(colA, colB, 0.5f);
+                // Stacked alpha layers fake an additive bloom: widest+dimmest,
+                // then medium+medium, then narrow+bright.
+                drawEdge(ctx, sx1, sy1, sx2, sy2, glowThickness + 2, withAlpha(mid, 0x22));
+                drawEdge(ctx, sx1, sy1, sx2, sy2, glowThickness,     withAlpha(mid, 0x55));
+                drawEdge(ctx, sx1, sy1, sx2, sy2, coreThickness + 1, withAlpha(COL_EDGE_UNLOCKED, 0xCC));
+                drawEdge(ctx, sx1, sy1, sx2, sy2, coreThickness,     COL_EDGE_UNLOCKED);
+
+                // Flowing spark along the edge — only visible at decent zoom,
+                // otherwise it's just visual noise.
+                if (zoom >= 0.45f) {
+                    int len = Math.max(1, Math.abs(sx2 - sx1) + Math.abs(sy2 - sy1));
+                    float t = ((now * 0.06f) % len) / (float) len;
+                    int fx = (int) (sx1 + (sx2 - sx1) * t);
+                    int fy = (int) (sy1 + (sy2 - sy1) * t);
+                    int sparkR = Math.max(2, Math.round(3.5f * zoom));
+                    drawSoftGlow(ctx, fx, fy, sparkR * 3, withAlpha(mid, 0x60));
+                    drawSoftGlow(ctx, fx, fy, sparkR, COL_EDGE_SPARK);
+                }
+            } else if (aUn || bUn) {
+                // One side connected — dim, no glow.
+                drawEdge(ctx, sx1, sy1, sx2, sy2, coreThickness, COL_EDGE_REACHABLE);
             } else {
-                // Diagonal — shouldn't happen in the current layout but fall
-                // back to a low-cost dotted approximation.
-                drawDiagonal(ctx, sx1, sy1, sx2, sy2, color);
+                // Both locked — barely visible.
+                drawEdge(ctx, sx1, sy1, sx2, sy2, coreThickness, COL_EDGE_LOCKED);
             }
         }
     }
 
-    private static void drawDiagonal(DrawContext ctx, int x1, int y1, int x2, int y2, int color) {
-        int steps = Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1));
-        if (steps <= 0) return;
-        for (int i = 0; i <= steps; i += 2) {
-            int x = x1 + (x2 - x1) * i / steps;
-            int y = y1 + (y2 - y1) * i / steps;
-            ctx.fill(x - 1, y - 1, x + 1, y + 1, color);
+    /** Axis-aligned thick line. All edges in the live layout are orthogonal. */
+    private static void drawEdge(DrawContext ctx, int x1, int y1, int x2, int y2, int thickness, int color) {
+        if ((color >>> 24) == 0 || thickness <= 0) return;
+        if (x1 == x2) {
+            int yMin = Math.min(y1, y2);
+            int yMax = Math.max(y1, y2);
+            int half = thickness / 2;
+            ctx.fill(x1 - half, yMin, x1 + thickness - half, yMax, color);
+        } else if (y1 == y2) {
+            int xMin = Math.min(x1, x2);
+            int xMax = Math.max(x1, x2);
+            int half = thickness / 2;
+            ctx.fill(xMin, y1 - half, xMax, y1 + thickness - half, color);
+        } else {
+            // Defensive diagonal — shouldn't occur in the current layout.
+            int steps = Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1));
+            if (steps <= 0) return;
+            int half = Math.max(1, thickness / 2);
+            for (int i = 0; i <= steps; i += 2) {
+                int x = x1 + (x2 - x1) * i / steps;
+                int y = y1 + (y2 - y1) * i / steps;
+                ctx.fill(x - half, y - half, x + half, y + half, color);
+            }
         }
     }
 
     private void renderNodes(DrawContext ctx, SkillTreeOpenPayload layout, SkillTreeStatePayload state,
-                             int mouseX, int mouseY) {
+                             int mouseX, int mouseY, long now) {
         for (SkillTreeOpenPayload.Node n : layout.nodes) {
             int sx = (int) screenX(n.gx);
             int sy = (int) screenY(n.gy);
@@ -281,80 +345,186 @@ public final class SkillTreeScreen extends Screen {
             boolean matchesSearch = searchActive && nodeMatchesSearch(n);
             boolean dimmedBySearch = searchActive && !matchesSearch;
             boolean onPath = pathHighlight.contains(n.id);
+            boolean isHovered = n.id.equals(hoveredNodeId);
 
-            int branchCol = branchColor(n.branch);
-            int fill;
-            int border;
-            if (unlocked) {
-                fill = blend(branchCol, 0xFFFFFFFF, 0.10f);
-                border = COL_AMETHYST;
-            } else if (allocatable) {
-                fill = withAlpha(branchCol, 0xAA);
-                border = blend(branchCol, COL_AMETHYST, 0.50f);
-            } else {
-                fill = withAlpha(0xFF3A2A5A, 0xC0);
-                border = withAlpha(branchCol, 0x66);
+            int branchCore = branchColor(n.branch);
+            int branchGlow = branchGlowColor(n.branch);
+
+            // ── Layer 0: path-to-here amethyst halo (behind everything)
+            if (onPath && !unlocked && !dimmedBySearch) {
+                int haloR = r + Math.max(4, Math.round(6 * zoom));
+                drawSoftGlow(ctx, sx, sy, haloR, withAlpha(COL_AMETHYST, 0x70));
             }
 
-            if (dimmedBySearch) {
-                // Drop non-matches to ~6% opacity so matches really pop.
-                fill = withAlpha(fill, 0x18);
-                border = withAlpha(border, 0x20);
-            }
-            if (matchesSearch) {
-                // Bright yellow halo around every search match — drawn first
-                // so the node + ring sit on top.
-                int halo = r + Math.max(4, Math.round(6 * zoom));
-                ctx.fill(sx - halo, sy - halo, sx + halo, sy + halo, withAlpha(COL_SEARCH_MATCH, 0xA0));
-            }
-            if (onPath && !unlocked) {
-                // Light a faint amethyst halo behind the node.
-                int halo = r + Math.max(3, Math.round(4 * zoom));
-                ctx.fill(sx - halo, sy - halo, sx + halo, sy + halo, COL_AMETHYST_DIM);
+            // ── Layer 1: search-match golden halo with slow breathing pulse.
+            //    Uses the same drawSoftGlow stack as everything else so the
+            //    falloff matches the rest of the screen instead of being a
+            //    flat opaque rectangle (the old version's "jarring yellow").
+            if (matchesSearch && !unlocked) {
+                float pulse = 0.55f + 0.45f * (float) Math.sin(now * 0.0035 + n.gx * 0.13 + n.gy * 0.07);
+                int matchR = r + Math.max(6, Math.round((8 + 4 * pulse) * zoom));
+                drawSoftGlow(ctx, sx, sy, matchR, withAlpha(COL_SEARCH_MATCH_GLOW, (int) (0xA0 * (0.55f + 0.45f * pulse))));
+                drawSoftGlow(ctx, sx, sy, matchR / 2, withAlpha(COL_SEARCH_MATCH, (int) (0x90 * (0.55f + 0.45f * pulse))));
             }
 
-            // Just-changed pulse halo — fades over PULSE_LIFETIME_MS.
-            float pulse = SkillTreeClient.unlockPulse(n.id);
-            float refund = SkillTreeClient.refundPulse(n.id);
-            float ringStrength = Math.max(pulse, refund);
-            if (ringStrength > 0f) {
-                int alpha = (int) (0xCC * ringStrength) & 0xFF;
-                int color = pulse > refund ? withAlpha(COL_AMETHYST, alpha)
-                                            : withAlpha(0xFF7AA5FF, alpha);
-                int extra = Math.round((4 + 8 * (1f - ringStrength)) * zoom);
-                int hr = r + Math.max(2, extra);
-                ctx.fill(sx - hr, sy - hr, sx + hr, sy + hr, color);
+            // ── Layer 2: persistent branch-colour halo for unlocked nodes,
+            //    with a subtle breathing animation so the tree feels alive.
+            if (unlocked && !dimmedBySearch) {
+                float breathe = 0.85f + 0.15f * (float) Math.sin(now * 0.0018 + n.gx * 0.05 + n.gy * 0.05);
+                int glowR = (int) (r * 2.0f * breathe);
+                drawSoftGlow(ctx, sx, sy, glowR, withAlpha(branchGlow, (int) (0x70 * breathe)));
+            } else if (allocatable && !dimmedBySearch) {
+                // Allocatable: pulse to invite the click.
+                float pulse = 0.5f + 0.5f * (float) Math.sin(now * 0.003 + n.gx * 0.07);
+                int glowR = (int) (r * 1.45f);
+                drawSoftGlow(ctx, sx, sy, glowR, withAlpha(branchGlow, (int) (0x50 + 0x30 * pulse)));
             }
 
-            // Hover ring drawn first so the node sits on top.
-            if (n.id.equals(hoveredNodeId)) {
-                int hr = r + Math.max(2, Math.round(3 * zoom));
-                ctx.fill(sx - hr, sy - hr, sx + hr, sy + hr, withAlpha(COL_AMETHYST, 0x70));
+            // ── Layer 3: just-changed unlock / refund pulse (fades over PULSE_LIFETIME_MS).
+            float upulse  = SkillTreeClient.unlockPulse(n.id);
+            float refund  = SkillTreeClient.refundPulse(n.id);
+            float pStr    = Math.max(upulse, refund);
+            if (pStr > 0f) {
+                int pColor = upulse > refund ? COL_AMETHYST : 0xFF7AA5FF;
+                int extra  = Math.round((6 + 14 * (1f - pStr)) * zoom);
+                int hr     = r + Math.max(2, extra);
+                drawSoftGlow(ctx, sx, sy, hr, withAlpha(pColor, (int) (0xD0 * pStr)));
             }
 
-            // Node body — filled square (cheap circle approximation).
-            ctx.fill(sx - r, sy - r, sx + r, sy + r, fill);
-            // Border — outline by drawing 4 thin rects.
-            int bt = Math.max(1, Math.round(2 * zoom));
-            ctx.fill(sx - r, sy - r, sx + r, sy - r + bt, border);              // top
-            ctx.fill(sx - r, sy + r - bt, sx + r, sy + r, border);              // bottom
-            ctx.fill(sx - r, sy - r, sx - r + bt, sy + r, border);              // left
-            ctx.fill(sx + r - bt, sy - r, sx + r, sy + r, border);              // right
+            // ── Layer 4: hover ring.
+            if (isHovered && !dimmedBySearch) {
+                int hoverR = r + Math.max(3, Math.round(4 * zoom));
+                drawSoftGlow(ctx, sx, sy, hoverR, withAlpha(COL_AMETHYST, 0x80));
+            }
 
-            // Notable inner pip.
-            if (n.notable && !n.autoUnlocked && r > 6) {
+            // ── Layer 5: drop shadow (small offset, dark, low alpha).
+            if (!dimmedBySearch) {
+                int shadowOff = Math.max(1, Math.round(2 * zoom));
+                ctx.fill(sx - r + shadowOff, sy + r - 1,
+                         sx + r + shadowOff, sy + r + shadowOff + 1,
+                         withAlpha(0xFF000000, 0x55));
+            }
+
+            // ── Layer 6: node body with a vertical fake-3D inner gradient.
+            int bodyCore;
+            if (unlocked)         bodyCore = blend(branchCore, 0xFFFFFFFF, 0.15f);
+            else if (allocatable) bodyCore = withAlpha(branchCore, 0xD0);
+            else                  bodyCore = withAlpha(0xFF2A1A48, 0xE0);
+            if (dimmedBySearch)   bodyCore = withAlpha(bodyCore, 0x12);
+
+            ctx.fill(sx - r, sy - r, sx + r, sy + r, bodyCore);
+            // Inner top highlight (lighter strip on the top third)
+            if (!dimmedBySearch) {
+                int topH = Math.max(1, r / 2);
+                ctx.fillGradient(sx - r, sy - r, sx + r, sy - r + topH,
+                        withAlpha(0xFFFFFFFF, 0x30), withAlpha(0xFFFFFFFF, 0));
+                // Bottom darkening (depth)
+                int botH = Math.max(1, r / 3);
+                ctx.fillGradient(sx - r, sy + r - botH, sx + r, sy + r,
+                        withAlpha(0xFF000000, 0), withAlpha(0xFF000000, 0x40));
+            }
+
+            // ── Layer 7: border ring — amethyst on unlocked, branch-tinted on
+            //    allocatable, very faint on locked.
+            int borderCol;
+            if (unlocked)         borderCol = COL_AMETHYST;
+            else if (allocatable) borderCol = blend(branchCore, COL_AMETHYST, 0.55f);
+            else                  borderCol = withAlpha(branchCore, 0x55);
+            if (dimmedBySearch)   borderCol = withAlpha(borderCol, 0x18);
+            int bt = Math.max(1, Math.round(1.5f * zoom));
+            drawRect(ctx, sx - r, sy - r, sx + r, sy + r, bt, borderCol);
+
+            // ── Layer 8: notable inner pip (cluster notables + branch caps + grand caps)
+            if (n.notable && !n.autoUnlocked && r > 4) {
                 int p = Math.max(2, r / 3);
-                ctx.fill(sx - p, sy - p, sx + p, sy + p, COL_AMETHYST);
+                int pipCore = withAlpha(COL_AMETHYST, dimmedBySearch ? 0x20 : 0xFF);
+                ctx.fill(sx - p, sy - p, sx + p, sy + p, pipCore);
+                if (!dimmedBySearch) {
+                    // Tiny highlight on the pip for the "gem" look.
+                    ctx.fill(sx - p + 1, sy - p + 1, sx + p - 1, sy - p + 2,
+                            withAlpha(0xFFFFFFFF, 0x90));
+                }
             }
 
-            // Gate diamond marker.
-            if (n.autoUnlocked && r > 8) {
-                int p = r / 2;
-                ctx.fill(sx - p, sy - p, sx + p, sy + p, COL_AMETHYST);
-                ctx.fill(sx - 2, sy - r, sx + 2, sy + r, COL_AMETHYST);
-                ctx.fill(sx - r, sy - 2, sx + r, sy + 2, COL_AMETHYST);
+            // ── Layer 9: gate marker (only the real gate — pulsing amethyst cross).
+            if (n.autoUnlocked && r > 6) {
+                float gpulse = 0.7f + 0.3f * (float) Math.sin(now * 0.002);
+                int p = (int) (r * 0.5f * gpulse);
+                int gateCol = withAlpha(COL_AMETHYST, dimmedBySearch ? 0x20 : 0xFF);
+                ctx.fill(sx - p, sy - p, sx + p, sy + p, gateCol);
+                int armW = Math.max(2, Math.round(2.5f * zoom));
+                ctx.fill(sx - armW / 2, sy - r, sx + armW - armW / 2, sy + r, gateCol);
+                ctx.fill(sx - r, sy - armW / 2, sx + r, sy + armW - armW / 2, gateCol);
+                if (!dimmedBySearch) {
+                    // Bright core pip
+                    int cp = Math.max(1, p / 3);
+                    ctx.fill(sx - cp, sy - cp, sx + cp, sy + cp, 0xFFFFFFFF);
+                }
+            }
+
+            // ── Layer 10: search-match thin gold ring on top.
+            if (matchesSearch && !unlocked) {
+                int ringR = r + Math.max(2, Math.round(2 * zoom));
+                int ringT = Math.max(1, Math.round(1.5f * zoom));
+                drawRect(ctx, sx - ringR, sy - ringR, sx + ringR, sy + ringR, ringT, COL_SEARCH_MATCH);
             }
         }
+    }
+
+    /**
+     * Multi-layer radial glow approximation. Stacks 3-4 concentric squares
+     * with decreasing alpha so overlapping nodes blend into a brighter
+     * core — fakes additive bloom without dropping into RenderLayer plumbing.
+     */
+    private static void drawSoftGlow(DrawContext ctx, int cx, int cy, int radius, int color) {
+        int alpha = (color >>> 24) & 0xFF;
+        if (alpha == 0 || radius < 1) return;
+        int rgb = color & 0x00FFFFFF;
+        // 4 stacked layers, each tighter and brighter than the last.
+        int[] sizes  = { radius, (radius * 3) / 4, radius / 2, Math.max(1, radius / 3) };
+        int[] alphas = { alpha / 6, alpha / 3, (alpha * 2) / 3, alpha };
+        for (int i = 0; i < sizes.length; i++) {
+            int s = sizes[i];
+            int a = alphas[i] & 0xFF;
+            if (a == 0 || s <= 0) continue;
+            ctx.fill(cx - s, cy - s, cx + s, cy + s, rgb | (a << 24));
+        }
+    }
+
+    /** Outline rect with given thickness — 4 thin fills. */
+    private static void drawRect(DrawContext ctx, int x1, int y1, int x2, int y2, int thickness, int color) {
+        if ((color >>> 24) == 0 || thickness <= 0) return;
+        ctx.fill(x1, y1, x2, y1 + thickness, color);                 // top
+        ctx.fill(x1, y2 - thickness, x2, y2, color);                 // bottom
+        ctx.fill(x1, y1, x1 + thickness, y2, color);                 // left
+        ctx.fill(x2 - thickness, y1, x2, y2, color);                 // right
+    }
+
+    /** Deterministic starfield drawn behind the tree. ~70 stars, each with
+     *  its own sine-driven twinkle phase. Cheap (one fill per star). */
+    private void renderStars(DrawContext ctx, long now) {
+        java.util.Random r = new java.util.Random(0xA72ECL ^ (long) width * 131L ^ (long) height * 1733L);
+        int count = 70;
+        for (int i = 0; i < count; i++) {
+            int x = r.nextInt(width);
+            int y = r.nextInt(height);
+            int size = r.nextInt(100) < 12 ? 2 : 1;
+            float phase = r.nextFloat() * (float) Math.PI * 2f;
+            float speed = 0.0008f + r.nextFloat() * 0.0022f;
+            float t = 0.4f + 0.6f * (0.5f + 0.5f * (float) Math.sin(now * speed + phase));
+            int alpha = (int) (0x70 * t);
+            ctx.fill(x, y, x + size, y + size, withAlpha(COL_STAR, alpha));
+        }
+    }
+
+    private static int branchGlowColor(byte branch) {
+        return switch (branch) {
+            case Protocol.BRANCH_ASSAULT   -> COL_BRANCH_ASSAULT_GLOW;
+            case Protocol.BRANCH_ENDURANCE -> COL_BRANCH_ENDURANCE_GLOW;
+            case Protocol.BRANCH_AGILITY   -> COL_BRANCH_AGILITY_GLOW;
+            case Protocol.BRANCH_FORTUNE   -> COL_BRANCH_FORTUNE_GLOW;
+            default                         -> COL_BRANCH_GATE_GLOW;
+        };
     }
 
     private void renderPointsHud(DrawContext ctx, SkillTreeStatePayload state) {

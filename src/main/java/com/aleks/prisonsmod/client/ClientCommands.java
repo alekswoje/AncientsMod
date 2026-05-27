@@ -46,7 +46,17 @@ public final class ClientCommands {
     }
 
     private static int requestSkillTreeOpen() {
-        if (!ServerAllowlist.isAllowed()) return 0;
+        com.aleks.prisonsmod.PrisonsMod.LOGGER.info("/skilltree invoked; allowlisted={}",
+                ServerAllowlist.isAllowed());
+        if (!ServerAllowlist.isAllowed()) {
+            MinecraftClient mc = MinecraftClient.getInstance();
+            if (mc != null && mc.player != null) {
+                mc.player.sendMessage(net.minecraft.text.Text.literal(
+                        "/skilltree only works on the Ancients server.")
+                        .formatted(net.minecraft.util.Formatting.RED), false);
+            }
+            return 0;
+        }
         SkillTreeClient.requestOpen();
         return Command.SINGLE_SUCCESS;
     }

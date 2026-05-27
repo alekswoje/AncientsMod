@@ -620,12 +620,25 @@ public final class NetworkHandler {
 
     /** "Open the Tartarus Vision screen — push me the layout + state." */
     public static void sendSkillTreeOpenRequest() {
-        if (!ServerAllowlist.isAllowed()) return;
-        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        if (!ServerAllowlist.isAllowed()) {
+            PrisonsMod.LOGGER.info("sendSkillTreeOpenRequest: skipped — server not allowlisted");
+            return;
+        }
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) {
+            PrisonsMod.LOGGER.info("sendSkillTreeOpenRequest: skipped — channel not registered server-side");
+            net.minecraft.client.MinecraftClient mc = net.minecraft.client.MinecraftClient.getInstance();
+            if (mc != null && mc.player != null) {
+                mc.player.sendMessage(net.minecraft.text.Text.literal(
+                        "Skill tree channel not ready yet — try again in a second.")
+                        .formatted(net.minecraft.util.Formatting.YELLOW), false);
+            }
+            return;
+        }
         try {
             ClientPlayNetworking.send(new RawPayload(new byte[] { Protocol.PKT_SKILLTREE_OPEN_REQ }));
+            PrisonsMod.LOGGER.info("sendSkillTreeOpenRequest: sent");
         } catch (Throwable t) {
-            PrisonsMod.LOGGER.debug("send skilltree open req failed", t);
+            PrisonsMod.LOGGER.warn("send skilltree open req failed", t);
         }
     }
 
