@@ -44,26 +44,40 @@ import java.util.Set;
 public final class SkillTreeScreen extends Screen {
 
     // ── Layout tunables ─────────────────────────────────────────────────────
-    private static final float GRID_PITCH = 56f;
-    private static final float ZOOM_MIN = 0.30f;
+    private static final float GRID_PITCH = 110f;       // big — give every cluster room
+    private static final float ZOOM_MIN = 0.18f;
     private static final float ZOOM_MAX = 2.50f;
-    private static final float ZOOM_DEFAULT = 0.65f;
+    private static final float ZOOM_DEFAULT = 0.36f;    // re-fit the wider tree at startup
 
-    private static final int NODE_BASE_RADIUS = 14;
-    private static final int NODE_NOTABLE_RADIUS = 20;
-    private static final int NODE_GATE_RADIUS = 26;
+    private static final int NODE_BASE_RADIUS = 10;
+    private static final int NODE_NOTABLE_RADIUS = 14;
+    private static final int NODE_GATE_RADIUS = 20;
 
     // ── Client-side organic transform tunables ──────────────────────────────
     /** Global rotation applied to every node position (degrees). Breaks the
-     *  horizontal/vertical axis lock the server's grid has. */
-    private static final float GLOBAL_ROTATION_DEG = 25f;
-    /** Per-cluster small-node ring radius (in grid units). Server places the
-     *  4 small nodes in a + shape at 1 grid unit from the notable; we move
-     *  them to a smoother ring at this radius and at 45° offsets. */
-    private static final float CLUSTER_SMALL_RADIUS = 1.05f;
-    /** Each cluster gets a small per-id rotation jitter so they don't all
-     *  align — kills the "every cluster is a plus" feel. (degrees max) */
-    private static final float CLUSTER_JITTER_DEG = 22f;
+     *  horizontal/vertical axis lock the server's grid has so the tree
+     *  reads as a tilted radial structure instead of a cardinal cross. */
+    private static final float GLOBAL_ROTATION_DEG = 18f;
+    /** Half-diagonal of the diamond a cluster's 4 smalls sit in, in grid
+     *  units. Also the distance from a cluster's centre to each small. */
+    private static final float CLUSTER_SMALL_RADIUS = 0.85f;
+    /** Distance from cluster centre to the notable (tail of the wheel). The
+     *  notable sits past the "outward" small, away from the gate. */
+    private static final float CLUSTER_NOTABLE_TAIL = 1.7f;
+    /** Distance from notable to the branch/grand cap. Caps continue past
+     *  the notable in the same outward direction. */
+    private static final float CLUSTER_CAP_TAIL = 1.5f;
+    /** Per-cluster polar (fanAngleDeg, radius) — index 0 unused, then c1..c7.
+     *  Fan angle is measured CCW from the region's arm direction; sign of p
+     *  is multiplied in at runtime. Radii are tuned per-cluster so a
+     *  cluster's smalls don't share a radial slot with the arm's highway
+     *  trunks (e.g. with fan 18° and radius 3, c1's perp-side small lands
+     *  ON hw3 because perp_CW of outward is the arm direction).
+     *
+     *  Wider fan + bigger radius for c1/c2 and c6/c7 — those were the two
+     *  bands sitting on top of the highway. */
+    private static final float[] CLUSTER_FAN_ANGLE  = { 0f, 25f,  25f,  28f,  28f,  0f,   16f,  16f  };
+    private static final float[] CLUSTER_FAN_RADIUS = { 0f, 3.5f, 3.5f, 6.5f, 6.5f, 11.0f, 8.0f, 8.0f };
 
     // ── Tartarus palette ────────────────────────────────────────────────────
     // Deep cosmic backdrop — three-stop vertical with a darker center where
@@ -119,6 +133,11 @@ public final class SkillTreeScreen extends Screen {
     /** Full-colour amethyst star for the single central GATE node. Not tinted. */
     private static final Identifier SPRITE_GATE =
             Identifier.of(PrisonsMod.MOD_ID, "textures/gui/skilltree/node_gate.png");
+    /** Thin grayscale ring drawn BEHIND each node's gem, branch-tinted at
+     *  render time. Mimics the gold ring border PoE puts around every
+     *  passive node. */
+    private static final Identifier SPRITE_RING =
+            Identifier.of(PrisonsMod.MOD_ID, "textures/gui/skilltree/node_border.png");
 
     /** Source texture dimensions. AI Studio originally outputs 1024² but we
      *  ship them downsampled to 256² because the rendered size is never more
@@ -159,6 +178,20 @@ public final class SkillTreeScreen extends Screen {
     private static final long RESPEC_CONFIRM_WINDOW_MS = 5_000L;
 
     private long lastSeenVersion = -1L;
+
+    // ── DIAG (TEMP): freeze-investigation instrumentation ──────────────────
+    //     Logs every ~1 s with per-phase render times, frame count, and the
+    //     average sprite draw count. A frame that takes >100 ms triggers an
+    //     immediate WARN. Remove this whole block once we've nailed the
+    //     freeze and rebuilt clean.
+    private long diagFrames;
+    private long diagEdgesNsTotal, diagNodesNsTotal, diagStarsNsTotal, diagFrameNsTotal;
+    private long diagWorstFrameNs;
+    private long diagSpritesTotal;
+    private int  diagSpritesThisFrame;
+    private long diagLastRenderNs = 0;
+    private long diagLastLogMs = 0;
+    // ────────────────────────────────────────────────────────────────────────
 
     public SkillTreeScreen() {
         super(Text.literal("Tartarus Vision"));
@@ -252,40 +285,235 @@ public final class SkillTreeScreen extends Screen {
         final double cosR = Math.cos(rot);
         final double sinR = Math.sin(rot);
 
-        // Pass 1: apply global rotation to every node's grid position.
-        java.util.Map<String, float[]> base = new java.util.HashMap<>(layout.nodes.size() * 2);
+        // Pass 1: compute each cluster's centre from the fan layout, plus
+        // its outward direction unit vector (from gate toward centre). The
+        // server's gx/gy is ignored for cluster nodes — we re-derive
+        // everything from the cluster number + region so neighbouring
+        // regions' clusters can't collide in world space the way they did
+        // on the integer grid (north_c1 and east_c2 were both at (2,-2)).
+        java.util.Map<String, float[]> centreOf  = new java.util.HashMap<>(32);
+        java.util.Map<String, float[]> outwardOf = new java.util.HashMap<>(32);
         for (SkillTreeOpenPayload.Node n : layout.nodes) {
-            float fx = n.gx;
-            float fy = n.gy;
-            float rx = (float) (fx * cosR - fy * sinR);
-            float ry = (float) (fx * sinR + fy * cosR);
-            base.put(n.id, new float[] { rx, ry });
+            if (!n.id.endsWith("_notable")) continue;
+            String prefix = n.id.substring(0, n.id.length() - "_notable".length());
+            int clusterNum = clusterNumberOfPrefix(prefix);
+            if (clusterNum < 1 || clusterNum >= CLUSTER_FAN_RADIUS.length) continue;
+            String region = regionOfId(prefix);
+            float[] armDir = armDirection(region);
+            if (armDir == null) continue;
+            int pSign = pSignOfCluster(clusterNum);
+            float fanDeg = CLUSTER_FAN_ANGLE[clusterNum] * pSign;
+            float radius = CLUSTER_FAN_RADIUS[clusterNum];
+            double fanRad = Math.toRadians(fanDeg);
+            double cosF = Math.cos(fanRad), sinF = Math.sin(fanRad);
+            // Rotate armDir by fanDeg CCW in math (positive fan = CCW)
+            float outX = (float) (armDir[0] * cosF - armDir[1] * sinF);
+            float outY = (float) (armDir[0] * sinF + armDir[1] * cosF);
+            centreOf.put(prefix,  new float[] { outX * radius, outY * radius });
+            outwardOf.put(prefix, new float[] { outX, outY });
         }
 
-        // Pass 2: cluster smalls — replace the + shape with a ring of 4 nodes
-        // at diagonal offsets around the notable. Each cluster gets a small
-        // deterministic jitter so the ring isn't identically aligned everywhere.
+        // Pass 2: place every node into its target world-space position.
+        // Cluster nodes (notable + 4 smalls + connected caps) get their
+        // own custom positions; highway trunks + bridges keep the server's
+        // grid positions because they're naturally arranged on the arm
+        // axes and don't suffer from cross-region pile-ups.
         for (SkillTreeOpenPayload.Node n : layout.nodes) {
-            int smallIdx = clusterSmallIndex(n.id);
-            if (smallIdx >= 0) {
-                String clusterPrefix = n.id.substring(0, n.id.lastIndexOf("_s"));
-                String notableId = clusterPrefix + "_notable";
-                float[] notablePos = base.get(notableId);
-                if (notablePos != null) {
-                    float jitter = (clusterPrefix.hashCode() & 0xFFFF) / 65535f; // 0..1
-                    double clusterRotDeg = (jitter - 0.5f) * 2f * CLUSTER_JITTER_DEG;
-                    double ringAngle = Math.toRadians(45 + 90 * smallIdx + clusterRotDeg);
-                    double ox = CLUSTER_SMALL_RADIUS * Math.cos(ringAngle);
-                    double oy = CLUSTER_SMALL_RADIUS * Math.sin(ringAngle);
-                    transformedPositions.put(n.id, new float[] {
-                            notablePos[0] + (float) ox,
-                            notablePos[1] + (float) oy
-                    });
-                    continue;
+            float fx, fy;
+            if ("gate".equals(n.id)) {
+                fx = 0f;
+                fy = 0f;
+            } else if (n.id.endsWith("_notable")) {
+                String prefix = n.id.substring(0, n.id.length() - "_notable".length());
+                float[] c = centreOf.get(prefix);
+                float[] o = outwardOf.get(prefix);
+                if (c == null || o == null) { fx = n.gx; fy = n.gy; }
+                else {
+                    fx = c[0] + o[0] * CLUSTER_NOTABLE_TAIL;
+                    fy = c[1] + o[1] * CLUSTER_NOTABLE_TAIL;
                 }
+            } else if (clusterSmallIndex(n.id) >= 0) {
+                int smallIdx = clusterSmallIndex(n.id);
+                String prefix = n.id.substring(0, n.id.lastIndexOf("_s"));
+                float[] c = centreOf.get(prefix);
+                float[] o = outwardOf.get(prefix);
+                if (c == null || o == null) { fx = n.gx; fy = n.gy; }
+                else {
+                    int pSign = pSignOfCluster(clusterNumberOfPrefix(prefix));
+                    int slot = smallSlotFor(pSign, smallIdx);
+                    // perp_CCW = rotate outward by +90° (math CCW)
+                    float pCx = -o[1], pCy = o[0];
+                    float dx, dy;
+                    switch (slot) {
+                        case 0:  dx = -o[0]; dy = -o[1]; break;   // entry (inward)
+                        case 1:  dx =  o[0]; dy =  o[1]; break;   // outward (far)
+                        case 2:  dx =  pCx;  dy =  pCy;  break;   // sideA (perp_CCW)
+                        default: dx = -pCx;  dy = -pCy;  break;   // sideB (perp_CW)
+                    }
+                    fx = c[0] + dx * CLUSTER_SMALL_RADIUS;
+                    fy = c[1] + dy * CLUSTER_SMALL_RADIUS;
+                }
+            } else if (n.id.endsWith("_capA") || n.id.endsWith("_capB")
+                    || n.id.endsWith("_capC") || n.id.endsWith("_grand")) {
+                // Caps extend past the notable in the same outward direction.
+                String prefix = clusterPrefixForCap(n.id);
+                float[] c = (prefix == null) ? null : centreOf.get(prefix);
+                float[] o = (prefix == null) ? null : outwardOf.get(prefix);
+                if (c == null || o == null) { fx = n.gx; fy = n.gy; }
+                else {
+                    float dist = CLUSTER_NOTABLE_TAIL + CLUSTER_CAP_TAIL;
+                    fx = c[0] + o[0] * dist;
+                    fy = c[1] + o[1] * dist;
+                }
+            } else if (n.id.contains("_bridge_")) {
+                // Bridges sit midway between the two cluster side-smalls
+                // they connect. Pass 3 handles them after sides resolve —
+                // for now park them at the cluster average; Pass 3 will
+                // overwrite with the lerped position.
+                fx = 0f; fy = 0f;
+            } else {
+                // Highway trunks — keep server grid positions.
+                fx = n.gx;
+                fy = n.gy;
             }
-            transformedPositions.put(n.id, base.get(n.id));
+            // Apply global rotation
+            float rx = (float) (fx * cosR - fy * sinR);
+            float ry = (float) (fx * sinR + fy * cosR);
+            transformedPositions.put(n.id, new float[] { rx, ry });
         }
+
+        // Pass 3: bridges. Each bridge endpoint connects to a specific
+        // cluster side-small (see SkillTreeClient.buildHandAuthoredEdges
+        // BRIDGE_TO_SIDE for the mapping). The two cross-region cluster
+        // sides often end up close (~0.8 grid units), so a straight lerp
+        // between them at 0.33/0.67 puts the two bridge nodes only ~0.27
+        // apart — visually overlapping. Spread the lerp to 0.25/0.75 and
+        // nudge perpendicular to the chord, AWAY from the gate, so the
+        // bridges arc out through the corner instead of cutting straight
+        // across the cluster sides.
+        String[][] BRIDGES = {
+                { "north_bridge_east_1",  "north_c1_s0", "north_bridge_east_2",  "east_c2_s1"  },
+                { "east_bridge_south_1",  "south_c2_s1", "east_bridge_south_2",  "east_c1_s0"  },
+                { "south_bridge_west_1",  "south_c1_s0", "south_bridge_west_2",  "west_c2_s1"  },
+                { "west_bridge_north_1",  "north_c2_s1", "west_bridge_north_2",  "west_c1_s0"  },
+        };
+        for (String[] b : BRIDGES) {
+            float[] a1 = transformedPositions.get(b[1]);
+            float[] a2 = transformedPositions.get(b[3]);
+            if (a1 == null || a2 == null) continue;
+            float dx = a2[0] - a1[0];
+            float dy = a2[1] - a1[1];
+            float len = (float) Math.sqrt(dx * dx + dy * dy);
+            if (len < 1e-3f) {
+                transformedPositions.put(b[0], new float[] { a1[0], a1[1] });
+                transformedPositions.put(b[2], new float[] { a2[0], a2[1] });
+                continue;
+            }
+            // Perp unit vector (90° CCW of a1→a2)
+            float perpX = -dy / len;
+            float perpY =  dx / len;
+            // Flip so it points AWAY from gate (positive dot with the midpoint)
+            float midX = (a1[0] + a2[0]) * 0.5f;
+            float midY = (a1[1] + a2[1]) * 0.5f;
+            if (perpX * midX + perpY * midY < 0f) {
+                perpX = -perpX;
+                perpY = -perpY;
+            }
+            float nudge = 0.35f;
+            transformedPositions.put(b[0], new float[] {
+                    a1[0] * 0.75f + a2[0] * 0.25f + perpX * nudge,
+                    a1[1] * 0.75f + a2[1] * 0.25f + perpY * nudge });
+            transformedPositions.put(b[2], new float[] {
+                    a1[0] * 0.25f + a2[0] * 0.75f + perpX * nudge,
+                    a1[1] * 0.25f + a2[1] * 0.75f + perpY * nudge });
+        }
+    }
+
+    /** Extract the cluster number from a prefix like "north_c3" → 3, or
+     *  return -1 for ids that don't match the cluster id format. */
+    private static int clusterNumberOfPrefix(String prefix) {
+        if (prefix == null) return -1;
+        int cIdx = prefix.lastIndexOf("_c");
+        if (cIdx < 0) return -1;
+        try {
+            return Integer.parseInt(prefix.substring(cIdx + 2));
+        } catch (NumberFormatException e) {
+            return -1;
+        }
+    }
+
+    /** p-sign of a cluster — perpendicular side of the arm it sits on.
+     *  c1/c3/c6 are perp+ ; c2/c4/c7 are perp- ; c5 is on the arm axis. */
+    private static int pSignOfCluster(int clusterNum) {
+        return switch (clusterNum) {
+            case 1, 3, 6 -> +1;
+            case 2, 4, 7 -> -1;
+            default      ->  0;
+        };
+    }
+
+    /** Unit-vector arm direction for a region (the direction from gate
+     *  toward the far end of the region's highway). */
+    private static float[] armDirection(String region) {
+        if (region == null) return null;
+        return switch (region) {
+            case "north" -> new float[] {  0f, -1f };
+            case "south" -> new float[] {  0f,  1f };
+            case "east"  -> new float[] {  1f,  0f };
+            case "west"  -> new float[] { -1f,  0f };
+            default      -> null;
+        };
+    }
+
+    /** Map a server-side small index (0=fwd, 1=back, 2=perp+, 3=perp-) to a
+     *  diamond slot (0=entry-inward, 1=outward-far, 2=sideA-perpCCW, 3=sideB-perpCW)
+     *  given the cluster's p-sign. Mirrors the slot assignment used in
+     *  {@link com.aleks.prisonsmod.client.skilltree.SkillTreeClient}'s
+     *  edge builder, so visual placement and topology stay in sync. */
+    private static int smallSlotFor(int pSign, int smallIdx) {
+        if (pSign > 0) {
+            if (smallIdx == 3) return 0;  // entry
+            if (smallIdx == 2) return 1;  // outward
+            if (smallIdx == 0) return 2;  // sideA
+            return 3;                       // sideB
+        } else if (pSign < 0) {
+            if (smallIdx == 2) return 0;
+            if (smallIdx == 3) return 1;
+            if (smallIdx == 0) return 2;
+            return 3;
+        } else {
+            if (smallIdx == 1) return 0;
+            if (smallIdx == 0) return 1;
+            if (smallIdx == 2) return 2;
+            return 3;
+        }
+    }
+
+    /** Branch caps attach to specific cluster notables — capA→c3, capB→c4,
+     *  capC→c7, grand→c5. Returns the cluster prefix, e.g. "north_c3". */
+    private static String clusterPrefixForCap(String capId) {
+        if (capId == null) return null;
+        String region;
+        int sep = capId.indexOf('_');
+        if (sep <= 0) return null;
+        region = capId.substring(0, sep);
+        if (capId.endsWith("_capA"))  return region + "_c3";
+        if (capId.endsWith("_capB"))  return region + "_c4";
+        if (capId.endsWith("_capC"))  return region + "_c7";
+        if (capId.endsWith("_grand")) return region + "_c5";
+        return null;
+    }
+
+    /** Detect the cardinal region a node belongs to from its id prefix.
+     *  Returns null if the id doesn't begin with a known region (gate,
+     *  bridges, unknown). */
+    private static String regionOfId(String id) {
+        if (id == null) return null;
+        if (id.startsWith("north_")) return "north";
+        if (id.startsWith("east_"))  return "east";
+        if (id.startsWith("west_"))  return "west";
+        if (id.startsWith("south_")) return "south";
+        return null;
     }
 
     /** Returns the 0..3 small index if the id matches {@code <prefix>_s<idx>},
@@ -320,6 +548,11 @@ public final class SkillTreeScreen extends Screen {
     @Override
     public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
         long now = System.currentTimeMillis();
+        // ── DIAG START ─────────────────────────────────────────────
+        long diagFrameStartNs = System.nanoTime();
+        long diagGapNs = diagLastRenderNs == 0 ? 0 : diagFrameStartNs - diagLastRenderNs;
+        diagSpritesThisFrame = 0;
+        // ────────────────────────────────────────────────────────────
 
         // Backdrop — vertical 3-stop gradient (dark cosmic above, deeper purple-
         // black in the middle where the tree sits, fade back up at the bottom).
@@ -329,7 +562,10 @@ public final class SkillTreeScreen extends Screen {
         // Twinkling stars — deterministic positions so they don't shimmer
         // randomly between frames, but each star's brightness drifts on its
         // own phase so the field feels alive.
+        long diagStarsStartNs = System.nanoTime();
         renderStars(ctx, now);
+        long diagStarsEndNs = System.nanoTime();
+        diagStarsNsTotal += diagStarsEndNs - diagStarsStartNs;
 
         // Vignette — darken top and bottom strips so the eye centres on the
         // tree. Horizontal gradients aren't directly supported, so we accept
@@ -366,8 +602,15 @@ public final class SkillTreeScreen extends Screen {
         }
 
         // Edges first so nodes draw on top.
+        long diagEdgesStartNs = System.nanoTime();
         renderEdges(ctx, layout, state, now);
+        long diagEdgesEndNs = System.nanoTime();
+        diagEdgesNsTotal += diagEdgesEndNs - diagEdgesStartNs;
+
+        long diagNodesStartNs = System.nanoTime();
         renderNodes(ctx, layout, state, mouseX, mouseY, now);
+        long diagNodesEndNs = System.nanoTime();
+        diagNodesNsTotal += diagNodesEndNs - diagNodesStartNs;
 
         renderPointsHud(ctx, state);
         renderHelpFooter(ctx);
@@ -389,6 +632,47 @@ public final class SkillTreeScreen extends Screen {
             ctx.fill(width - tw - 16, height - 50, width - 6, height - 38, 0xCC1A0A2A);
             ctx.drawText(textRenderer, hint, width - tw - 11, height - 47, 0xFFFFAA00, false);
         }
+
+        // ── DIAG END ──────────────────────────────────────────────────
+        long diagFrameEndNs = System.nanoTime();
+        long diagFrameNs = diagFrameEndNs - diagFrameStartNs;
+        diagFrameNsTotal += diagFrameNs;
+        diagFrames++;
+        diagSpritesTotal += diagSpritesThisFrame;
+        if (diagFrameNs > diagWorstFrameNs) diagWorstFrameNs = diagFrameNs;
+        // Loud warn on any single >100 ms frame so freezes show up immediately.
+        if (diagFrameNs > 100_000_000L) {
+            PrisonsMod.LOGGER.warn(
+                    "[VisionDiag] SLOW FRAME {} ms  (edges {} ms, nodes {} ms, stars {} ms, sprites {}, gap-from-prev {} ms)",
+                    diagFrameNs / 1_000_000,
+                    (diagEdgesEndNs - diagEdgesStartNs) / 1_000_000,
+                    (diagNodesEndNs - diagNodesStartNs) / 1_000_000,
+                    (diagStarsEndNs - diagStarsStartNs) / 1_000_000,
+                    diagSpritesThisFrame,
+                    diagGapNs / 1_000_000);
+        }
+        diagLastRenderNs = diagFrameEndNs;
+        long nowMs = System.currentTimeMillis();
+        if (nowMs - diagLastLogMs >= 1000 && diagFrames > 0) {
+            int nodeCount = layout.nodes.size();
+            PrisonsMod.LOGGER.info(
+                    "[VisionDiag] frames={} avg-frame={}us (worst {}ms) edges={}us nodes={}us stars={}us sprites/frame={} nodes={} zoom={} viewport={}x{}",
+                    diagFrames,
+                    diagFrameNsTotal / diagFrames / 1000,
+                    diagWorstFrameNs / 1_000_000,
+                    diagEdgesNsTotal / diagFrames / 1000,
+                    diagNodesNsTotal / diagFrames / 1000,
+                    diagStarsNsTotal / diagFrames / 1000,
+                    diagSpritesTotal / diagFrames,
+                    nodeCount,
+                    String.format(java.util.Locale.US, "%.2f", zoom),
+                    width, height);
+            diagFrames = 0;
+            diagEdgesNsTotal = diagNodesNsTotal = diagStarsNsTotal = diagFrameNsTotal = 0;
+            diagSpritesTotal = 0;
+            diagWorstFrameNs = 0;
+            diagLastLogMs = nowMs;
+        }
     }
 
     private void renderEdges(DrawContext ctx, SkillTreeOpenPayload layout, SkillTreeStatePayload state, long now) {
@@ -403,7 +687,12 @@ public final class SkillTreeScreen extends Screen {
         final int viewMinY = -100;
         final int viewMaxY = height + 100;
 
-        for (int[] e : layout.edges) {
+        // Use the hand-authored edge set (cached on the layout), not the
+        // server's auto-adj noise. SkillTreeClient.isAllocatable + the
+        // path-to-hover BFS use the same set so visuals stay in sync.
+        java.util.List<int[]> edgesToRender = SkillTreeClient.handAuthoredEdges(layout);
+
+        for (int[] e : edgesToRender) {
             SkillTreeOpenPayload.Node a = layout.nodes.get(e[0]);
             SkillTreeOpenPayload.Node b = layout.nodes.get(e[1]);
 
@@ -456,12 +745,46 @@ public final class SkillTreeScreen extends Screen {
     }
 
     /**
-     * Thick diagonal line via per-step square stamping. Steps along the
-     * longer axis and stamps a {@code thickness × thickness} filled square
-     * at every step; consecutive stamps overlap so the line reads as solid.
+     * Liang-Barsky-ish line clip + step iteration. Returns the [t0, t1]
+     * parameter range where the line is visible inside the viewport rect.
+     * t=0 is (x1,y1), t=1 is (x2,y2). Returns null if the line is fully
+     * outside the rect.
      */
-    private static void drawDiagonalLine(DrawContext ctx, int x1, int y1, int x2, int y2,
-                                         int thickness, int color) {
+    private float[] clipLineToViewport(int x1, int y1, int x2, int y2) {
+        final int viewMinX = -8, viewMaxX = width + 8;
+        final int viewMinY = -8, viewMaxY = height + 8;
+        float dx = x2 - x1, dy = y2 - y1;
+        float tEnter = 0f, tExit = 1f;
+        // X edges
+        if (dx == 0f) {
+            if (x1 < viewMinX || x1 > viewMaxX) return null;
+        } else {
+            float tL = (viewMinX - x1) / dx;
+            float tR = (viewMaxX - x1) / dx;
+            if (tL > tR) { float tmp = tL; tL = tR; tR = tmp; }
+            tEnter = Math.max(tEnter, tL);
+            tExit  = Math.min(tExit,  tR);
+        }
+        if (dy == 0f) {
+            if (y1 < viewMinY || y1 > viewMaxY) return null;
+        } else {
+            float tT = (viewMinY - y1) / dy;
+            float tB = (viewMaxY - y1) / dy;
+            if (tT > tB) { float tmp = tT; tT = tB; tB = tmp; }
+            tEnter = Math.max(tEnter, tT);
+            tExit  = Math.min(tExit,  tB);
+        }
+        if (tEnter > tExit) return null;
+        return new float[] { tEnter, tExit };
+    }
+
+    /**
+     * Thick diagonal line via per-step square stamping. Clips to viewport
+     * so off-screen portions don't iterate, and strides by at least 2 px
+     * (or thickness/2 if thicker) to keep ctx.fill counts bounded.
+     */
+    private void drawDiagonalLine(DrawContext ctx, int x1, int y1, int x2, int y2,
+                                  int thickness, int color) {
         if ((color >>> 24) == 0 || thickness <= 0) return;
         int dx = x2 - x1, dy = y2 - y1;
         int steps = Math.max(Math.abs(dx), Math.abs(dy));
@@ -470,28 +793,31 @@ public final class SkillTreeScreen extends Screen {
             ctx.fill(x1 - half, y1 - half, x1 + thickness - half, y1 + thickness - half, color);
             return;
         }
-        int half = Math.max(1, thickness / 2);
-        int rem  = thickness - half;
-        // Stride by ~thickness/2 so consecutive square stamps just overlap.
-        // Cuts ctx.fill calls roughly in half versus per-pixel stepping while
-        // keeping the line visually continuous.
-        int stride = Math.max(1, thickness / 2);
-        for (int i = 0; i <= steps; i += stride) {
+        float[] tRange = clipLineToViewport(x1, y1, x2, y2);
+        if (tRange == null) return;
+        // Stamp size and stride are kept equal so stamps perfectly overlap
+        // (no visible gaps in the line) — and stride is bumped to 4 px even
+        // for thin lines because the old per-2-px stamping was still
+        // ~9000 ctx.fill / frame for the locked-edge network. 4 px stride
+        // brings that to ~2300 fills with no visible quality loss at default
+        // zoom (a 4-px square reads as a small dot anyway).
+        int stride = Math.max(4, thickness);
+        int half = stride / 2;
+        int rem  = stride - half;
+        int iStart = (int) Math.floor(tRange[0] * steps);
+        int iEnd   = (int) Math.ceil(tRange[1] * steps);
+        // Snap to stride grid to keep stamps aligned across overlapping layers.
+        iStart -= iStart % stride;
+        for (int i = Math.max(0, iStart); i <= Math.min(steps, iEnd); i += stride) {
             int x = x1 + dx * i / steps;
             int y = y1 + dy * i / steps;
             ctx.fill(x - half, y - half, x + rem, y + rem, color);
         }
-        // Always stamp the endpoint so the line doesn't fall short.
-        ctx.fill(x2 - half, y2 - half, x2 + rem, y2 + rem, color);
     }
 
-    /**
-     * Same as {@link #drawDiagonalLine} but the colour smoothly blends from
-     * {@code colorA} at the start to {@code colorB} at the end — gives each
-     * edge a branch-flavoured gradient.
-     */
-    private static void drawDiagonalGradient(DrawContext ctx, int x1, int y1, int x2, int y2,
-                                              int thickness, int colorA, int colorB) {
+    /** Same as {@link #drawDiagonalLine} but with gradient colour. */
+    private void drawDiagonalGradient(DrawContext ctx, int x1, int y1, int x2, int y2,
+                                      int thickness, int colorA, int colorB) {
         if (thickness <= 0) return;
         int dx = x2 - x1, dy = y2 - y1;
         int steps = Math.max(Math.abs(dx), Math.abs(dy));
@@ -500,17 +826,21 @@ public final class SkillTreeScreen extends Screen {
             ctx.fill(x1 - half, y1 - half, x1 + thickness - half, y1 + thickness - half, colorA);
             return;
         }
+        float[] tRange = clipLineToViewport(x1, y1, x2, y2);
+        if (tRange == null) return;
         int half = Math.max(1, thickness / 2);
         int rem  = thickness - half;
-        int stride = Math.max(1, thickness / 2);
-        for (int i = 0; i <= steps; i += stride) {
+        int stride = Math.max(2, thickness);
+        int iStart = (int) Math.floor(tRange[0] * steps);
+        int iEnd   = (int) Math.ceil(tRange[1] * steps);
+        iStart -= iStart % stride;
+        for (int i = Math.max(0, iStart); i <= Math.min(steps, iEnd); i += stride) {
             float t = (float) i / (float) steps;
             int color = blend(colorA, colorB, t);
             int x = x1 + dx * i / steps;
             int y = y1 + dy * i / steps;
             ctx.fill(x - half, y - half, x + rem, y + rem, color);
         }
-        ctx.fill(x2 - half, y2 - half, x2 + rem, y2 + rem, colorB);
     }
 
     private void renderNodes(DrawContext ctx, SkillTreeOpenPayload layout, SkillTreeStatePayload state,
@@ -520,6 +850,7 @@ public final class SkillTreeScreen extends Screen {
         final boolean hasNotableSprite = textureExists(SPRITE_NOTABLE_TEMPLATE);
         final boolean hasGrandSprite   = textureExists(SPRITE_GRAND_TEMPLATE);
         final boolean hasGateSprite    = textureExists(SPRITE_GATE);
+        final boolean hasRingSprite    = textureExists(SPRITE_RING);
         final boolean searchActive     = !searchLower.isEmpty();
         // Viewport — anything fully outside this rect (with node-radius margin)
         // gets skipped before we touch any fill call.
@@ -539,7 +870,12 @@ public final class SkillTreeScreen extends Screen {
             if (n.autoUnlocked) baseRadius = NODE_GATE_RADIUS;
             else if (n.notable) baseRadius = NODE_NOTABLE_RADIUS;
             else baseRadius = NODE_BASE_RADIUS;
-            int r = Math.max(3, Math.round(baseRadius * zoom));
+            // Pure proportional scaling — no minimum floor beyond 1px.
+            // Floors here were what made the tree feel "denser" when zoomed
+            // out: nodes stayed at 3 px while distances shrank with zoom.
+            // PoE's seamless feel comes from letting nodes shrink in lock-
+            // step with distance.
+            int r = Math.max(1, Math.round(baseRadius * zoom));
 
             boolean unlocked = state.unlocked.contains(n.id) || n.autoUnlocked;
             boolean allocatable = !unlocked && SkillTreeClient.isAllocatable(n.id);
@@ -548,20 +884,26 @@ public final class SkillTreeScreen extends Screen {
             boolean onPath = pathHighlight.contains(n.id);
             boolean isHovered = n.id.equals(hoveredNodeId);
 
-            int branchCore = branchColor(n.branch);
-            int branchGlow = branchGlowColor(n.branch);
+            // Bridges are gate-branched on the server but spatially live
+            // next to a specific cluster — recolour them to match the
+            // region they sit next to so they read as "part of the local
+            // section" instead of standing out as stray amethyst dots.
+            byte effBranch = effectiveBranch(n.id, n.branch);
+            int branchCore = branchColor(effBranch);
+            int branchGlow = branchGlowColor(effBranch);
 
             // ── Layer 0: path-to-here amethyst halo (behind everything)
             if (onPath && !unlocked && !dimmedBySearch) {
-                int haloR = r + Math.max(4, Math.round(6 * zoom));
+                int haloR = Math.max(1, Math.round(baseRadius * 1.6f * zoom));
                 drawSoftGlow(ctx, sx, sy, haloR, withAlpha(COL_AMETHYST, 0x70));
             }
 
-            // ── Layer 1: search-match golden halo. Static (no per-node sin
-            //    animation) — was burning CPU on every match × every frame.
+            // ── Layer 1: search-match golden halo. Softened from 0x90 →
+            //    0x55 alpha and pushed out to 2.4× radius so the glow
+            //    reads as a soft bloom rather than a chunky yellow stamp.
             if (matchesSearch && !unlocked) {
-                int matchR = r + Math.max(6, Math.round(10 * zoom));
-                drawSoftGlow(ctx, sx, sy, matchR, withAlpha(COL_SEARCH_MATCH_GLOW, 0x90));
+                int matchR = Math.max(1, Math.round(baseRadius * 2.4f * zoom));
+                drawSoftGlow(ctx, sx, sy, matchR, withAlpha(COL_SEARCH_MATCH_GLOW, 0x55));
             }
 
             // ── Layer 2: persistent branch-colour halo — only on allocatable
@@ -587,14 +929,14 @@ public final class SkillTreeScreen extends Screen {
             float pStr    = Math.max(upulse, refund);
             if (pStr > 0f) {
                 int pColor = upulse > refund ? COL_AMETHYST : 0xFF7AA5FF;
-                int extra  = Math.round((6 + 14 * (1f - pStr)) * zoom);
-                int hr     = r + Math.max(2, extra);
+                float pulseMult = 1.0f + (0.6f + 1.4f * (1f - pStr)) * 0.6f; // 1.36..2.2x baseRadius
+                int hr = Math.max(1, Math.round(baseRadius * pulseMult * zoom));
                 drawSoftGlow(ctx, sx, sy, hr, withAlpha(pColor, (int) (0xD0 * pStr)));
             }
 
             // ── Layer 4: hover ring.
             if (isHovered && !dimmedBySearch) {
-                int hoverR = r + Math.max(3, Math.round(4 * zoom));
+                int hoverR = Math.max(1, Math.round(baseRadius * 1.4f * zoom));
                 drawSoftGlow(ctx, sx, sy, hoverR, withAlpha(COL_AMETHYST, 0x80));
             }
 
@@ -620,10 +962,27 @@ public final class SkillTreeScreen extends Screen {
             }
 
             if (chosenSprite != null) {
-                int spriteR = r + Math.max(2, Math.round(2 * zoom)); // pad for glow rim
+                // Fully proportional — sprite is 1.2× the conceptual node
+                // radius, ring border is 1.3×. Both shrink with zoom in
+                // lockstep with the inter-node distance so the tree feels
+                // like a static canvas you're scaling.
+                int spriteR = Math.max(1, Math.round(baseRadius * 1.2f * zoom));
+
+                // PoE-style ring border around the gem — branch-tinted, drawn
+                // BEFORE the gem so the gem sits on top. Ring is sized to
+                // hug the gem closely so there's no empty gap between them.
+                if (hasRingSprite && !dimmedBySearch) {
+                    int ringR = Math.max(1, Math.round(baseRadius * 1.3f * zoom));
+                    int ringTint;
+                    if (n.autoUnlocked)      ringTint = COL_AMETHYST;
+                    else if (unlocked)       ringTint = brighten(branchColor(effBranch), 1.20f);
+                    else if (allocatable)    ringTint = branchColor(effBranch);
+                    else                     ringTint = brighten(branchColor(effBranch), 0.55f);
+                    drawSpriteTinted(ctx, SPRITE_RING, sx, sy, ringR, ringTint);
+                }
                 int tint;
                 if (tintSprite) {
-                    tint = branchSpriteTint(n.branch, unlocked, allocatable);
+                    tint = branchSpriteTint(effBranch, unlocked, allocatable);
                     if (dimmedBySearch) tint = withAlpha(tint, 0x30);
                 } else {
                     // Gate: keep full colour, just modulate alpha for state.
@@ -694,11 +1053,19 @@ public final class SkillTreeScreen extends Screen {
                 }
             }
 
-            // ── Layer 10: search-match thin gold ring on top.
+            // ── Layer 10: search-match circular gold ring on top. Uses
+            //    the same SPRITE_RING as the node borders, tinted gold, so
+            //    the search highlight is round and matches the gem
+            //    silhouette instead of the previous square drawRect.
             if (matchesSearch && !unlocked) {
-                int ringR = r + Math.max(2, Math.round(2 * zoom));
-                int ringT = Math.max(1, Math.round(1.5f * zoom));
-                drawRect(ctx, sx - ringR, sy - ringR, sx + ringR, sy + ringR, ringT, COL_SEARCH_MATCH);
+                if (hasRingSprite) {
+                    int ringR = Math.max(1, Math.round(baseRadius * 1.55f * zoom));
+                    drawSpriteTinted(ctx, SPRITE_RING, sx, sy, ringR, COL_SEARCH_MATCH);
+                } else {
+                    int ringR = Math.max(1, Math.round(baseRadius * 1.4f * zoom));
+                    int ringT = Math.max(1, Math.round(1.5f * zoom));
+                    drawRect(ctx, sx - ringR, sy - ringR, sx + ringR, sy + ringR, ringT, COL_SEARCH_MATCH);
+                }
             }
         }
     }
@@ -715,14 +1082,21 @@ public final class SkillTreeScreen extends Screen {
             exists = MinecraftClient.getInstance().getResourceManager().getResource(id).isPresent();
         } catch (Throwable t) {
             exists = false;
+            PrisonsMod.LOGGER.warn("[VisionDiag] textureExists({}) threw: {}", id, t.toString());
         }
         textureExistsCache.put(id, exists);
+        // DIAG: one-shot log per identifier so we know exactly which sprites
+        // load and which fall back to procedural.
+        PrisonsMod.LOGGER.info("[VisionDiag] textureExists({}) = {}", id, exists);
         return exists;
     }
 
     /** Branch tint applied to the grayscale template — multiplied with the
-     *  sprite's luminance to produce a branch-coloured node. Allocatable +
-     *  unlocked variants brighten the tint; locked dims it. */
+     *  sprite's luminance to produce a branch-coloured node. Locked nodes
+     *  keep FULL opacity (any alpha drop compounds with the small render
+     *  size and the sprite's transparent corners to make the gem
+     *  near-invisible) — they're darkened via colour scaling instead so
+     *  they read as "dimmer but present" against the cosmic backdrop. */
     private static int branchSpriteTint(byte branch, boolean unlocked, boolean allocatable) {
         int hue = switch (branch) {
             case Protocol.BRANCH_ASSAULT   -> 0xFFFF6B6B;
@@ -731,10 +1105,12 @@ public final class SkillTreeScreen extends Screen {
             case Protocol.BRANCH_FORTUNE   -> 0xFF7BFFAA;
             default                         -> 0xFFD4B0F0;
         };
-        if (unlocked)         return brighten(hue, 1.10f);
-        if (allocatable)      return hue;
-        // Locked: dim and slightly desaturate.
-        return blend(hue, 0xFF3A2A5A, 0.55f);
+        if (unlocked)    return brighten(hue, 1.15f);
+        // Allocatable AND locked use the full branch hue — at the size sprites
+        // render they need every bit of brightness to read. State is
+        // differentiated by the surrounding halos (branch-glow + breathing
+        // for allocatable, no halo for locked) not by darkening the gem.
+        return hue;
     }
 
     private static int brighten(int argb, float factor) {
@@ -753,12 +1129,27 @@ public final class SkillTreeScreen extends Screen {
         int x = cx - radius;
         int y = cy - radius;
         try {
+            // 13-arg overload: sample the WHOLE texture (regionWidth=texW,
+            // regionHeight=texH) and scale it to the dest size. The 11-arg
+            // version we used before sampled a (size × size) region from
+            // (0,0), which at size=22 meant only the top-left scrollwork
+            // corner of the 256² PNG was visible — that's why nodes looked
+            // like floating corner-pieces instead of centered gems.
             ctx.drawTexture(net.minecraft.client.gl.RenderPipelines.GUI_TEXTURED, id,
                     x, y, 0f, 0f, size, size,
-                    SPRITE_TEMPLATE_PX, SPRITE_TEMPLATE_PX, tint);
+                    SPRITE_TEMPLATE_PX, SPRITE_TEMPLATE_PX,   // regionWidth, regionHeight (sample full texture)
+                    SPRITE_TEMPLATE_PX, SPRITE_TEMPLATE_PX,   // textureWidth, textureHeight
+                    tint);
+            // DIAG: log first 3 sprite draws so we know what positions / sizes /
+            // tints are actually hitting the GPU.
+            if (diagSpritesThisFrame < 3) {
+                PrisonsMod.LOGGER.info("[VisionDiag] drawSpriteTinted id={} pos=({},{}) size={} tint=0x{}",
+                        id, x, y, size, String.format("%08X", tint));
+            }
+            diagSpritesThisFrame++; // DIAG (TEMP)
         } catch (Throwable t) {
             textureExistsCache.put(id, false);
-            PrisonsMod.LOGGER.debug("drawSpriteTinted failed for {}: {}", id, t.toString());
+            PrisonsMod.LOGGER.warn("[VisionDiag] drawSpriteTinted failed for {}: {}", id, t.toString());
         }
     }
 
@@ -1129,9 +1520,11 @@ public final class SkillTreeScreen extends Screen {
         Integer targetIdx = layout.indexById.get(targetId);
         if (targetIdx == null) return java.util.Collections.emptySet();
 
-        // Build adjacency lookup once.
+        // Build adjacency lookup once — from the hand-authored set so the
+        // path halo only highlights nodes the player can visually trace
+        // an edge to.
         Map<Integer, List<Integer>> adj = new HashMap<>(layout.nodes.size() * 2);
-        for (int[] e : layout.edges) {
+        for (int[] e : SkillTreeClient.handAuthoredEdges(layout)) {
             adj.computeIfAbsent(e[0], k -> new ArrayList<>()).add(e[1]);
             adj.computeIfAbsent(e[1], k -> new ArrayList<>()).add(e[0]);
         }
@@ -1197,6 +1590,27 @@ public final class SkillTreeScreen extends Screen {
     }
 
     // ── Colour helpers ──────────────────────────────────────────────────────
+
+    /** Returns the visual branch to render with — same as the server's
+     *  branch for everything except bridges. Bridges live between two
+     *  regions and are gate-branched on the server, but visually they
+     *  sit right next to one specific cluster. Picking up that cluster's
+     *  branch makes them blend into the local section instead of reading
+     *  as stray amethyst dots scattered around the tree. */
+    private static byte effectiveBranch(String id, byte serverBranch) {
+        if (id == null) return serverBranch;
+        return switch (id) {
+            case "north_bridge_east_1" -> Protocol.BRANCH_ASSAULT;    // → north (red)
+            case "north_bridge_east_2" -> Protocol.BRANCH_ENDURANCE;  // → east (gold)
+            case "east_bridge_south_1" -> Protocol.BRANCH_FORTUNE;    // → south (green)
+            case "east_bridge_south_2" -> Protocol.BRANCH_ENDURANCE;  // → east (gold)
+            case "south_bridge_west_1" -> Protocol.BRANCH_FORTUNE;    // → south (green)
+            case "south_bridge_west_2" -> Protocol.BRANCH_AGILITY;    // → west (cyan)
+            case "west_bridge_north_1" -> Protocol.BRANCH_ASSAULT;    // → north (red)
+            case "west_bridge_north_2" -> Protocol.BRANCH_AGILITY;    // → west (cyan)
+            default -> serverBranch;
+        };
+    }
 
     private static int branchColor(byte branch) {
         return switch (branch) {
