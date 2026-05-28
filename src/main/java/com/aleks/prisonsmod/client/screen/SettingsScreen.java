@@ -56,23 +56,25 @@ public final class SettingsScreen extends WidgetSettingsScreen {
         });
 
         addSection("World");
-        addToggle("Rift texture pack (tints stone + ores white)",
+        addToggle("Rift texture pack",
                 FeatureToggles::isRiftTexturePackEnabled, FeatureToggles::setRiftTexturePack);
 
         addSection("Custom Screens");
         addToggle("Bug-report UI on /bugreport",
                 FeatureToggles::isBugReportUiEnabled, FeatureToggles::setBugReportUi);
-        addToggle("PV overview screen on /pv (no args)",
+        addToggle("PV overview screen on /pv",
                 FeatureToggles::isPvOverviewEnabled, FeatureToggles::setPvOverview);
+        addToggle("PV terminal view on /pv",
+                FeatureToggles::isPvTerminalEnabled, FeatureToggles::setPvTerminal);
 
         addSection("Network");
         addToggle("Update alert on server join",
                 FeatureToggles::isUpdateAlertEnabled, FeatureToggles::setUpdateAlert);
-        addToggle("Auto-rejoin after kick (retry every 5s)",
+        addToggle("Auto-rejoin after kick",
                 FeatureToggles::isAutoRejoinEnabled, FeatureToggles::setAutoRejoin);
 
         addSection("Inventory");
-        addToggle("Item lock (Z while hovering blocks drop/move)",
+        addToggle("Item lock",
                 FeatureToggles::isItemLockEnabled, FeatureToggles::setItemLock);
         addAction("Clear all locked slots", ItemLocks::clear);
     }

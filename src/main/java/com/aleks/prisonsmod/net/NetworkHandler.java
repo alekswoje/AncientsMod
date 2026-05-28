@@ -573,6 +573,56 @@ public final class NetworkHandler {
         }
     }
 
+    /** "Extract from PV terminal." Server pulls (mode-determined amount) from
+     *  vault N slot M into the player's inventory and pushes a fresh bundle.
+     *  {@code mode} is one of {@link Protocol#PV_EXTRACT_ONE},
+     *  {@link Protocol#PV_EXTRACT_HALF}, {@link Protocol#PV_EXTRACT_ALL}. */
+    public static void sendPvExtract(int vaultNumber, int slotIndex, byte mode, byte target) {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        if (vaultNumber < 1 || vaultNumber > Protocol.PV_MAX_VAULTS) return;
+        if (slotIndex < 0 || slotIndex >= Protocol.PV_MAX_SLOTS) return;
+        try {
+            PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer(8));
+            buf.writeByte(Protocol.PKT_PV_EXTRACT_REQ);
+            buf.writeByte(vaultNumber & 0xFF);
+            buf.writeShort(slotIndex & 0xFFFF);
+            buf.writeByte(mode);
+            buf.writeByte(target);
+            sendBuf(buf);
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send pv extract failed", t);
+        }
+    }
+
+    /** "Place my cursor stack into player-inventory slot N." Server swaps /
+     *  merges as appropriate and syncs the cursor + slot back. */
+    public static void sendPvCursorPlaceInv(int playerInvSlot) {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        if (playerInvSlot < 0 || playerInvSlot > 35) return;
+        try {
+            PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer(4));
+            buf.writeByte(Protocol.PKT_PV_CURSOR_PLACE_INV);
+            buf.writeByte(playerInvSlot & 0xFF);
+            sendBuf(buf);
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send pv cursor place failed", t);
+        }
+    }
+
+    /** "Return my cursor stack to a PV/inv." Sent on terminal close so a
+     *  picked-up stack is never left dangling. */
+    public static void sendPvCursorReturn() {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            ClientPlayNetworking.send(new RawPayload(new byte[] { Protocol.PKT_PV_CURSOR_RETURN }));
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send pv cursor return failed", t);
+        }
+    }
+
     /** Tell the server to route a player-inventory shift-click through PV
      *  affinity rules instead of vanilla container click handling. Eliminates
      *  the client-prediction flicker that happens when the server cancels

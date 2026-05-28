@@ -16,9 +16,13 @@
 
 ## UI & Screens
 
+- **PV Terminal view** — new opt-in `/pv` layout that pools every stack across all your PVs into one flat, searchable grid. Click to take 1, right-click to take half, shift-click to take a whole stack. Drag a slot from your hotbar onto the grid to deposit via affinity. Toggle in *Settings → Custom Screens → "PV terminal view (ME-style flat grid on /pv)"* — off by default; flip it off any time to go back to the existing card overview.
+
 ## Input & Keybinds
 
 ## Networking & Server Integration
+
+- **Fixed mod-command chat spam** — when the server was slow or didn't answer a mod request, `/pv` (and `/suggest`, `/bugreport`) could repeat *"Server didn't respond — sent the command directly."* endlessly and never actually open. They now fall back to the plain command a single time and open normally.
 
 ## Updates & Installation
 

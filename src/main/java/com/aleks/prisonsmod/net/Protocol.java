@@ -520,6 +520,50 @@ public final class Protocol {
      */
     public static final byte PKT_PV_FEATURES_STATE = (byte) 123;
 
+    /**
+     * Player clicked a tile in the PV terminal view: pull from a specific
+     * vault slot into the player's inventory. Server reads the slot, computes
+     * the amount based on click mode, moves what fits into the player's
+     * inventory, leaves the remainder in the PV, and pushes a fresh
+     * {@link #PKT_PV_BUNDLE}.
+     *
+     * <p>Wire format after the type byte:
+     * <pre>
+     *   byte   vault       (1..PV_MAX_VAULTS)
+     *   short  slot        (0..PV_MAX_SLOTS-1)
+     *   byte   amountMode  (PV_EXTRACT_*)
+     *   byte   target      (PV_TARGET_*)
+     * </pre>
+     */
+    public static final byte PKT_PV_EXTRACT_REQ = (byte) 124;
+
+    /** Extract one item from the stack. */
+    public static final byte PV_EXTRACT_ONE  = 0;
+    /** Extract half the stack, rounded up. Non-stackable items pull as 1. */
+    public static final byte PV_EXTRACT_HALF = 1;
+    /** Extract the entire stack. */
+    public static final byte PV_EXTRACT_ALL  = 2;
+
+    /** Pull onto the player's cursor (ME-terminal pickup). */
+    public static final byte PV_TARGET_CURSOR = 0;
+    /** Pull straight into the player's inventory (vanilla shift-click bulk move). */
+    public static final byte PV_TARGET_INV    = 1;
+
+    /**
+     * Place the player's cursor stack into a specific player-inventory slot
+     * (ME-terminal style: pick up from a tile, click a slot to drop). Server
+     * swaps if the target slot is occupied by a different item, merges if same.
+     * Wire: {@code byte invSlot} (0..35, Bukkit ordering).
+     */
+    public static final byte PKT_PV_CURSOR_PLACE_INV = (byte) 125;
+
+    /**
+     * Return whatever is on the player's cursor back into a PV (or their
+     * inventory) — sent when the terminal screen closes with a non-empty
+     * cursor so picked-up items are never lost. No payload.
+     */
+    public static final byte PKT_PV_CURSOR_RETURN = (byte) 126;
+
     // --- Hard size caps (wire-level) ---
     /** Maximum bytes for any single cosmetic S2C payload. Larger packets are dropped. */
     public static final int MAX_PAYLOAD_BYTES = 256;
@@ -539,6 +583,10 @@ public final class Protocol {
     public static final int PV_MAX_MATERIAL_KEY_CHARS = 48;
     public static final int PV_MAX_DISPLAY_NAME_CHARS = 64;
     public static final int PV_MAX_AFFINITY_CSV_CHARS = 256;
+    /** Max lore lines carried per PV slot in the bundle — keeps the payload
+     *  bounded even when a player has dozens of heavily-enchanted picks. */
+    public static final int PV_MAX_LORE_LINES = 16;
+    public static final int PV_MAX_LORE_LINE_CHARS = 128;
 
     // --- Semantic bounds (validated post-decode) ---
     public static final int MAX_POINTS_PER_EVENT = 10_000_000;

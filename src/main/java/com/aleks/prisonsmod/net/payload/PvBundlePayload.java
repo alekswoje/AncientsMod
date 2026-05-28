@@ -51,7 +51,16 @@ public final class PvBundlePayload {
                         Protocol.PV_MAX_DISPLAY_NAME_CHARS);
                 int amount = buf.readInt();
                 if (amount < 0) amount = 0;
-                slots.add(new Slot(slotIndex, materialKey, displayName, amount));
+                int loreCount = buf.readByte() & 0xFF;
+                if (loreCount > Protocol.PV_MAX_LORE_LINES) {
+                    throw new IllegalArgumentException("pv bundle: lore lines " + loreCount + " > max");
+                }
+                java.util.List<String> lore = loreCount > 0 ? new ArrayList<>(loreCount) : java.util.List.of();
+                for (int li = 0; li < loreCount; li++) {
+                    lore.add(clamp(buf.readString(Protocol.PV_MAX_LORE_LINE_CHARS),
+                            Protocol.PV_MAX_LORE_LINE_CHARS));
+                }
+                slots.add(new Slot(slotIndex, materialKey, displayName, amount, lore));
             }
             String affinityCsv = clamp(buf.readString(Protocol.PV_MAX_AFFINITY_CSV_CHARS),
                     Protocol.PV_MAX_AFFINITY_CSV_CHARS);
@@ -89,12 +98,18 @@ public final class PvBundlePayload {
         public final String materialKey;
         public final String displayName;
         public final int amount;
+        /** Item lore lines as the server sees them. May be empty. Length capped
+         *  at {@link Protocol#PV_MAX_LORE_LINES}, each line at
+         *  {@link Protocol#PV_MAX_LORE_LINE_CHARS}. */
+        public final java.util.List<String> lore;
 
-        public Slot(int slotIndex, String materialKey, String displayName, int amount) {
+        public Slot(int slotIndex, String materialKey, String displayName, int amount,
+                    java.util.List<String> lore) {
             this.slotIndex = slotIndex;
             this.materialKey = materialKey;
             this.displayName = displayName;
             this.amount = amount;
+            this.lore = lore == null ? java.util.List.of() : lore;
         }
     }
 }

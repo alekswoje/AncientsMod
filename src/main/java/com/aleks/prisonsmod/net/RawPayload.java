@@ -22,10 +22,12 @@ public record RawPayload(byte[] data) implements CustomPayload {
             (payload, buf) -> buf.writeBytes(payload.data),
             buf -> {
                 int available = buf.readableBytes();
-                // Outer bound is the snapshot cap — cosmetic packets are far smaller,
-                // and NetworkHandler.onPayload enforces a stricter per-type bound
-                // (MAX_PAYLOAD_BYTES for cosmetic, MAX_SNAPSHOT_PAYLOAD_BYTES for snapshot).
-                if (available <= 0 || available > Protocol.MAX_SNAPSHOT_PAYLOAD_BYTES) {
+                // Outer bound is the largest known per-packet cap — the PV bundle
+                // (up to MAX_PV_BUNDLE_BYTES with lore lines) is the biggest packet
+                // type on this channel. NetworkHandler.onPayload enforces a stricter
+                // per-type bound after dispatch.
+                int outerCap = Math.max(Protocol.MAX_SNAPSHOT_PAYLOAD_BYTES, Protocol.MAX_PV_BUNDLE_BYTES);
+                if (available <= 0 || available > outerCap) {
                     // Drain the buffer so the netty pipeline doesn't complain about unread bytes,
                     // then surface as an empty payload (handler drops it).
                     buf.skipBytes(Math.max(0, available));

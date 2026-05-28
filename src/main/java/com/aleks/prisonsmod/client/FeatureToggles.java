@@ -64,6 +64,9 @@ public final class FeatureToggles {
     /** Intercept {@code /pv} (no args) and open the mod's overview screen showing all 7 PVs at once. Off = vanilla server menu. */
     private static volatile boolean pvOverview = true;
 
+    /** Use the ME-terminal style PV view (single grid of every stack across every unlocked PV, click to extract, drag to deposit) instead of the per-PV card overview. Off = card overview (current behavior). Only takes effect when {@link #pvOverview} is also on. */
+    private static volatile boolean pvTerminal = false;
+
     /** Auto-load the bundled rift texture pack (tints stone + ores white so the four special blocks pop) while in {@code tartarus_rift}. Drives {@link RiftTexturePackManager}. */
     private static volatile boolean riftTexturePack = false;
 
@@ -105,6 +108,7 @@ public final class FeatureToggles {
             bugReportUi = parseBool(props.getProperty("bugReportUi"), bugReportUi);
             suggestUi = parseBool(props.getProperty("suggestUi"), suggestUi);
             pvOverview = parseBool(props.getProperty("pvOverview"), pvOverview);
+            pvTerminal = parseBool(props.getProperty("pvTerminal"), pvTerminal);
             riftTexturePack = parseBool(props.getProperty("riftTexturePack"), riftTexturePack);
             evenSpacingSnap = parseBool(props.getProperty("evenSpacingSnap"), evenSpacingSnap);
             autoRejoin = parseBool(props.getProperty("autoRejoin"), autoRejoin);
@@ -130,6 +134,7 @@ public final class FeatureToggles {
         props.setProperty("bugReportUi", Boolean.toString(bugReportUi));
         props.setProperty("suggestUi", Boolean.toString(suggestUi));
         props.setProperty("pvOverview", Boolean.toString(pvOverview));
+        props.setProperty("pvTerminal", Boolean.toString(pvTerminal));
         props.setProperty("riftTexturePack", Boolean.toString(riftTexturePack));
         props.setProperty("evenSpacingSnap", Boolean.toString(evenSpacingSnap));
         props.setProperty("autoRejoin", Boolean.toString(autoRejoin));
@@ -297,6 +302,14 @@ public final class FeatureToggles {
         // mod's shift-click mixin also stops intercepting. No-op when not
         // connected.
         com.aleks.prisonsmod.net.NetworkHandler.sendPvFeaturesState(value);
+    }
+
+    public static boolean isPvTerminalEnabled() { return pvTerminal; }
+
+    public static void setPvTerminal(boolean value) {
+        if (pvTerminal == value) return;
+        pvTerminal = value;
+        save();
     }
 
     public static boolean isRiftTexturePackEnabled() { return riftTexturePack; }
