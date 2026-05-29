@@ -5,6 +5,7 @@ import com.aleks.prisonsmod.client.DuelState;
 import com.aleks.prisonsmod.client.GangRoster;
 import com.aleks.prisonsmod.client.ServerAllowlist;
 import com.aleks.prisonsmod.client.bugreport.BugReportClient;
+import com.aleks.prisonsmod.client.loot.LootClient;
 import com.aleks.prisonsmod.client.pv.PvClient;
 import com.aleks.prisonsmod.client.suggest.SuggestClient;
 import com.aleks.prisonsmod.client.gangping.GangPingManager;
@@ -213,6 +214,20 @@ public final class NetworkHandler {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.PV_BUNDLE)) return;
                     PvBundlePayload p = PvBundlePayload.decode(buf);
                     PvClient.onBundle(p);
+                }
+                case Protocol.PKT_LOOT_SNAPSHOT_CHUNK -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.LOOT_CHUNK)) return;
+                    int version = buf.readInt();
+                    int chunkIndex = buf.readVarInt();
+                    int chunkCount = buf.readVarInt();
+                    int len = buf.readVarInt();
+                    if (chunkCount < 1 || chunkCount > Protocol.LOOT_MAX_CHUNKS) return;
+                    if (chunkIndex < 0 || chunkIndex >= chunkCount) return;
+                    if (len < 0 || len > Protocol.MAX_LOOT_CHUNK_BYTES) return;
+                    if (buf.readableBytes() < len) return;
+                    byte[] chunk = new byte[len];
+                    buf.readBytes(chunk);
+                    LootClient.onSnapshotChunk(version, chunkIndex, chunkCount, chunk);
                 }
                 default -> {
                     // Unknown type — silently ignore. A future server may emit
@@ -637,6 +652,32 @@ public final class NetworkHandler {
             sendBuf(buf);
         } catch (Throwable t) {
             PrisonsMod.LOGGER.debug("send pv shift-click failed", t);
+        }
+    }
+
+    // ── Loot browser sends ───────────────────────────────────────────────────
+
+    /** "Player ran /loottables — send me the catalog." Single-byte payload; the
+     *  server registers the player as a viewer and replies with chunked
+     *  {@link Protocol#PKT_LOOT_SNAPSHOT_CHUNK} packets. */
+    public static void sendLootRequest() {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            ClientPlayNetworking.send(new RawPayload(new byte[] { Protocol.PKT_LOOT_REQ }));
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send loot request failed", t);
+        }
+    }
+
+    /** "I closed the loot browser." Server stops pushing reload/discovery refreshes. */
+    public static void sendLootClose() {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            ClientPlayNetworking.send(new RawPayload(new byte[] { Protocol.PKT_LOOT_CLOSE }));
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send loot close failed", t);
         }
     }
 

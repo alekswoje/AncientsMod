@@ -270,6 +270,17 @@ public final class Protocol {
      */
     public static final byte PKT_MINING_STATS = 24;
 
+    /**
+     * One chunk of the loot-browser catalog snapshot (server → mod), pushed in
+     * response to {@link #PKT_LOOT_REQ} and again on {@code /loottablesplit
+     * reload} or a fresh discovery. The full body is split into ordered chunks;
+     * the mod reassembles by {@code version} and decodes once the last chunk
+     * arrives. Wire per chunk:
+     * {@code int version; varint chunkIndex; varint chunkCount; varint len; byte[len] body}.
+     * Bounded by {@link #MAX_LOOT_CHUNK_BYTES} per packet, {@link #MAX_LOOT_SNAPSHOT_BYTES} total.
+     */
+    public static final byte PKT_LOOT_SNAPSHOT_CHUNK = 25;
+
     // Suggest category enum-bytes (must match plugin PrisonsModChannel).
     public static final byte SUGGEST_CAT_MOD    = 0;
     public static final byte SUGGEST_CAT_SERVER = 1;
@@ -564,6 +575,18 @@ public final class Protocol {
      */
     public static final byte PKT_PV_CURSOR_RETURN = (byte) 126;
 
+    /**
+     * Player ran {@code /loottables} (or its {@code /loot} alias) on a modded
+     * client. The mod intercepts the command and sends this (no payload — the
+     * server identifies the player from the connection); the server registers
+     * the player as a loot-browser viewer and replies with a chunked
+     * {@link #PKT_LOOT_SNAPSHOT_CHUNK} catalog.
+     */
+    public static final byte PKT_LOOT_REQ = (byte) 127;
+    /** Player closed the mod loot browser. Server deregisters them so reload /
+     *  discovery pushes stop. No payload. */
+    public static final byte PKT_LOOT_CLOSE = (byte) 128;
+
     // --- Hard size caps (wire-level) ---
     /** Maximum bytes for any single cosmetic S2C payload. Larger packets are dropped. */
     public static final int MAX_PAYLOAD_BYTES = 256;
@@ -572,6 +595,20 @@ public final class Protocol {
     /** Even larger cap reserved for {@link #PKT_PV_BUNDLE}: 7 vaults × up to
      *  162 slots each can produce dense payloads. */
     public static final int MAX_PV_BUNDLE_BYTES = 65_536;
+    /** Max bytes for a single {@link #PKT_LOOT_SNAPSHOT_CHUNK} packet. */
+    public static final int MAX_LOOT_CHUNK_BYTES = 32_768;
+    /** Hard cap on the reassembled loot snapshot body — guards against a
+     *  malicious server claiming a huge chunk count to OOM the client. */
+    public static final int MAX_LOOT_SNAPSHOT_BYTES = 1_048_576;
+
+    // --- Loot browser bounds (validated post-decode) ---
+    /** Max chunks a single snapshot may declare (1 MB / 16 KB, with headroom). */
+    public static final int LOOT_MAX_CHUNKS = 80;
+    public static final int LOOT_MAX_STRINGS = 8_192;
+    public static final int LOOT_MAX_STRING_CHARS = 256;
+    public static final int LOOT_MAX_CATEGORIES = 32;
+    public static final int LOOT_MAX_TABLES = 512;
+    public static final int LOOT_MAX_ENTRIES_PER_TABLE = 256;
 
     // --- PV bundle bounds ---
     // Set well above the current server-side cap so future bumps don't break
@@ -625,6 +662,9 @@ public final class Protocol {
     public static final int RATE_SUGGEST_PER_SEC = 5;
     /** PV bundle is on-demand only (one packet per /pv intercept) — cap low. */
     public static final int RATE_PV_BUNDLE_PER_SEC = 3;
+    /** Loot snapshot is on-demand but multi-chunk; allow a burst for the chunks
+     *  of one snapshot to arrive back-to-back without tripping the limiter. */
+    public static final int RATE_LOOT_CHUNK_PER_SEC = 80;
 
     // --- Meteorite HUD tunables ---
     /** Max tier-name length the server can send us (e.g. "Ancient Debris" → 14). */

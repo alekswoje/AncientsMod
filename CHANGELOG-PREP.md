@@ -9,10 +9,12 @@
 > **What counts as player-facing for the mod:** new HUDs/widgets, render tweaks the player sees, new keybinds, new screens, new client commands, changes to feature toggles, changes to peaceful-PvP / peaceful-mining behavior, tooltip changes, anything visible in the GUI editor or settings screen.
 
 ## HUDs
+- Stats HUD now tracks **Erebus Pit Guard** kills, with its own row, color, and visibility toggle.
 
 ## Rendering & Visuals
 
 ## UI & Screens
+- New **searchable Loot Browser** on `/loottables` (and `/loot`): browse every loot table grouped by category, open a table to see each drop's **chance, amount, and rarity**, and **search any item across all tables** to find which tables drop it. Undiscovered drops still show as `???`, and the browser refreshes live when staff reload loot tables.
 
 ## Input & Keybinds
 

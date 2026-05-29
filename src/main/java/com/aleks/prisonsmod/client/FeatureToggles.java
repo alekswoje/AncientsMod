@@ -67,6 +67,9 @@ public final class FeatureToggles {
     /** Use the ME-terminal style PV view (single grid of every stack across every unlocked PV, click to extract, drag to deposit) instead of the per-PV card overview. Off = card overview (current behavior). Only takes effect when {@link #pvOverview} is also on. */
     private static volatile boolean pvTerminal = false;
 
+    /** Intercept {@code /loottables} (and its {@code /loot} alias) and open the mod's searchable loot browser instead of the server chest GUI. Off = vanilla server menu. */
+    private static volatile boolean lootBrowser = true;
+
     /** Auto-load the bundled rift texture pack (tints stone + ores white so the four special blocks pop) while in {@code tartarus_rift}. Drives {@link RiftTexturePackManager}. */
     private static volatile boolean riftTexturePack = false;
 
@@ -109,6 +112,7 @@ public final class FeatureToggles {
             suggestUi = parseBool(props.getProperty("suggestUi"), suggestUi);
             pvOverview = parseBool(props.getProperty("pvOverview"), pvOverview);
             pvTerminal = parseBool(props.getProperty("pvTerminal"), pvTerminal);
+            lootBrowser = parseBool(props.getProperty("lootBrowser"), lootBrowser);
             riftTexturePack = parseBool(props.getProperty("riftTexturePack"), riftTexturePack);
             evenSpacingSnap = parseBool(props.getProperty("evenSpacingSnap"), evenSpacingSnap);
             autoRejoin = parseBool(props.getProperty("autoRejoin"), autoRejoin);
@@ -135,6 +139,7 @@ public final class FeatureToggles {
         props.setProperty("suggestUi", Boolean.toString(suggestUi));
         props.setProperty("pvOverview", Boolean.toString(pvOverview));
         props.setProperty("pvTerminal", Boolean.toString(pvTerminal));
+        props.setProperty("lootBrowser", Boolean.toString(lootBrowser));
         props.setProperty("riftTexturePack", Boolean.toString(riftTexturePack));
         props.setProperty("evenSpacingSnap", Boolean.toString(evenSpacingSnap));
         props.setProperty("autoRejoin", Boolean.toString(autoRejoin));
@@ -309,6 +314,14 @@ public final class FeatureToggles {
     public static void setPvTerminal(boolean value) {
         if (pvTerminal == value) return;
         pvTerminal = value;
+        save();
+    }
+
+    public static boolean isLootBrowserEnabled() { return lootBrowser; }
+
+    public static void setLootBrowser(boolean value) {
+        if (lootBrowser == value) return;
+        lootBrowser = value;
         save();
     }
 

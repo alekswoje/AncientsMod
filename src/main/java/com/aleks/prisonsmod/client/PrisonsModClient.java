@@ -67,6 +67,7 @@ public final class PrisonsModClient implements ClientModInitializer {
         BugReportClient.register();
         SuggestClient.register();
         PvClient.register();
+        com.aleks.prisonsmod.client.loot.LootClient.register();
         UpdateInstaller.init();
 
         // HUD framework: register moveable widgets and the renderer hook.
@@ -145,6 +146,7 @@ public final class PrisonsModClient implements ClientModInitializer {
             BugReportClient.tick();
             SuggestClient.tick();
             PvClient.tick();
+            com.aleks.prisonsmod.client.loot.LootClient.tick();
             AutoRejoinManager.tick(client);
             // Drop pings whose source world the player has since left. The
             // server only forwards meteor/gang pings to players currently in

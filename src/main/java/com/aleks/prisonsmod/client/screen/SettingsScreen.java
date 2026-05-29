@@ -66,6 +66,8 @@ public final class SettingsScreen extends WidgetSettingsScreen {
                 FeatureToggles::isPvOverviewEnabled, FeatureToggles::setPvOverview);
         addToggle("PV terminal view on /pv",
                 FeatureToggles::isPvTerminalEnabled, FeatureToggles::setPvTerminal);
+        addToggle("Loot browser on /loottables",
+                FeatureToggles::isLootBrowserEnabled, FeatureToggles::setLootBrowser);
 
         addSection("Network");
         addToggle("Update alert on server join",
