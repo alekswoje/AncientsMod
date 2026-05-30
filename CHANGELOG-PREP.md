@@ -21,3 +21,5 @@
 ## Updates & Installation
 
 ## Quality of Life
+
+- PV Terminal now shows the **full item lore** on heavily enchanted pickaxes — the client now accepts up to 200 lore lines per item instead of 128.
