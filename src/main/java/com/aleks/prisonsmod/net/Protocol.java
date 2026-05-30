@@ -284,6 +284,15 @@ public final class Protocol {
     public static final int MAX_FULLBRIGHT_WORLD_NAME_CHARS = 64;
 
     /**
+     * S2C — per-player Tartarus Rift daily-time HUD state (mirrors plugin
+     * PrisonsModChannel#PKT_RIFT_BUDGET). Replaces the rift row in the Events
+     * HUD now that the rift is a personal daily activity. Wire after the type
+     * byte: byte flags (bit0=available, bit1=consuming), varint remainingSeconds,
+     * varint secondsUntilReset.
+     */
+    public static final byte PKT_RIFT_BUDGET = 26;
+
+    /**
      * S2C — full dungeon skill tree layout. Pushed when a player clicks
      * "Tartarus Vision" on the Oracle NPC. Bounded by
      * {@link #MAX_SKILLTREE_PAYLOAD_BYTES}. The mod's screen opens on receipt
@@ -753,6 +762,7 @@ public final class Protocol {
     public static final int RATE_BOOSTER_UPDATE_PER_SEC = 5;
     /** Event timer heartbeat — same shape as boosters. */
     public static final int RATE_EVENT_TIMERS_PER_SEC = 5;
+    public static final int RATE_RIFT_BUDGET_PER_SEC = 5;
     /** Cooldowns heartbeat — same shape as boosters. */
     public static final int RATE_COOLDOWNS_PER_SEC = 5;
     /** PvE stats heartbeat — same shape. */

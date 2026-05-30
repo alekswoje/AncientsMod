@@ -13,6 +13,7 @@ import com.aleks.prisonsmod.client.gangping.GangPingManager;
 import com.aleks.prisonsmod.client.hud.BoosterState;
 import com.aleks.prisonsmod.client.hud.CooldownState;
 import com.aleks.prisonsmod.client.hud.EventState;
+import com.aleks.prisonsmod.client.hud.RiftBudgetState;
 import com.aleks.prisonsmod.client.hud.MeteoriteState;
 import com.aleks.prisonsmod.client.hud.MiningStatsState;
 import com.aleks.prisonsmod.client.hud.PveStatsState;
@@ -26,6 +27,7 @@ import com.aleks.prisonsmod.net.payload.SuggestFiledPayload;
 import com.aleks.prisonsmod.net.payload.SuggestOpenPayload;
 import com.aleks.prisonsmod.net.payload.CooldownsPayload;
 import com.aleks.prisonsmod.net.payload.EventTimersPayload;
+import com.aleks.prisonsmod.net.payload.RiftBudgetPayload;
 import com.aleks.prisonsmod.net.payload.FullbrightBlacklistPayload;
 import com.aleks.prisonsmod.net.payload.MeteoriteHudPayload;
 import com.aleks.prisonsmod.net.payload.MiningStatsPayload;
@@ -144,6 +146,11 @@ public final class NetworkHandler {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.EVENT_TIMERS)) return;
                     EventTimersPayload p = EventTimersPayload.decode(buf);
                     EventState.update(p);
+                }
+                case Protocol.PKT_RIFT_BUDGET -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.RIFT_BUDGET)) return;
+                    RiftBudgetPayload p = RiftBudgetPayload.decode(buf);
+                    RiftBudgetState.update(p);
                 }
                 case Protocol.PKT_METEORITE_HUD -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.METEORITE_HUD)) return;
