@@ -21,4 +21,3 @@
 ## Updates & Installation
 
 ## Quality of Life
-- Added **Block break sound** toggle in Settings (Mining section) — turn it off to silence the pop/crack noise during fast insta-break mining.
