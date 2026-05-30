@@ -593,8 +593,9 @@ public final class Protocol {
     /** Larger cap reserved for {@link #PKT_BUFF_SNAPSHOT}, which carries every layer with a label. */
     public static final int MAX_SNAPSHOT_PAYLOAD_BYTES = 16_384;
     /** Even larger cap reserved for {@link #PKT_PV_BUNDLE}: 7 vaults × up to
-     *  162 slots each can produce dense payloads. */
-    public static final int MAX_PV_BUNDLE_BYTES = 65_536;
+     *  162 slots × full lore (a maxed pickaxe can be 140+ lines). Must match
+     *  server-side PrisonsModChannel.MAX_PV_BUNDLE_BYTES. */
+    public static final int MAX_PV_BUNDLE_BYTES = 262_144;
     /** Max bytes for a single {@link #PKT_LOOT_SNAPSHOT_CHUNK} packet. */
     public static final int MAX_LOOT_CHUNK_BYTES = 32_768;
     /** Hard cap on the reassembled loot snapshot body — guards against a
@@ -620,13 +621,11 @@ public final class Protocol {
     public static final int PV_MAX_MATERIAL_KEY_CHARS = 48;
     public static final int PV_MAX_DISPLAY_NAME_CHARS = 64;
     public static final int PV_MAX_AFFINITY_CSV_CHARS = 256;
-    /** Max lore lines carried per PV slot in the bundle. Set high enough to
-     *  carry a maxed pickaxe's full lore (enchants + prestige perks + base
-     *  stats ≈ 30-45 lines) untruncated, while still bounding the payload.
-     *  Must match the plugin's PrisonsModChannel.PV_MAX_LORE_LINES — a server
-     *  that sends MORE than this trips the decode guard and the bundle is
-     *  dropped (older mod jars capped at 16 see exactly that until updated). */
-    public static final int PV_MAX_LORE_LINES = 128;
+    /** Max lore lines accepted per PV slot. A maxed pickaxe can reach ~140 lines
+     *  (103 enchants + prestige + energy + ore tracking). A server that sends MORE
+     *  than this trips the decode guard and the whole bundle is dropped — keep this
+     *  ≥ server-side PrisonsModChannel.PV_MAX_LORE_LINES (currently 200). */
+    public static final int PV_MAX_LORE_LINES = 200;
     public static final int PV_MAX_LORE_LINE_CHARS = 128;
 
     // --- Semantic bounds (validated post-decode) ---
