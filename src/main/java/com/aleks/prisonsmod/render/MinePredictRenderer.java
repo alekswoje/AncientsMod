@@ -106,10 +106,12 @@ public final class MinePredictRenderer {
                             r.nextDouble() * 0.2,
                             (r.nextDouble() - 0.5) * 0.2);
                 }
-                world.playSound(null, cx, cy, cz,
-                        state.getSoundGroup().getBreakSound(),
-                        SoundCategory.BLOCKS,
-                        0.6f, 0.9f + r.nextFloat() * 0.2f);
+                if (FeatureToggles.isMinePredictSoundEnabled()) {
+                    world.playSound(null, cx, cy, cz,
+                            state.getSoundGroup().getBreakSound(),
+                            SoundCategory.BLOCKS,
+                            0.6f, 0.9f + r.nextFloat() * 0.2f);
+                }
             }
             return;
         }

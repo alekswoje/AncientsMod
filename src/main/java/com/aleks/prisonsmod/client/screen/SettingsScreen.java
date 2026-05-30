@@ -27,6 +27,8 @@ public final class SettingsScreen extends WidgetSettingsScreen {
         addSection("Mining");
         addToggle("Mine-crack prediction",
                 FeatureToggles::isMinePredictEnabled, FeatureToggles::setMinePredict);
+        addToggle("Block break sound",
+                FeatureToggles::isMinePredictSoundEnabled, FeatureToggles::setMinePredictSound);
         addToggle("Peaceful mining",
                 FeatureToggles::isPeacefulMiningEnabled, FeatureToggles::setPeacefulMining);
 

@@ -28,6 +28,9 @@ public final class FeatureToggles {
      *  On = opt-in A/B comparison; leave off for the smooth single-source server crack. */
     private static volatile boolean minePredict = false;
 
+    /** Play the block-break sound on insta-break packets. Off = silent break (no pop/crack noise during fast mining). */
+    private static volatile boolean minePredictSound = true;
+
     /** Collapse marked enchant tooltip lines behind Shift. Off by default — full enchant list always visible. */
     private static volatile boolean enchantCollapse = false;
 
@@ -113,6 +116,7 @@ public final class FeatureToggles {
         try (var in = Files.newInputStream(path)) {
             props.load(in);
             minePredict = parseBool(props.getProperty("minePredict"), minePredict);
+            minePredictSound = parseBool(props.getProperty("minePredictSound"), minePredictSound);
             enchantCollapse = parseBool(props.getProperty("enchantCollapse"), enchantCollapse);
             scrollableTooltips = parseBool(props.getProperty("scrollableTooltips"), scrollableTooltips);
             peacefulMining = parseBool(props.getProperty("peacefulMining"), peacefulMining);
@@ -143,6 +147,7 @@ public final class FeatureToggles {
     public static void save() {
         Properties props = new Properties();
         props.setProperty("minePredict", Boolean.toString(minePredict));
+        props.setProperty("minePredictSound", Boolean.toString(minePredictSound));
         props.setProperty("enchantCollapse", Boolean.toString(enchantCollapse));
         props.setProperty("scrollableTooltips", Boolean.toString(scrollableTooltips));
         props.setProperty("peacefulMining", Boolean.toString(peacefulMining));
@@ -186,6 +191,14 @@ public final class FeatureToggles {
     public static void setMinePredict(boolean value) {
         if (minePredict == value) return;
         minePredict = value;
+        save();
+    }
+
+    public static boolean isMinePredictSoundEnabled() { return minePredictSound; }
+
+    public static void setMinePredictSound(boolean value) {
+        if (minePredictSound == value) return;
+        minePredictSound = value;
         save();
     }
 
