@@ -701,11 +701,7 @@ public final class PvOverviewScreen extends Screen {
         if (slot.materialKey == null || slot.materialKey.isEmpty()) {
             return ItemStack.EMPTY;
         }
-        Identifier id = Identifier.tryParse(slot.materialKey);
-        if (id == null) return new ItemStack(Items.BARRIER, slot.amount);
-        Item item = Registries.ITEM.get(id);
-        if (item == Items.AIR) return new ItemStack(Items.BARRIER, slot.amount);
-        return new ItemStack(item, Math.max(1, Math.min(slot.amount, 99)));
+        return com.aleks.prisonsmod.client.IconResolver.resolve(slot.materialKey, Items.BARRIER, slot.amount);
     }
 
     private String formatAffinity(String csv) {

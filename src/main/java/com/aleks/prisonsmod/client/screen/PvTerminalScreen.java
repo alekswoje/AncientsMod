@@ -1,5 +1,6 @@
 package com.aleks.prisonsmod.client.screen;
 
+import com.aleks.prisonsmod.client.FeatureToggles;
 import com.aleks.prisonsmod.client.pv.PvClient;
 import com.aleks.prisonsmod.net.NetworkHandler;
 import com.aleks.prisonsmod.net.Protocol;
@@ -103,6 +104,10 @@ public final class PvTerminalScreen extends Screen {
     private final java.util.Map<Integer, Long> recentVaultFlash = new java.util.HashMap<>();
     private static final long FLASH_MS = 380L;
 
+    /** Until-timestamp (ms) for the "safe zone only" notice shown after a
+     *  blocked take/put attempt while the bundle reports view-only. */
+    private long blockedFlashUntilMs = 0L;
+
     public PvTerminalScreen(PvBundlePayload bundle) {
         super(Text.literal("PV Terminal"));
         this.bundle = bundle;
@@ -158,6 +163,15 @@ public final class PvTerminalScreen extends Screen {
         });
         this.addDrawableChild(this.searchField);
 
+        // Optionally grab keyboard focus so the player can type a query the
+        // instant the terminal opens (mirrors defocusSearch's focus toggling).
+        // The inventory-key close guard in keyPressed already lets 'e' type into
+        // a focused search field instead of closing the screen.
+        if (FeatureToggles.isPvTerminalAutoFocusSearchEnabled()) {
+            this.setFocused(this.searchField);
+            this.searchField.setFocused(true);
+        }
+
         recomputeEntries();
     }
 
@@ -189,6 +203,19 @@ public final class PvTerminalScreen extends Screen {
         int next = Math.max(0, current - taken);
         optimisticAmounts.put(key, next);
         recomputeEntries();
+    }
+
+    /** Whether the player may currently take/put. Driven by the bundle's
+     *  safe-zone flag (server-authoritative). When false, extract + deposit are
+     *  blocked client-side and the screen renders a view-only notice. The
+     *  server enforces the same gate regardless of what the client sends. */
+    private boolean canModify() {
+        return bundle == null || bundle.safe;
+    }
+
+    /** Flash the "safe zone only" notice after a blocked take/put attempt. */
+    private void flashBlocked() {
+        blockedFlashUntilMs = System.currentTimeMillis() + 1600L;
     }
 
     private String normalizedQuery() {
@@ -314,6 +341,12 @@ public final class PvTerminalScreen extends Screen {
             // across more slots deposits them too. Armed even when the starting
             // slot is empty (vanilla shift-drag begins on any slot).
             if (button == 0 && isShiftDown() && !holdingCursor) {
+                // View-only outside a safe zone: don't deposit (and don't arm
+                // the shift-drag), just flash the notice. Server blocks it too.
+                if (!canModify()) {
+                    flashBlocked();
+                    return true;
+                }
                 shiftDragging = true;
                 shiftDragDeposited.clear();
                 shiftDragDeposited.add(invSlot);
@@ -346,6 +379,14 @@ public final class PvTerminalScreen extends Screen {
             }
             Entry e = entries.get(entryIdx);
             int available = e.displayedAmount;
+            // View-only outside a safe zone: block all extract modes (the
+            // holding-cursor return-to-inventory path above is harmless and
+            // stays). Server rejects + re-syncs too, but blocking here avoids
+            // the optimistic tile flicker.
+            if (!canModify()) {
+                flashBlocked();
+                return true;
+            }
             if (button == 1) {
                 // Right-click → half onto cursor.
                 int take = Math.max(1, (available + 1) / 2);
@@ -541,6 +582,14 @@ public final class PvTerminalScreen extends Screen {
         ctx.fill(panelX, panelY, panelX + panelW, panelY + TITLE_BAR_H, 0xFF1A1A1A);
         ctx.drawText(this.textRenderer, Text.literal("§ePV Terminal §8· §7" + entries.size() + " items"),
                 panelX + 10, panelY + 8, 0xFFFFFFFF, true);
+        if (!canModify()) {
+            // Persistent view-only indicator — you can browse/search your PVs
+            // anywhere, but taking/depositing is safe-zone only.
+            String warn = "§c⚠ View only · safe zone";
+            int warnW = this.textRenderer.getWidth(warn);
+            ctx.drawText(this.textRenderer, Text.literal(warn),
+                    panelX + panelW - warnW - 10, panelY + 8, 0xFFFF5555, true);
+        }
     }
 
     @Override
@@ -577,9 +626,10 @@ public final class PvTerminalScreen extends Screen {
             ItemStack stack = resolveStack(e.slot, e.displayedAmount);
             if (stack.isEmpty()) continue;
 
-            ctx.drawItem(stack, sx + 1, sy + 1);
+            int io = (SLOT_PX - 16) / 2; // centre the 16px icon in the 22px vault cell
+            ctx.drawItem(stack, sx + io, sy + io);
             if (e.displayedAmount > 1) {
-                ctx.drawStackOverlay(this.textRenderer, stack, sx + 1, sy + 1);
+                ctx.drawStackOverlay(this.textRenderer, stack, sx + io, sy + io);
             }
 
             // Post-op flash for the vault this entry came from
@@ -625,6 +675,17 @@ public final class PvTerminalScreen extends Screen {
             int range = sbH - thumbH;
             int thumbY = sbY + (int) (range * ((double) scrollRowOffset / maxOffset));
             ctx.fill(sbX, thumbY, sbX + SCROLLBAR_W, thumbY + thumbH, 0xFFAAAAAA);
+        }
+
+        // Blocked-action notice — shown briefly after a take/put attempt while
+        // view-only (outside a safe zone). Drawn over the grid, under the cursor.
+        if (now < blockedFlashUntilMs) {
+            String msg = "§cYou can only use your vault in a safe zone!";
+            int msgW = this.textRenderer.getWidth(msg);
+            int bx = gx + (gridW - msgW) / 2;
+            int by = gy + gridH / 2 - 4;
+            ctx.fill(bx - 6, by - 5, bx + msgW + 6, by + 13, 0xD0200000);
+            ctx.drawText(this.textRenderer, Text.literal(msg), bx, by, 0xFFFF6666, true);
         }
 
         // Player inventory strip (3 main rows + hotbar)
@@ -712,7 +773,9 @@ public final class PvTerminalScreen extends Screen {
                 List<Text> vanilla = Screen.getTooltipFromItem(MinecraftClient.getInstance(), stack);
                 List<Text> tip = new ArrayList<>(vanilla.size() + 1);
                 tip.addAll(vanilla);
-                tip.add(Text.literal("§8Shift-click → deposit to PV"));
+                tip.add(canModify()
+                        ? Text.literal("§8Shift-click → deposit to PV")
+                        : Text.literal("§cView only — deposit in a safe zone"));
                 hoverTooltip = tip;
             }
         }
@@ -730,12 +793,7 @@ public final class PvTerminalScreen extends Screen {
 
     private ItemStack resolveStack(PvBundlePayload.Slot slot, int displayedAmount) {
         if (slot.materialKey == null || slot.materialKey.isEmpty()) return ItemStack.EMPTY;
-        Identifier id = Identifier.tryParse(slot.materialKey);
-        int amt = Math.max(1, Math.min(displayedAmount, 99));
-        if (id == null) return new ItemStack(Items.BARRIER, amt);
-        Item item = Registries.ITEM.get(id);
-        if (item == Items.AIR) return new ItemStack(Items.BARRIER, amt);
-        return new ItemStack(item, amt);
+        return com.aleks.prisonsmod.client.IconResolver.resolve(slot.materialKey, Items.BARRIER, displayedAmount);
     }
 
     @Override

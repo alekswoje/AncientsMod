@@ -620,9 +620,13 @@ public final class Protocol {
     public static final int PV_MAX_MATERIAL_KEY_CHARS = 48;
     public static final int PV_MAX_DISPLAY_NAME_CHARS = 64;
     public static final int PV_MAX_AFFINITY_CSV_CHARS = 256;
-    /** Max lore lines carried per PV slot in the bundle — keeps the payload
-     *  bounded even when a player has dozens of heavily-enchanted picks. */
-    public static final int PV_MAX_LORE_LINES = 16;
+    /** Max lore lines carried per PV slot in the bundle. Set high enough to
+     *  carry a maxed pickaxe's full lore (enchants + prestige perks + base
+     *  stats ≈ 30-45 lines) untruncated, while still bounding the payload.
+     *  Must match the plugin's PrisonsModChannel.PV_MAX_LORE_LINES — a server
+     *  that sends MORE than this trips the decode guard and the bundle is
+     *  dropped (older mod jars capped at 16 see exactly that until updated). */
+    public static final int PV_MAX_LORE_LINES = 128;
     public static final int PV_MAX_LORE_LINE_CHARS = 128;
 
     // --- Semantic bounds (validated post-decode) ---

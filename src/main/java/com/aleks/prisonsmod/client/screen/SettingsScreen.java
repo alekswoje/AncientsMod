@@ -36,6 +36,12 @@ public final class SettingsScreen extends WidgetSettingsScreen {
         addToggle("Scrollable tooltips",
                 FeatureToggles::isScrollableTooltipsEnabled, FeatureToggles::setScrollableTooltips);
 
+        addSection("Item Display");
+        addToggle("Amount on currency items",
+                FeatureToggles::isCurrencyAmountOverlayEnabled, FeatureToggles::setCurrencyAmountOverlay);
+        addToggle("Level / prestige on gear & picks",
+                FeatureToggles::isGearStatsOverlayEnabled, FeatureToggles::setGearStatsOverlay);
+
         addSection("PvP");
         addToggle("Peaceful PvP",
                 FeatureToggles::isPeacefulPvpEnabled, FeatureToggles::setPeacefulPvp);
@@ -66,6 +72,8 @@ public final class SettingsScreen extends WidgetSettingsScreen {
                 FeatureToggles::isPvOverviewEnabled, FeatureToggles::setPvOverview);
         addToggle("PV terminal view on /pv",
                 FeatureToggles::isPvTerminalEnabled, FeatureToggles::setPvTerminal);
+        addToggle("Auto-focus PV terminal search",
+                FeatureToggles::isPvTerminalAutoFocusSearchEnabled, FeatureToggles::setPvTerminalAutoFocusSearch);
         addToggle("Loot browser on /loottables",
                 FeatureToggles::isLootBrowserEnabled, FeatureToggles::setLootBrowser);
 

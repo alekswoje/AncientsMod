@@ -381,11 +381,7 @@ public final class LootTableDetailScreen extends Screen {
     }
 
     private static ItemStack resolveIcon(String key) {
-        if (key == null || key.isEmpty()) return new ItemStack(Items.PAPER);
-        Identifier id = Identifier.tryParse(key);
-        if (id == null) return new ItemStack(Items.PAPER);
-        Item item = Registries.ITEM.get(id);
-        return item == Items.AIR ? new ItemStack(Items.PAPER) : new ItemStack(item);
+        return com.aleks.prisonsmod.client.IconResolver.resolve(key, Items.PAPER, 1);
     }
 
     @Override
