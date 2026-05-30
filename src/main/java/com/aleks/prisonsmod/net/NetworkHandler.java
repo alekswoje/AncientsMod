@@ -6,6 +6,7 @@ import com.aleks.prisonsmod.client.Fullbright;
 import com.aleks.prisonsmod.client.GangRoster;
 import com.aleks.prisonsmod.client.ServerAllowlist;
 import com.aleks.prisonsmod.client.bugreport.BugReportClient;
+import com.aleks.prisonsmod.client.loot.LootClient;
 import com.aleks.prisonsmod.client.pv.PvClient;
 import com.aleks.prisonsmod.client.suggest.SuggestClient;
 import com.aleks.prisonsmod.client.gangping.GangPingManager;
@@ -239,6 +240,20 @@ public final class NetworkHandler {
                     com.aleks.prisonsmod.net.payload.SkillTreeAckPayload p =
                             com.aleks.prisonsmod.net.payload.SkillTreeAckPayload.decode(buf);
                     com.aleks.prisonsmod.client.skilltree.SkillTreeClient.onAck(p);
+                }
+                case Protocol.PKT_LOOT_SNAPSHOT_CHUNK -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.LOOT_CHUNK)) return;
+                    int version = buf.readInt();
+                    int chunkIndex = buf.readVarInt();
+                    int chunkCount = buf.readVarInt();
+                    int len = buf.readVarInt();
+                    if (chunkCount < 1 || chunkCount > Protocol.LOOT_MAX_CHUNKS) return;
+                    if (chunkIndex < 0 || chunkIndex >= chunkCount) return;
+                    if (len < 0 || len > Protocol.MAX_LOOT_CHUNK_BYTES) return;
+                    if (buf.readableBytes() < len) return;
+                    byte[] chunk = new byte[len];
+                    buf.readBytes(chunk);
+                    LootClient.onSnapshotChunk(version, chunkIndex, chunkCount, chunk);
                 }
                 default -> {
                     // Unknown type — silently ignore. A future server may emit
@@ -599,6 +614,56 @@ public final class NetworkHandler {
         }
     }
 
+    /** "Extract from PV terminal." Server pulls (mode-determined amount) from
+     *  vault N slot M into the player's inventory and pushes a fresh bundle.
+     *  {@code mode} is one of {@link Protocol#PV_EXTRACT_ONE},
+     *  {@link Protocol#PV_EXTRACT_HALF}, {@link Protocol#PV_EXTRACT_ALL}. */
+    public static void sendPvExtract(int vaultNumber, int slotIndex, byte mode, byte target) {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        if (vaultNumber < 1 || vaultNumber > Protocol.PV_MAX_VAULTS) return;
+        if (slotIndex < 0 || slotIndex >= Protocol.PV_MAX_SLOTS) return;
+        try {
+            PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer(8));
+            buf.writeByte(Protocol.PKT_PV_EXTRACT_REQ);
+            buf.writeByte(vaultNumber & 0xFF);
+            buf.writeShort(slotIndex & 0xFFFF);
+            buf.writeByte(mode);
+            buf.writeByte(target);
+            sendBuf(buf);
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send pv extract failed", t);
+        }
+    }
+
+    /** "Place my cursor stack into player-inventory slot N." Server swaps /
+     *  merges as appropriate and syncs the cursor + slot back. */
+    public static void sendPvCursorPlaceInv(int playerInvSlot) {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        if (playerInvSlot < 0 || playerInvSlot > 35) return;
+        try {
+            PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer(4));
+            buf.writeByte(Protocol.PKT_PV_CURSOR_PLACE_INV);
+            buf.writeByte(playerInvSlot & 0xFF);
+            sendBuf(buf);
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send pv cursor place failed", t);
+        }
+    }
+
+    /** "Return my cursor stack to a PV/inv." Sent on terminal close so a
+     *  picked-up stack is never left dangling. */
+    public static void sendPvCursorReturn() {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            ClientPlayNetworking.send(new RawPayload(new byte[] { Protocol.PKT_PV_CURSOR_RETURN }));
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send pv cursor return failed", t);
+        }
+    }
+
     /** Tell the server to route a player-inventory shift-click through PV
      *  affinity rules instead of vanilla container click handling. Eliminates
      *  the client-prediction flicker that happens when the server cancels
@@ -662,6 +727,32 @@ public final class NetworkHandler {
             ClientPlayNetworking.send(new RawPayload(new byte[] { Protocol.PKT_SKILLTREE_RESPEC }));
         } catch (Throwable t) {
             PrisonsMod.LOGGER.debug("send skilltree respec failed", t);
+        }
+    }
+
+    // ── Loot browser sends ───────────────────────────────────────────────────
+
+    /** "Player ran /loottables — send me the catalog." Single-byte payload; the
+     *  server registers the player as a viewer and replies with chunked
+     *  {@link Protocol#PKT_LOOT_SNAPSHOT_CHUNK} packets. */
+    public static void sendLootRequest() {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            ClientPlayNetworking.send(new RawPayload(new byte[] { Protocol.PKT_LOOT_REQ }));
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send loot request failed", t);
+        }
+    }
+
+    /** "I closed the loot browser." Server stops pushing reload/discovery refreshes. */
+    public static void sendLootClose() {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            ClientPlayNetworking.send(new RawPayload(new byte[] { Protocol.PKT_LOOT_CLOSE }));
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send loot close failed", t);
         }
     }
 

@@ -1,0 +1,77 @@
+{
+  "model": {
+    "type": "minecraft:range_dispatch",
+    "property": "minecraft:custom_model_data",
+    "index": 0,
+    "scale": 1.0,
+    "entries": [
+      {
+        "threshold": 2200,
+        "model": {
+          "type": "minecraft:model",
+          "model": "prisonsmod:item/shard_simple"
+        }
+      },
+      {
+        "threshold": 2201,
+        "model": {
+          "type": "minecraft:model",
+          "model": "prisonsmod:item/shard_uncommon"
+        }
+      },
+      {
+        "threshold": 2202,
+        "model": {
+          "type": "minecraft:model",
+          "model": "prisonsmod:item/shard_elite"
+        }
+      },
+      {
+        "threshold": 2203,
+        "model": {
+          "type": "minecraft:model",
+          "model": "prisonsmod:item/shard_ultimate"
+        }
+      },
+      {
+        "threshold": 2204,
+        "model": {
+          "type": "minecraft:model",
+          "model": "prisonsmod:item/shard_legendary"
+        }
+      },
+      {
+        "threshold": 2205,
+        "model": {
+          "type": "minecraft:model",
+          "model": "prisonsmod:item/shard_godly"
+        }
+      },
+      {
+        "threshold": 2206,
+        "model": {
+          "type": "minecraft:model",
+          "model": "prisonsmod:item/shard_divine"
+        }
+      },
+      {
+        "threshold": 2207,
+        "model": {
+          "type": "minecraft:model",
+          "model": "prisonsmod:item/shard_exceptional"
+        }
+      },
+      {
+        "threshold": 2208,
+        "model": {
+          "type": "minecraft:model",
+          "model": "minecraft:item/prismarine_shard"
+        }
+      }
+    ],
+    "fallback": {
+      "type": "minecraft:model",
+      "model": "minecraft:item/prismarine_shard"
+    }
+  }
+}

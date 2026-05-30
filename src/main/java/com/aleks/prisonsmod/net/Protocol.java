@@ -351,6 +351,20 @@ public final class Protocol {
     public static final byte SKILL_RESULT_NOTHING_TO_RESPEC = 8;
     public static final byte SKILL_RESULT_ECONOMY_ERROR     = 9;
 
+    /**
+     * One chunk of the loot-browser catalog snapshot (server → mod), pushed in
+     * response to {@link #PKT_LOOT_REQ} and again on {@code /loottablesplit
+     * reload} or a fresh discovery. The full body is split into ordered chunks;
+     * the mod reassembles by {@code version} and decodes once the last chunk
+     * arrives. Wire per chunk:
+     * {@code int version; varint chunkIndex; varint chunkCount; varint len; byte[len] body}.
+     * Bounded by {@link #MAX_LOOT_CHUNK_BYTES} per packet, {@link #MAX_LOOT_SNAPSHOT_BYTES} total.
+     * NB: byte 25 is PKT_FULLBRIGHT_BLACKLIST on this season2 branch, so the loot
+     * snapshot is renumbered 25 → 31 here to match the season2 plugin. Public
+     * master uses 25.
+     */
+    public static final byte PKT_LOOT_SNAPSHOT_CHUNK = 31;
+
     // Suggest category enum-bytes (must match plugin PrisonsModChannel).
     public static final byte SUGGEST_CAT_MOD    = 0;
     public static final byte SUGGEST_CAT_SERVER = 1;
@@ -616,6 +630,66 @@ public final class Protocol {
     /** C2S — full respec (charges money per dungeon level). No payload. */
     public static final byte PKT_SKILLTREE_RESPEC    = (byte) 127;
 
+    // NB: bytes 124-127 are the skill-tree C2S packets on this season2 branch.
+    // Public master assigns 124-128 to the PV-extract / loot packets below; to
+    // avoid a collision they are renumbered to 128-132 here, matching the
+    // season2 plugin (PrisonsModChannel). Public master uses 124-128.
+    /**
+     * Player clicked a tile in the PV terminal view: pull from a specific
+     * vault slot into the player's inventory. Server reads the slot, computes
+     * the amount based on click mode, moves what fits into the player's
+     * inventory, leaves the remainder in the PV, and pushes a fresh
+     * {@link #PKT_PV_BUNDLE}.
+     *
+     * <p>Wire format after the type byte:
+     * <pre>
+     *   byte   vault       (1..PV_MAX_VAULTS)
+     *   short  slot        (0..PV_MAX_SLOTS-1)
+     *   byte   amountMode  (PV_EXTRACT_*)
+     *   byte   target      (PV_TARGET_*)
+     * </pre>
+     */
+    public static final byte PKT_PV_EXTRACT_REQ = (byte) 128;
+
+    /** Extract one item from the stack. */
+    public static final byte PV_EXTRACT_ONE  = 0;
+    /** Extract half the stack, rounded up. Non-stackable items pull as 1. */
+    public static final byte PV_EXTRACT_HALF = 1;
+    /** Extract the entire stack. */
+    public static final byte PV_EXTRACT_ALL  = 2;
+
+    /** Pull onto the player's cursor (ME-terminal pickup). */
+    public static final byte PV_TARGET_CURSOR = 0;
+    /** Pull straight into the player's inventory (vanilla shift-click bulk move). */
+    public static final byte PV_TARGET_INV    = 1;
+
+    /**
+     * Place the player's cursor stack into a specific player-inventory slot
+     * (ME-terminal style: pick up from a tile, click a slot to drop). Server
+     * swaps if the target slot is occupied by a different item, merges if same.
+     * Wire: {@code byte invSlot} (0..35, Bukkit ordering).
+     */
+    public static final byte PKT_PV_CURSOR_PLACE_INV = (byte) 129;
+
+    /**
+     * Return whatever is on the player's cursor back into a PV (or their
+     * inventory) — sent when the terminal screen closes with a non-empty
+     * cursor so picked-up items are never lost. No payload.
+     */
+    public static final byte PKT_PV_CURSOR_RETURN = (byte) 130;
+
+    /**
+     * Player ran {@code /loottables} (or its {@code /loot} alias) on a modded
+     * client. The mod intercepts the command and sends this (no payload — the
+     * server identifies the player from the connection); the server registers
+     * the player as a loot-browser viewer and replies with a chunked
+     * {@link #PKT_LOOT_SNAPSHOT_CHUNK} catalog.
+     */
+    public static final byte PKT_LOOT_REQ = (byte) 131;
+    /** Player closed the mod loot browser. Server deregisters them so reload /
+     *  discovery pushes stop. No payload. */
+    public static final byte PKT_LOOT_CLOSE = (byte) 132;
+
     // --- Hard size caps (wire-level) ---
     /** Maximum bytes for any single cosmetic S2C payload. Larger packets are dropped. */
     public static final int MAX_PAYLOAD_BYTES = 256;
@@ -624,6 +698,20 @@ public final class Protocol {
     /** Even larger cap reserved for {@link #PKT_PV_BUNDLE}: 7 vaults × up to
      *  162 slots each can produce dense payloads. */
     public static final int MAX_PV_BUNDLE_BYTES = 65_536;
+    /** Max bytes for a single {@link #PKT_LOOT_SNAPSHOT_CHUNK} packet. */
+    public static final int MAX_LOOT_CHUNK_BYTES = 32_768;
+    /** Hard cap on the reassembled loot snapshot body — guards against a
+     *  malicious server claiming a huge chunk count to OOM the client. */
+    public static final int MAX_LOOT_SNAPSHOT_BYTES = 1_048_576;
+
+    // --- Loot browser bounds (validated post-decode) ---
+    /** Max chunks a single snapshot may declare (1 MB / 16 KB, with headroom). */
+    public static final int LOOT_MAX_CHUNKS = 80;
+    public static final int LOOT_MAX_STRINGS = 8_192;
+    public static final int LOOT_MAX_STRING_CHARS = 256;
+    public static final int LOOT_MAX_CATEGORIES = 32;
+    public static final int LOOT_MAX_TABLES = 512;
+    public static final int LOOT_MAX_ENTRIES_PER_TABLE = 256;
 
     // --- PV bundle bounds ---
     // Set well above the current server-side cap so future bumps don't break
@@ -635,6 +723,14 @@ public final class Protocol {
     public static final int PV_MAX_MATERIAL_KEY_CHARS = 48;
     public static final int PV_MAX_DISPLAY_NAME_CHARS = 64;
     public static final int PV_MAX_AFFINITY_CSV_CHARS = 256;
+    /** Max lore lines carried per PV slot in the bundle. Set high enough to
+     *  carry a maxed pickaxe's full lore (enchants + prestige perks + base
+     *  stats ≈ 30-45 lines) untruncated, while still bounding the payload.
+     *  Must match the plugin's PrisonsModChannel.PV_MAX_LORE_LINES — a server
+     *  that sends MORE than this trips the decode guard and the bundle is
+     *  dropped (older mod jars capped at 16 see exactly that until updated). */
+    public static final int PV_MAX_LORE_LINES = 128;
+    public static final int PV_MAX_LORE_LINE_CHARS = 128;
 
     // --- Semantic bounds (validated post-decode) ---
     public static final int MAX_POINTS_PER_EVENT = 10_000_000;
@@ -681,6 +777,9 @@ public final class Protocol {
     public static final int RATE_SKILLTREE_STATE_PER_SEC = 10;
     /** Ack arrives at most once per mod action — burst limit is the player's click rate. */
     public static final int RATE_SKILLTREE_ACK_PER_SEC   = 10;
+    /** Loot snapshot is on-demand but multi-chunk; allow a burst for the chunks
+     *  of one snapshot to arrive back-to-back without tripping the limiter. */
+    public static final int RATE_LOOT_CHUNK_PER_SEC = 80;
 
     // --- Meteorite HUD tunables ---
     /** Max tier-name length the server can send us (e.g. "Ancient Debris" → 14). */

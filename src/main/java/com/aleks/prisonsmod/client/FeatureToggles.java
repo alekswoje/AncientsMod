@@ -22,8 +22,11 @@ public final class FeatureToggles {
 
     // ── Toggles (defaults below) ─────────────────────────────────────────────
 
-    /** Client-side break-crack prediction. When off, the real server packets drive the crack animation (lag returns, for A/B comparison). */
-    private static volatile boolean minePredict = true;
+    /** Client-side break-crack prediction. Off by default: on this server the plugin
+     *  already sends its own crack the same tick mining starts, so prediction adds no
+     *  head-start and just renders a second, overlapping crack (the doubled/choppy look).
+     *  On = opt-in A/B comparison; leave off for the smooth single-source server crack. */
+    private static volatile boolean minePredict = false;
 
     /** Collapse marked enchant tooltip lines behind Shift. Off by default — full enchant list always visible. */
     private static volatile boolean enchantCollapse = false;
@@ -64,6 +67,17 @@ public final class FeatureToggles {
     /** Intercept {@code /pv} (no args) and open the mod's overview screen showing all 7 PVs at once. Off = vanilla server menu. */
     private static volatile boolean pvOverview = true;
 
+    /** Use the ME-terminal style PV view (single grid of every stack across every unlocked PV, click to extract, drag to deposit) instead of the per-PV card overview. Off = card overview (current behavior). Only takes effect when {@link #pvOverview} is also on. */
+    private static volatile boolean pvTerminal = false;
+
+    /** Auto-focus the PV terminal's search box the moment the terminal opens, so
+     *  the player can start typing a query without clicking the field first. Only
+     *  has any effect when {@link #pvTerminal} is on. */
+    private static volatile boolean pvTerminalAutoFocusSearch = true;
+
+    /** Intercept {@code /loottables} (and its {@code /loot} alias) and open the mod's searchable loot browser instead of the server chest GUI. Off = vanilla server menu. */
+    private static volatile boolean lootBrowser = true;
+
     /** Auto-load the bundled rift texture pack (tints stone + ores white so the four special blocks pop) while in {@code tartarus_rift}. Drives {@link RiftTexturePackManager}. */
     private static volatile boolean riftTexturePack = false;
 
@@ -78,6 +92,13 @@ public final class FeatureToggles {
 
     /** Client-side fullbright. Overrides the gamma slider so dark areas render fully lit. Disabled in worlds the server includes in the {@code prisonsmod.fullbright.blacklist-worlds} config (see {@link Fullbright}). Default on — server NV used to do this for everyone. */
     private static volatile boolean fullbright = true;
+
+    /** Draw a compact amount (e.g. "1m", "1.1k") in the top-right corner of currency item slots
+     *  (currently Ancient Energy). Parsed from the synced display name — no server change needed. */
+    private static volatile boolean currencyAmountOverlay = true;
+
+    /** Draw item level (top-right) and pickaxe prestige (top-left) on gear/picks, from synced custom_data. */
+    private static volatile boolean gearStatsOverlay = true;
 
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -108,11 +129,16 @@ public final class FeatureToggles {
             bugReportUi = parseBool(props.getProperty("bugReportUi"), bugReportUi);
             suggestUi = parseBool(props.getProperty("suggestUi"), suggestUi);
             pvOverview = parseBool(props.getProperty("pvOverview"), pvOverview);
+            pvTerminal = parseBool(props.getProperty("pvTerminal"), pvTerminal);
+            pvTerminalAutoFocusSearch = parseBool(props.getProperty("pvTerminalAutoFocusSearch"), pvTerminalAutoFocusSearch);
+            lootBrowser = parseBool(props.getProperty("lootBrowser"), lootBrowser);
             riftTexturePack = parseBool(props.getProperty("riftTexturePack"), riftTexturePack);
             evenSpacingSnap = parseBool(props.getProperty("evenSpacingSnap"), evenSpacingSnap);
             autoRejoin = parseBool(props.getProperty("autoRejoin"), autoRejoin);
             itemLock = parseBool(props.getProperty("itemLock"), itemLock);
             fullbright = parseBool(props.getProperty("fullbright"), fullbright);
+            currencyAmountOverlay = parseBool(props.getProperty("currencyAmountOverlay"), currencyAmountOverlay);
+            gearStatsOverlay = parseBool(props.getProperty("gearStatsOverlay"), gearStatsOverlay);
         } catch (IOException e) {
             PrisonsMod.LOGGER.warn("failed to load {}: {}", FILE_NAME, e.getMessage());
         }
@@ -134,11 +160,16 @@ public final class FeatureToggles {
         props.setProperty("bugReportUi", Boolean.toString(bugReportUi));
         props.setProperty("suggestUi", Boolean.toString(suggestUi));
         props.setProperty("pvOverview", Boolean.toString(pvOverview));
+        props.setProperty("pvTerminal", Boolean.toString(pvTerminal));
+        props.setProperty("pvTerminalAutoFocusSearch", Boolean.toString(pvTerminalAutoFocusSearch));
+        props.setProperty("lootBrowser", Boolean.toString(lootBrowser));
         props.setProperty("riftTexturePack", Boolean.toString(riftTexturePack));
         props.setProperty("evenSpacingSnap", Boolean.toString(evenSpacingSnap));
         props.setProperty("autoRejoin", Boolean.toString(autoRejoin));
         props.setProperty("itemLock", Boolean.toString(itemLock));
         props.setProperty("fullbright", Boolean.toString(fullbright));
+        props.setProperty("currencyAmountOverlay", Boolean.toString(currencyAmountOverlay));
+        props.setProperty("gearStatsOverlay", Boolean.toString(gearStatsOverlay));
         try {
             Files.createDirectories(configPath().getParent());
             try (var out = Files.newOutputStream(configPath())) {
@@ -304,6 +335,30 @@ public final class FeatureToggles {
         com.aleks.prisonsmod.net.NetworkHandler.sendPvFeaturesState(value);
     }
 
+    public static boolean isPvTerminalEnabled() { return pvTerminal; }
+
+    public static void setPvTerminal(boolean value) {
+        if (pvTerminal == value) return;
+        pvTerminal = value;
+        save();
+    }
+
+    public static boolean isPvTerminalAutoFocusSearchEnabled() { return pvTerminalAutoFocusSearch; }
+
+    public static void setPvTerminalAutoFocusSearch(boolean value) {
+        if (pvTerminalAutoFocusSearch == value) return;
+        pvTerminalAutoFocusSearch = value;
+        save();
+    }
+
+    public static boolean isLootBrowserEnabled() { return lootBrowser; }
+
+    public static void setLootBrowser(boolean value) {
+        if (lootBrowser == value) return;
+        lootBrowser = value;
+        save();
+    }
+
     public static boolean isRiftTexturePackEnabled() { return riftTexturePack; }
 
     public static void setRiftTexturePack(boolean value) {
@@ -341,6 +396,22 @@ public final class FeatureToggles {
     public static void setFullbright(boolean value) {
         if (fullbright == value) return;
         fullbright = value;
+        save();
+    }
+
+    public static boolean isCurrencyAmountOverlayEnabled() { return currencyAmountOverlay; }
+
+    public static void setCurrencyAmountOverlay(boolean value) {
+        if (currencyAmountOverlay == value) return;
+        currencyAmountOverlay = value;
+        save();
+    }
+
+    public static boolean isGearStatsOverlayEnabled() { return gearStatsOverlay; }
+
+    public static void setGearStatsOverlay(boolean value) {
+        if (gearStatsOverlay == value) return;
+        gearStatsOverlay = value;
         save();
     }
 

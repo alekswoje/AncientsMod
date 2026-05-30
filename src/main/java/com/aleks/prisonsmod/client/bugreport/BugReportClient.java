@@ -54,6 +54,14 @@ public final class BugReportClient {
     private static volatile List<BugReportOpenPayload.Section> sections = List.of();
     private static final List<ChatLine> chatLines = new ArrayList<>();
 
+    /**
+     * Set only while the timeout fallback runs its own {@code sendChatCommand}.
+     * Fabric fires {@link ClientSendMessageEvents#ALLOW_COMMAND} for programmatic
+     * sends too, so without this guard {@link #onCommand} would re-intercept the
+     * fallback, cancel it, and re-arm the timeout — looping forever and flooding chat.
+     */
+    private static volatile boolean passingThroughFallback = false;
+
     /** Register the outbound-command interceptor. Call once during client init. */
     public static void register() {
         ClientSendMessageEvents.ALLOW_COMMAND.register(BugReportClient::onCommand);
@@ -65,6 +73,9 @@ public final class BugReportClient {
      * that to redirect /bugreport into a plugin-message round trip.
      */
     private static boolean onCommand(String command) {
+        // The timeout fallback re-enters here (Fabric fires ALLOW_COMMAND for
+        // programmatic sends); let it through rather than re-intercept + loop.
+        if (passingThroughFallback) return true;
         if (command == null || command.isEmpty()) return true;
         if (!ServerAllowlist.isAllowed()) return true;        // off-server: vanilla flow
         if (!FeatureToggles.isBugReportUiEnabled()) return true; // disabled in settings
@@ -206,7 +217,12 @@ public final class BugReportClient {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player != null && client.getNetworkHandler() != null) {
             String cmd = pending.isEmpty() ? "bugreport" : ("bugreport " + pending);
-            client.getNetworkHandler().sendChatCommand(cmd);
+            passingThroughFallback = true;
+            try {
+                client.getNetworkHandler().sendChatCommand(cmd);
+            } finally {
+                passingThroughFallback = false;
+            }
             client.player.sendMessage(
                     Text.literal("§7[BugReport] Server didn't respond — sent the command directly."),
                     false);

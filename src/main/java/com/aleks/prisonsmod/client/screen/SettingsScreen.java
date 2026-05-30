@@ -36,6 +36,12 @@ public final class SettingsScreen extends WidgetSettingsScreen {
         addToggle("Scrollable tooltips",
                 FeatureToggles::isScrollableTooltipsEnabled, FeatureToggles::setScrollableTooltips);
 
+        addSection("Item Display");
+        addToggle("Amount on currency items",
+                FeatureToggles::isCurrencyAmountOverlayEnabled, FeatureToggles::setCurrencyAmountOverlay);
+        addToggle("Level / prestige on gear & picks",
+                FeatureToggles::isGearStatsOverlayEnabled, FeatureToggles::setGearStatsOverlay);
+
         addSection("PvP");
         addToggle("Peaceful PvP",
                 FeatureToggles::isPeacefulPvpEnabled, FeatureToggles::setPeacefulPvp);
@@ -64,17 +70,23 @@ public final class SettingsScreen extends WidgetSettingsScreen {
         addSection("Custom Screens");
         addToggle("Bug-report UI on /bugreport",
                 FeatureToggles::isBugReportUiEnabled, FeatureToggles::setBugReportUi);
-        addToggle("PV overview screen on /pv (no args)",
+        addToggle("PV overview screen on /pv",
                 FeatureToggles::isPvOverviewEnabled, FeatureToggles::setPvOverview);
+        addToggle("PV terminal view on /pv",
+                FeatureToggles::isPvTerminalEnabled, FeatureToggles::setPvTerminal);
+        addToggle("Auto-focus PV terminal search",
+                FeatureToggles::isPvTerminalAutoFocusSearchEnabled, FeatureToggles::setPvTerminalAutoFocusSearch);
+        addToggle("Loot browser on /loottables",
+                FeatureToggles::isLootBrowserEnabled, FeatureToggles::setLootBrowser);
 
         addSection("Network");
         addToggle("Update alert on server join",
                 FeatureToggles::isUpdateAlertEnabled, FeatureToggles::setUpdateAlert);
-        addToggle("Auto-rejoin after kick (retry every 5s)",
+        addToggle("Auto-rejoin after kick",
                 FeatureToggles::isAutoRejoinEnabled, FeatureToggles::setAutoRejoin);
 
         addSection("Inventory");
-        addToggle("Item lock (Z while hovering blocks drop/move)",
+        addToggle("Item lock",
                 FeatureToggles::isItemLockEnabled, FeatureToggles::setItemLock);
         addAction("Clear all locked slots", ItemLocks::clear);
     }

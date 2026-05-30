@@ -18,9 +18,16 @@ import java.util.List;
 public final class PvBundlePayload {
 
     public final List<Vault> vaults;
+    /** Whether the player may currently take/put items (in a safe zone, or OP).
+     *  When false, the terminal renders view-only and blocks extract/deposit.
+     *  Defaults to true when an older server omits the trailing flag — the
+     *  server still enforces the real gate, so a stale-true here only means the
+     *  deny message comes from a rejected packet instead of a greyed button. */
+    public final boolean safe;
 
-    private PvBundlePayload(List<Vault> vaults) {
+    private PvBundlePayload(List<Vault> vaults, boolean safe) {
         this.vaults = vaults;
+        this.safe = safe;
     }
 
     public static PvBundlePayload decode(PacketByteBuf buf) {
@@ -51,13 +58,29 @@ public final class PvBundlePayload {
                         Protocol.PV_MAX_DISPLAY_NAME_CHARS);
                 int amount = buf.readInt();
                 if (amount < 0) amount = 0;
-                slots.add(new Slot(slotIndex, materialKey, displayName, amount));
+                int loreCount = buf.readByte() & 0xFF;
+                if (loreCount > Protocol.PV_MAX_LORE_LINES) {
+                    throw new IllegalArgumentException("pv bundle: lore lines " + loreCount + " > max");
+                }
+                java.util.List<String> lore = loreCount > 0 ? new ArrayList<>(loreCount) : java.util.List.of();
+                for (int li = 0; li < loreCount; li++) {
+                    lore.add(clamp(buf.readString(Protocol.PV_MAX_LORE_LINE_CHARS),
+                            Protocol.PV_MAX_LORE_LINE_CHARS));
+                }
+                slots.add(new Slot(slotIndex, materialKey, displayName, amount, lore));
             }
             String affinityCsv = clamp(buf.readString(Protocol.PV_MAX_AFFINITY_CSV_CHARS),
                     Protocol.PV_MAX_AFFINITY_CSV_CHARS);
             vaults.add(new Vault(vaultNumber, slotCount, slots, affinityCsv));
         }
-        return new PvBundlePayload(vaults);
+        // Trailing safe-zone flag, appended after the vault list. Older servers
+        // don't send it — default to true (don't grey the UI; the server still
+        // rejects + messages if the player is actually outside a safe zone).
+        boolean safe = true;
+        if (buf.readableBytes() >= 1) {
+            safe = buf.readByte() != 0;
+        }
+        return new PvBundlePayload(vaults, safe);
     }
 
     private static String clamp(String s, int max) {
@@ -89,12 +112,18 @@ public final class PvBundlePayload {
         public final String materialKey;
         public final String displayName;
         public final int amount;
+        /** Item lore lines as the server sees them. May be empty. Length capped
+         *  at {@link Protocol#PV_MAX_LORE_LINES}, each line at
+         *  {@link Protocol#PV_MAX_LORE_LINE_CHARS}. */
+        public final java.util.List<String> lore;
 
-        public Slot(int slotIndex, String materialKey, String displayName, int amount) {
+        public Slot(int slotIndex, String materialKey, String displayName, int amount,
+                    java.util.List<String> lore) {
             this.slotIndex = slotIndex;
             this.materialKey = materialKey;
             this.displayName = displayName;
             this.amount = amount;
+            this.lore = lore == null ? java.util.List.of() : lore;
         }
     }
 }

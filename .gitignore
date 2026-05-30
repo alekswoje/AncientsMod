@@ -12,6 +12,9 @@ out/
 *.ipr
 *.iws
 
+# Texture authoring workspace (not part of the build)
+texture-lab/
+
 # Fabric
 run/
 remappedSrc/

@@ -40,11 +40,22 @@ public final class SuggestClient {
     private static volatile long intentSentAtMs = 0L;
     private static volatile String lastError = "";
 
+    /**
+     * Set only while the timeout fallback runs its own {@code sendChatCommand("suggest")}.
+     * Fabric fires {@link ClientSendMessageEvents#ALLOW_COMMAND} for programmatic sends
+     * too, so without this guard {@link #onCommand} would re-intercept the fallback,
+     * cancel it, and re-arm the timeout — looping forever and flooding chat.
+     */
+    private static volatile boolean passingThroughFallback = false;
+
     public static void register() {
         ClientSendMessageEvents.ALLOW_COMMAND.register(SuggestClient::onCommand);
     }
 
     private static boolean onCommand(String command) {
+        // The timeout fallback re-enters here (Fabric fires ALLOW_COMMAND for
+        // programmatic sends); let it through rather than re-intercept + loop.
+        if (passingThroughFallback) return true;
         if (command == null || command.isEmpty()) return true;
         if (!ServerAllowlist.isAllowed()) return true;
         if (!FeatureToggles.isSuggestUiEnabled()) return true;
@@ -140,7 +151,12 @@ public final class SuggestClient {
             // Fallback — the server-side command will tell them to install the mod
             // (or, if they're modded but the handshake hadn't completed, drive the
             // flow manually). Either way the user gets useful output.
-            client.getNetworkHandler().sendChatCommand("suggest");
+            passingThroughFallback = true;
+            try {
+                client.getNetworkHandler().sendChatCommand("suggest");
+            } finally {
+                passingThroughFallback = false;
+            }
             client.player.sendMessage(
                     Text.literal("§7[Suggest] Server didn't respond — sent the command directly."),
                     false);

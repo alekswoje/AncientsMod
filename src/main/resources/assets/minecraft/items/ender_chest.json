@@ -1,0 +1,85 @@
+{
+  "model": {
+    "type": "minecraft:range_dispatch",
+    "property": "minecraft:custom_model_data",
+    "index": 0,
+    "scale": 1.0,
+    "entries": [
+      {
+        "threshold": 2300,
+        "model": {
+          "type": "minecraft:model",
+          "model": "prisonsmod:item/contraband_simple"
+        }
+      },
+      {
+        "threshold": 2301,
+        "model": {
+          "type": "minecraft:model",
+          "model": "prisonsmod:item/contraband_uncommon"
+        }
+      },
+      {
+        "threshold": 2302,
+        "model": {
+          "type": "minecraft:model",
+          "model": "prisonsmod:item/contraband_elite"
+        }
+      },
+      {
+        "threshold": 2303,
+        "model": {
+          "type": "minecraft:model",
+          "model": "prisonsmod:item/contraband_ultimate"
+        }
+      },
+      {
+        "threshold": 2304,
+        "model": {
+          "type": "minecraft:model",
+          "model": "prisonsmod:item/contraband_legendary"
+        }
+      },
+      {
+        "threshold": 2305,
+        "model": {
+          "type": "minecraft:model",
+          "model": "prisonsmod:item/contraband_godly"
+        }
+      },
+      {
+        "threshold": 2306,
+        "model": {
+          "type": "minecraft:model",
+          "model": "prisonsmod:item/contraband_divine"
+        }
+      },
+      {
+        "threshold": 2307,
+        "model": {
+          "type": "minecraft:model",
+          "model": "prisonsmod:item/contraband_exceptional"
+        }
+      },
+      {
+        "threshold": 2308,
+        "model": {
+          "type": "minecraft:special",
+          "base": "minecraft:item/ender_chest",
+          "model": {
+            "type": "minecraft:chest",
+            "texture": "minecraft:ender"
+          }
+        }
+      }
+    ],
+    "fallback": {
+      "type": "minecraft:special",
+      "base": "minecraft:item/ender_chest",
+      "model": {
+        "type": "minecraft:chest",
+        "texture": "minecraft:ender"
+      }
+    }
+  }
+}

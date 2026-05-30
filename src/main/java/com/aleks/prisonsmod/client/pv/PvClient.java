@@ -6,6 +6,7 @@ import com.aleks.prisonsmod.client.ServerAllowlist;
 import com.aleks.prisonsmod.client.screen.PvAffinityPickerScreen;
 import com.aleks.prisonsmod.client.screen.PvOverviewScreen;
 import com.aleks.prisonsmod.client.screen.PvPresetsScreen;
+import com.aleks.prisonsmod.client.screen.PvTerminalScreen;
 import com.aleks.prisonsmod.net.NetworkHandler;
 import com.aleks.prisonsmod.net.Protocol;
 import com.aleks.prisonsmod.net.payload.PvBundlePayload;
@@ -41,6 +42,16 @@ public final class PvClient {
     private static volatile long intentSentAtMs = 0L;
 
     /**
+     * Set only while the timeout fallback runs its own {@code sendChatCommand("pv")}.
+     * Fabric fires {@link ClientSendMessageEvents#ALLOW_COMMAND} for programmatic
+     * sends too, so without this guard {@link #onCommand} would re-intercept the
+     * fallback, cancel it, and re-arm REQUESTING — looping the timeout forever and
+     * flooding chat with "server didn't respond". The guard lets the fallback pass
+     * straight through to the server (and the message print exactly once).
+     */
+    private static volatile boolean passingThroughFallback = false;
+
+    /**
      * When true, the next time the server opens the PersonalVaultMenu chest
      * GUI (title "Personal Vaults") the mod should swap it for a fresh
      * overview. Set when the player navigates into a vault from the overview;
@@ -71,13 +82,16 @@ public final class PvClient {
             PvBundlePayload cached = latestBundle;
             if (cached != null) {
                 state = State.OPEN;
-                client.execute(() -> client.setScreen(new PvOverviewScreen(cached)));
+                client.execute(() -> client.setScreen(openScreenFor(cached)));
             }
             NetworkHandler.sendPvBundleRequest();
         });
     }
 
     private static boolean onCommand(String command) {
+        // The timeout fallback re-enters here (Fabric fires ALLOW_COMMAND for
+        // programmatic sends); let it through rather than re-intercept + loop.
+        if (passingThroughFallback) return true;
         if (command == null || command.isEmpty()) return true;
         if (!ServerAllowlist.isAllowed()) return true;
         if (!FeatureToggles.isPvOverviewEnabled()) return true;
@@ -96,7 +110,7 @@ public final class PvClient {
             state = State.OPEN;
             PvBundlePayload cached = latestBundle;
             MinecraftClient.getInstance().execute(() ->
-                    MinecraftClient.getInstance().setScreen(new PvOverviewScreen(cached)));
+                    MinecraftClient.getInstance().setScreen(openScreenFor(cached)));
             NetworkHandler.sendPvBundleRequest();
             PrisonsMod.LOGGER.info("[PV] /pv intercepted, opened cached + bg refresh");
             return false;
@@ -128,10 +142,23 @@ public final class PvClient {
                 overview.onBundleUpdated(payload);
                 return;
             }
+            if (current instanceof PvTerminalScreen terminal) {
+                terminal.onBundleUpdated(payload);
+                return;
+            }
             // Otherwise we're arriving from /pv intercept or post-vault-close.
             state = State.OPEN;
-            MinecraftClient.getInstance().setScreen(new PvOverviewScreen(payload));
+            MinecraftClient.getInstance().setScreen(openScreenFor(payload));
         });
+    }
+
+    /** Returns the right /pv landing screen based on the user's settings:
+     *  the terminal view if the test toggle is on, otherwise the card overview. */
+    private static Screen openScreenFor(PvBundlePayload payload) {
+        if (FeatureToggles.isPvTerminalEnabled()) {
+            return new PvTerminalScreen(payload);
+        }
+        return new PvOverviewScreen(payload);
     }
 
     public static void onScreenClosed() {
@@ -151,7 +178,7 @@ public final class PvClient {
         PvBundlePayload b = latestBundle;
         if (b != null) {
             state = State.OPEN;
-            client.setScreen(new PvOverviewScreen(b));
+            client.setScreen(openScreenFor(b));
         } else {
             state = State.REQUESTING;
             intentSentAtMs = System.currentTimeMillis();
@@ -249,7 +276,12 @@ public final class PvClient {
         state = State.IDLE;
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player != null && client.getNetworkHandler() != null) {
-            client.getNetworkHandler().sendChatCommand("pv");
+            passingThroughFallback = true;
+            try {
+                client.getNetworkHandler().sendChatCommand("pv");
+            } finally {
+                passingThroughFallback = false;
+            }
             client.player.sendMessage(
                     Text.literal("§7[PV] Server didn't respond — sent the command directly."),
                     false);
