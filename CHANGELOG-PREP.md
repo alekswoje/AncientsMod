@@ -10,8 +10,6 @@
 
 ## HUDs
 
-- **Cooldowns HUD** now shows your **/fixall** cooldown. Previously only `/fix` appeared, so the much longer fixall cooldown was invisible — you can toggle it under the HUD's *Per-cooldown filter*.
-
 ## Rendering & Visuals
 
 ## UI & Screens
