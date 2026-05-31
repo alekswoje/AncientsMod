@@ -14,6 +14,7 @@
 
 - **Fullbright.** New setting under **World** in the PrisonsMod settings (F9). On by default — replaces the server's removed permanent night vision so dark areas still look bright. The server can disable it in specific worlds via its `prisonsmod.fullbright.blacklist-worlds` config (sent over the prisonsmod channel on join), so atmospheric event worlds can stay dark.
 - **Rift texture pack** now stays loaded across the full event — previously it unloaded on every other round when the server swapped to the alt rift world, causing two extra 5-15s resource reloads per event.
+- **Booster multiplier & duration on the item** (Settings → Item Display → *Multiplier / duration on boosters*, on by default). Booster items now show their multiplier (e.g. `2x`, top-left) and total duration (e.g. `30m`, bottom-right) right on the icon in your inventory and hotbar, color-matched to the boost type (green XP, aqua Energy, gold Ore, purple Shard) — so you can read a booster's worth at a glance without hovering.
 
 ## UI & Screens
 
