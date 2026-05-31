@@ -300,6 +300,18 @@ public final class Protocol {
     public static final byte POWERBALL_OP_BOUNCE  = 1;
     public static final byte POWERBALL_OP_DESPAWN = 2;
 
+    /**
+     * Server → client: the set of custom item textures this player has turned
+     * off in {@code /toggles → Custom Textures}. The mod ignores those (item,
+     * CMD) pairs at model-resolution time so the items render vanilla.
+     *
+     * <p>Wire format: {@code varint count; for each: string itemId (≤64), varint cmd}.
+     * Re-sent on join and on every toggle change.
+     */
+    public static final byte PKT_DISABLED_TEXTURES = 32;
+
+    public static final int MAX_DISABLED_TEXTURES = 128;
+
     // Suggest category enum-bytes (must match plugin PrisonsModChannel).
     public static final byte SUGGEST_CAT_MOD    = 0;
     public static final byte SUGGEST_CAT_SERVER = 1;

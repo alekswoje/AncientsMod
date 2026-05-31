@@ -256,6 +256,11 @@ public final class NetworkHandler {
                         default -> { /* unknown sub-op — ignore */ }
                     }
                 }
+                case Protocol.PKT_DISABLED_TEXTURES -> {
+                    com.aleks.prisonsmod.net.payload.DisabledTexturesPayload p =
+                            com.aleks.prisonsmod.net.payload.DisabledTexturesPayload.decode(buf);
+                    com.aleks.prisonsmod.client.DisabledTextures.update(p.keys());
+                }
                 default -> {
                     // Unknown type — silently ignore. A future server may emit
                     // newer packet types that older clients don't recognize; we
