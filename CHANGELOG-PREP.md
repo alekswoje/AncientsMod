@@ -12,6 +12,8 @@
 
 ## Rendering & Visuals
 
+- **Client-side Powerball rendering** (Settings → Mining → *Client powerball render*, on by default). Your Powerball fireballs are now drawn locally instead of as server entities, so the server stops streaming a position packet for every fireball every tick while you mine — a big lag/ping reduction when Powerball stacks up, especially on slower connections. The fireballs follow the exact same bouncing path and break the same blocks as before. They're drawn with particles, so if you run **Minimal** particles, toggle this off to go back to the server-rendered fireballs.
+
 ## UI & Screens
 
 ## Input & Keybinds

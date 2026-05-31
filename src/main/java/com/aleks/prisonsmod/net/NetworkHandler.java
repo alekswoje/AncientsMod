@@ -39,6 +39,7 @@ import com.aleks.prisonsmod.net.payload.PointGainPayload;
 import com.aleks.prisonsmod.net.payload.PvBundlePayload;
 import com.aleks.prisonsmod.render.FloatingNumberRenderer;
 import com.aleks.prisonsmod.render.MinePredictRenderer;
+import com.aleks.prisonsmod.render.PowerballRenderer;
 import com.aleks.prisonsmod.render.RiftHud;
 import io.netty.buffer.Unpooled;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -229,6 +230,32 @@ public final class NetworkHandler {
                     buf.readBytes(chunk);
                     LootClient.onSnapshotChunk(version, chunkIndex, chunkCount, chunk);
                 }
+                case Protocol.PKT_POWERBALL -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.POWERBALL)) return;
+                    byte op = buf.readByte();
+                    long now = System.currentTimeMillis();
+                    switch (op) {
+                        case Protocol.POWERBALL_OP_SPAWN -> {
+                            int id = buf.readVarInt();
+                            double x = buf.readDouble(), y = buf.readDouble(), z = buf.readDouble();
+                            float vx = buf.readFloat(), vy = buf.readFloat(), vz = buf.readFloat();
+                            int life = buf.readVarInt();
+                            PowerballRenderer.onSpawn(id, x, y, z, vx, vy, vz, life, now);
+                        }
+                        case Protocol.POWERBALL_OP_BOUNCE -> {
+                            int id = buf.readVarInt();
+                            double x = buf.readDouble(), y = buf.readDouble(), z = buf.readDouble();
+                            float vx = buf.readFloat(), vy = buf.readFloat(), vz = buf.readFloat();
+                            PowerballRenderer.onBounce(id, x, y, z, vx, vy, vz);
+                        }
+                        case Protocol.POWERBALL_OP_DESPAWN -> {
+                            int id = buf.readVarInt();
+                            boolean fizzle = buf.readByte() != 0;
+                            PowerballRenderer.onDespawn(id, fizzle);
+                        }
+                        default -> { /* unknown sub-op — ignore */ }
+                    }
+                }
                 default -> {
                     // Unknown type — silently ignore. A future server may emit
                     // newer packet types that older clients don't recognize; we
@@ -320,6 +347,25 @@ public final class NetworkHandler {
             }));
         } catch (Throwable t) {
             PrisonsMod.LOGGER.debug("send pv features state failed", t);
+        }
+    }
+
+    /**
+     * Report whether the mod renders Powerball client-side. When on, the server
+     * stops spawning the server-side ItemDisplay + trail for this player's balls
+     * and sends {@link Protocol#PKT_POWERBALL} hints instead — eliminating the
+     * per-tick entity-move packet flood. Sent after the handshake on join and on
+     * every toggle change.
+     */
+    public static void sendPowerballState(boolean on) {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            ClientPlayNetworking.send(new RawPayload(new byte[] {
+                    Protocol.PKT_POWERBALL_STATE, (byte) (on ? 1 : 0)
+            }));
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send powerball state failed", t);
         }
     }
 

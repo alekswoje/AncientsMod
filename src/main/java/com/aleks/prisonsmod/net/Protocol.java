@@ -281,6 +281,25 @@ public final class Protocol {
      */
     public static final byte PKT_LOOT_SNAPSHOT_CHUNK = 25;
 
+    /**
+     * S2C — Powerball fireball render hint. Lets the mod draw the bouncing
+     * fireball client-side so the server stops spawning a per-ball ItemDisplay
+     * and stops streaming a per-tick entity-move packet to the miner. Path stays
+     * server-authoritative: straight-line travel is extrapolated client-side and
+     * the server pushes one update per bounce. After the type byte: a sub-op,
+     * then per op:
+     * <pre>
+     *   SPAWN  : varint wireId; double x,y,z; float vx,vy,vz; varint lifetimeMs
+     *   BOUNCE : varint wireId; double x,y,z; float vx,vy,vz
+     *   DESPAWN: varint wireId; byte fizzle
+     * </pre>
+     * Byte 27 is free on both the master and season2 server schemes — keep it so.
+     */
+    public static final byte PKT_POWERBALL = 27;
+    public static final byte POWERBALL_OP_SPAWN   = 0;
+    public static final byte POWERBALL_OP_BOUNCE  = 1;
+    public static final byte POWERBALL_OP_DESPAWN = 2;
+
     // Suggest category enum-bytes (must match plugin PrisonsModChannel).
     public static final byte SUGGEST_CAT_MOD    = 0;
     public static final byte SUGGEST_CAT_SERVER = 1;
@@ -587,6 +606,13 @@ public final class Protocol {
      *  discovery pushes stop. No payload. */
     public static final byte PKT_LOOT_CLOSE = (byte) 128;
 
+    /** C2S — report whether the mod renders Powerball client-side (1=on, 0=off).
+     *  When on, the server suppresses the server-side ItemDisplay + trail for
+     *  this player's balls and sends {@link #PKT_POWERBALL} hints instead. Sent
+     *  on join after the handshake and on every toggle flip. Byte 133 is free on
+     *  both the master and season2 server schemes. */
+    public static final byte PKT_POWERBALL_STATE = (byte) 133;
+
     // --- Hard size caps (wire-level) ---
     /** Maximum bytes for any single cosmetic S2C payload. Larger packets are dropped. */
     public static final int MAX_PAYLOAD_BYTES = 256;
@@ -668,6 +694,9 @@ public final class Protocol {
     /** Loot snapshot is on-demand but multi-chunk; allow a burst for the chunks
      *  of one snapshot to arrive back-to-back without tripping the limiter. */
     public static final int RATE_LOOT_CHUNK_PER_SEC = 80;
+    /** Powerball is burst-prone: a stacked proc sends a spawn per ball plus a
+     *  bounce update per ball-bounce. Generous so legitimate bursts aren't dropped. */
+    public static final int RATE_POWERBALL_PER_SEC = 200;
 
     // --- Meteorite HUD tunables ---
     /** Max tier-name length the server can send us (e.g. "Ancient Debris" → 14). */
