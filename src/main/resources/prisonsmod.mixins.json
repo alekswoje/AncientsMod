@@ -6,6 +6,7 @@
   "client": [
     "client.ClientPlayerItemLockMixin",
     "client.ClientWorldRedstoneUnlitMixin",
+    "client.CustomModelDataFloatPropertyMixin",
     "client.DrawContextStackOverlayMixin",
     "client.EquipmentRendererMixin",
     "client.GameRendererInvoker",
