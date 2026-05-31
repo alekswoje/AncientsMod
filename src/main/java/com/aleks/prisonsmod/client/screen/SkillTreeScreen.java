@@ -1232,7 +1232,7 @@ public final class SkillTreeScreen extends Screen {
     private void renderPointsHud(DrawContext ctx, SkillTreeStatePayload state) {
         TextRenderer tr = textRenderer;
         int x = 10, y = 30;
-        int w = 178, h = 78;
+        int w = 178, h = 108;
         ctx.fill(x, y, x + w, y + h, COL_HUD_BG);
         ctx.fill(x, y, x + w, y + 1, COL_HUD_BORDER);
         ctx.fill(x, y + h - 1, x + w, y + h, COL_HUD_BORDER);
@@ -1247,6 +1247,30 @@ public final class SkillTreeScreen extends Screen {
         ctx.drawText(tr, line("Spent",     Integer.toString(state.spent),     0xFFAAAAAA), x + 8, y + 46, 0xFFFFFFFF, false);
         ctx.drawText(tr, line("Respec",    "$" + MONEY_FMT.format(state.respecCost), 0xFFFFCC44),
                 x + 8, y + 58, 0xFFFFFFFF, false);
+
+        // Separator + level / XP section
+        ctx.fill(x + 8, y + 68, x + w - 8, y + 69, COL_HUD_BORDER);
+
+        ctx.drawText(tr, line("Level", Integer.toString(state.level), 0xFFFFCC44),
+                x + 8, y + 73, 0xFFFFFFFF, false);
+
+        int barX = x + 8;
+        int barY = y + 85;
+        int barW = w - 16;
+        int barH = 5;
+        if (state.xpRequired > 0) {
+            float progress = Math.min(1f, (float) state.xp / (float) state.xpRequired);
+            int fillW = Math.max(0, Math.round(progress * barW));
+            ctx.fill(barX, barY, barX + barW, barY + barH, 0x55220033);
+            ctx.fill(barX, barY, barX + fillW, barY + barH, 0xFFB892D9);
+            drawRect(ctx, barX, barY, barX + barW, barY + barH, 1, COL_HUD_BORDER);
+            String xpText = MONEY_FMT.format(state.xp) + " / " + MONEY_FMT.format(state.xpRequired) + " XP";
+            int tw = tr.getWidth(xpText);
+            ctx.drawText(tr, xpText, barX + (barW - tw) / 2, barY + barH + 3, 0x88D4B0F0, false);
+        } else {
+            ctx.drawText(tr, Text.literal("MAX LEVEL").formatted(Formatting.GOLD, Formatting.BOLD),
+                    x + 8, barY, 0xFFFFFFFF, false);
+        }
     }
 
     private static Text line(String label, String value, int valueColor) {

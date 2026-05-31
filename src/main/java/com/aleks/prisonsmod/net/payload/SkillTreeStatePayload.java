@@ -18,14 +18,21 @@ public final class SkillTreeStatePayload {
     public final int available;
     public final int spent;
     public final double respecCost;
+    public final int level;
+    public final long xp;
+    public final long xpRequired;
 
     private SkillTreeStatePayload(Set<String> unlocked, int banked, int available,
-                                   int spent, double respecCost) {
+                                   int spent, double respecCost,
+                                   int level, long xp, long xpRequired) {
         this.unlocked = unlocked;
         this.banked = banked;
         this.available = available;
         this.spent = spent;
         this.respecCost = respecCost;
+        this.level = level;
+        this.xp = xp;
+        this.xpRequired = xpRequired;
     }
 
     public static SkillTreeStatePayload decode(PacketByteBuf buf) {
@@ -41,6 +48,10 @@ public final class SkillTreeStatePayload {
         int available = buf.readInt();
         int spent = buf.readInt();
         double respecCost = buf.readDouble();
-        return new SkillTreeStatePayload(unlocked, banked, available, spent, respecCost);
+        int level = buf.readInt();
+        long xp = buf.readLong();
+        long xpRequired = buf.readLong();
+        return new SkillTreeStatePayload(unlocked, banked, available, spent, respecCost,
+                level, xp, xpRequired);
     }
 }
