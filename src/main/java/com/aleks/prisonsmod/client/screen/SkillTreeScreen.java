@@ -1257,6 +1257,9 @@ public final class SkillTreeScreen extends Screen {
 
     private void renderHelpFooter(DrawContext ctx) {
         TextRenderer tr = textRenderer;
+        String disclaimer = "✦ All effects active inside Tartarus Dungeons only";
+        int dw = tr.getWidth(disclaimer);
+        ctx.drawText(tr, disclaimer, (width - dw) / 2, height - 22, 0x88D4B0F0, false);
         String help = "drag to pan · scroll to zoom · left-click allocate · right-click refund · esc close";
         int tw = tr.getWidth(help);
         ctx.drawText(tr, help, (width - tw) / 2, height - 12, 0x88FFFFFF, false);
@@ -1334,9 +1337,9 @@ public final class SkillTreeScreen extends Screen {
             case Protocol.SKILL_EFFECT_DUNGEON_MAX_HP_FLAT         -> "+" + num + " Max HP (Dungeons)";
             case Protocol.SKILL_EFFECT_DUNGEON_MOVE_SPEED_PCT      -> num + "% increased Move Speed (Dungeons)";
             case Protocol.SKILL_EFFECT_DUNGEON_JUMP_BOOST_FLAT     -> "+" + num + " Jump Boost (Dungeons)";
-            case Protocol.SKILL_EFFECT_CHEST_COST_REDUCTION_PCT    -> num + "% decreased Chest Cost";
-            case Protocol.SKILL_EFFECT_RUNE_RARITY_UPGRADE_CHANCE  -> "+" + num + "% Rune Rarity Upgrade Chance";
-            case Protocol.SKILL_EFFECT_BONUS_RUNE_DROP_CHANCE      -> "+" + num + "% Bonus Rune Drop Chance";
+            case Protocol.SKILL_EFFECT_CHEST_COST_REDUCTION_PCT    -> num + "% decreased Chest Cost (Dungeons)";
+            case Protocol.SKILL_EFFECT_RUNE_RARITY_UPGRADE_CHANCE  -> "+" + num + "% Rune Rarity Upgrade Chance (Dungeons)";
+            case Protocol.SKILL_EFFECT_BONUS_RUNE_DROP_CHANCE      -> "+" + num + "% Bonus Rune Drop Chance (Dungeons)";
             case Protocol.SKILL_EFFECT_DUNGEON_LIFESTEAL_PCT       -> num + "% Damage Dealt Healed (Dungeon Mobs)";
             case Protocol.SKILL_EFFECT_DUNGEON_CULLING_THRESHOLD_PCT -> "Culling Strike: kill below " + num + "% HP";
             case Protocol.SKILL_EFFECT_DUNGEON_DOUBLE_JUMP_FLAT    -> "Unlocks Double Jump (Dungeons)";
