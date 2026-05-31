@@ -38,7 +38,7 @@ public final class CooldownsHud extends HudElement {
 
     /** Stable keys for every individual cooldown the player can toggle. Matches the wire byte ids. */
     public static final List<String> ALL_KEYS = List.of(
-            "fix", "eat", "feed", "jet",
+            "fix", "fixall", "eat", "feed", "jet",
             "combat_tag",
             "devour", "last_stand", "enlighten", "painkiller", "prismatic_eff", "berserk", "adrenaline"
     );
@@ -154,7 +154,8 @@ public final class CooldownsHud extends HudElement {
     /** Maps a wire entry to its stable per-cooldown key used in {@link #ALL_KEYS}. */
     public static String entryKeyFor(CooldownsPayload.Entry e) {
         if (e.category() == Protocol.CD_CAT_COMMANDS) {
-            if (e.id() == Protocol.CD_CMD_FIX)  return "fix";
+            if (e.id() == Protocol.CD_CMD_FIX)    return "fix";
+            if (e.id() == Protocol.CD_CMD_FIXALL) return "fixall";
             if (e.id() == Protocol.CD_CMD_EAT)  return "eat";
             if (e.id() == Protocol.CD_CMD_FEED) return "feed";
             if (e.id() == Protocol.CD_CMD_JET)  return "jet";
@@ -177,6 +178,7 @@ public final class CooldownsHud extends HudElement {
     public static String displayNameForKey(String key) {
         return switch (key) {
             case "fix"            -> "/fix";
+            case "fixall"         -> "/fixall";
             case "eat"            -> "/eat";
             case "feed"           -> "/feed";
             case "jet"            -> "/jet";

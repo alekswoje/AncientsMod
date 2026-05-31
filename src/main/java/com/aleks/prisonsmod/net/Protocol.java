@@ -161,6 +161,7 @@ public final class Protocol {
     public static final byte CD_CMD_EAT    = 1;
     public static final byte CD_CMD_FEED   = 2;
     public static final byte CD_CMD_JET    = 3;
+    public static final byte CD_CMD_FIXALL = 4;
     public static final byte CD_COMBAT_TAG = 0;
     // Enchant proc ids (must match plugin).
     public static final byte CD_ENCH_DEVOUR         = 0;

@@ -10,6 +10,8 @@
 
 ## HUDs
 
+- **Cooldowns HUD** now shows your **/fixall** cooldown. Previously only `/fix` appeared, so the much longer fixall cooldown was invisible — you can toggle it under the HUD's *Per-cooldown filter*.
+
 ## Rendering & Visuals
 
 - **Fullbright.** New setting under **World** in the PrisonsMod settings (F9). On by default — replaces the server's removed permanent night vision so dark areas still look bright. The server can disable it in specific worlds via its `prisonsmod.fullbright.blacklist-worlds` config (sent over the prisonsmod channel on join), so atmospheric event worlds can stay dark.
