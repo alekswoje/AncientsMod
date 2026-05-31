@@ -12,6 +12,7 @@
 
 ## Rendering & Visuals
 
+- **Booster multiplier & duration on the item** (Settings → Item Display → *Multiplier / duration on boosters*, on by default). Booster items now show their multiplier (e.g. `2x`, top-left) and total duration (e.g. `30m`, bottom-right) right on the icon in your inventory and hotbar, color-matched to the boost type (green XP, aqua Energy, gold Ore, purple Shard) — so you can read a booster's worth at a glance without hovering.
 - **Client-side Powerball rendering** (Settings → Mining → *Client powerball render*, on by default). Your Powerball fireballs are now drawn locally instead of as server entities, so the server stops streaming a position packet for every fireball every tick while you mine — a big lag/ping reduction when Powerball stacks up, especially on slower connections. The fireballs follow the exact same bouncing path and break the same blocks as before. They're drawn with particles, so if you run **Minimal** particles, toggle this off to go back to the server-rendered fireballs.
 
 ## UI & Screens

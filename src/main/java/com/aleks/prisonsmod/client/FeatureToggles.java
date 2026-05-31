@@ -97,6 +97,10 @@ public final class FeatureToggles {
     /** Draw item level (top-right) and pickaxe prestige (top-left) on gear/picks, from synced custom_data. */
     private static volatile boolean gearStatsOverlay = true;
 
+    /** Draw a booster's multiplier (top-left) and total duration (bottom-right) on its item slot,
+     *  color-matched to the boost type. Parsed from the synced name + lore — no server change. */
+    private static volatile boolean boosterInfoOverlay = true;
+
     /** Render Powerball fireballs client-side (a flame stream following the
      *  server-authoritative bounce path) instead of the server's per-ball
      *  ItemDisplay. On = the server stops streaming per-tick entity-move packets
@@ -144,6 +148,7 @@ public final class FeatureToggles {
             itemLock = parseBool(props.getProperty("itemLock"), itemLock);
             currencyAmountOverlay = parseBool(props.getProperty("currencyAmountOverlay"), currencyAmountOverlay);
             gearStatsOverlay = parseBool(props.getProperty("gearStatsOverlay"), gearStatsOverlay);
+            boosterInfoOverlay = parseBool(props.getProperty("boosterInfoOverlay"), boosterInfoOverlay);
             powerballRender = parseBool(props.getProperty("powerballRender"), powerballRender);
         } catch (IOException e) {
             PrisonsMod.LOGGER.warn("failed to load {}: {}", FILE_NAME, e.getMessage());
@@ -175,6 +180,7 @@ public final class FeatureToggles {
         props.setProperty("itemLock", Boolean.toString(itemLock));
         props.setProperty("currencyAmountOverlay", Boolean.toString(currencyAmountOverlay));
         props.setProperty("gearStatsOverlay", Boolean.toString(gearStatsOverlay));
+        props.setProperty("boosterInfoOverlay", Boolean.toString(boosterInfoOverlay));
         props.setProperty("powerballRender", Boolean.toString(powerballRender));
         try {
             Files.createDirectories(configPath().getParent());
@@ -410,6 +416,14 @@ public final class FeatureToggles {
     public static void setGearStatsOverlay(boolean value) {
         if (gearStatsOverlay == value) return;
         gearStatsOverlay = value;
+        save();
+    }
+
+    public static boolean isBoosterInfoOverlayEnabled() { return boosterInfoOverlay; }
+
+    public static void setBoosterInfoOverlay(boolean value) {
+        if (boosterInfoOverlay == value) return;
+        boosterInfoOverlay = value;
         save();
     }
 

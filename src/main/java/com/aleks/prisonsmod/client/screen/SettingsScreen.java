@@ -43,6 +43,8 @@ public final class SettingsScreen extends WidgetSettingsScreen {
                 FeatureToggles::isCurrencyAmountOverlayEnabled, FeatureToggles::setCurrencyAmountOverlay);
         addToggle("Level / prestige on gear & picks",
                 FeatureToggles::isGearStatsOverlayEnabled, FeatureToggles::setGearStatsOverlay);
+        addToggle("Multiplier / duration on boosters",
+                FeatureToggles::isBoosterInfoOverlayEnabled, FeatureToggles::setBoosterInfoOverlay);
 
         addSection("PvP");
         addToggle("Peaceful PvP",

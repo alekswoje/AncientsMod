@@ -1,5 +1,6 @@
 package com.aleks.prisonsmod.mixin.client;
 
+import com.aleks.prisonsmod.client.BoosterItemOverlay;
 import com.aleks.prisonsmod.client.CurrencyAmountOverlay;
 import com.aleks.prisonsmod.client.FeatureToggles;
 import com.aleks.prisonsmod.client.GearStatsOverlay;
@@ -37,6 +38,9 @@ public abstract class DrawContextStackOverlayMixin {
         }
         if (FeatureToggles.isGearStatsOverlayEnabled()) {
             GearStatsOverlay.render(ctx, x, y, stack);
+        }
+        if (FeatureToggles.isBoosterInfoOverlayEnabled()) {
+            BoosterItemOverlay.render(ctx, x, y, stack);
         }
     }
 }
