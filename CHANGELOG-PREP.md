@@ -10,6 +10,8 @@
 
 ## HUDs
 
+- Added **Outpost HUD** — moveable widget showing all 5 outposts with their controlling gang and capture %; per-outpost show/hide toggles in settings (color-coded: green = held, amber = actively capping, grey = neutral).
+
 ## Rendering & Visuals
 
 ## UI & Screens
@@ -21,3 +23,4 @@
 ## Updates & Installation
 
 ## Quality of Life
+- Enchant Dust and Calcified Dust now show their **% value** as a small label in the bottom-right of the item slot, so you can tell dust apart at a glance without hovering. Toggleable under Settings → Item Display.
