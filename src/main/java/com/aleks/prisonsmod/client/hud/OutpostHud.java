@@ -13,14 +13,14 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Moveable widget showing all five outpost names, their controlling gang, and
- * capture progress. Each outpost can be individually toggled via the settings
- * screen. Reads from {@link OutpostState} every frame.
+ * Moveable widget showing your gang's owned outposts. The server only sends
+ * outposts that are fully owned by the player's gang, so this HUD collapses
+ * when you hold no outposts.
  *
  * <p>Layout per row:
- * {@code [accent strip] OutpostName  GangName  XX%}
- * with the % right-aligned. Neutral outposts show "–" for gang and "0%" for
- * percent. Fully-held outposts show "HELD" instead of "100%".
+ * {@code [accent strip] OutpostName  GangName  HELD}
+ * Status is "HELD" while secure; switches to a red "XX%" if the outpost is
+ * being neutralized (percentDecreasing) so you can see it's under attack.
  */
 public final class OutpostHud extends HudElement {
 
@@ -29,9 +29,8 @@ public final class OutpostHud extends HudElement {
     private static final int MIN_WIDTH = 150;
 
     // Colors
-    private static final int COLOR_HELD    = 0xFF57E89C; // green-teal — fully captured
-    private static final int COLOR_CAPPING = 0xFFFFD68A; // amber — actively capping
-    private static final int COLOR_NEUTRAL = 0xFF8B9BAD; // muted grey — uncapped / decaying
+    private static final int COLOR_HELD    = 0xFF57E89C; // green-teal — fully held and secure
+    private static final int COLOR_DANGER  = 0xFFFF5C5C; // red — being neutralized (under attack)
     private static final int COLOR_GANG    = 0xFFE6E8EE;
 
     public static final String KEY_VISIBLE = "visible";
@@ -133,25 +132,18 @@ public final class OutpostHud extends HudElement {
             String pctLabel;
             int pctColor;
             int accent;
-            if (e.hasReached100() && e.percent() >= 100) {
+            // All server-sent entries are owned by the player's gang.
+            // Show "HELD" when secure; show % in red if actively being neutralized.
+            if (e.percentDecreasing() && e.percent() < 100) {
+                pctLabel = e.percent() + "%";
+                pctColor = COLOR_DANGER;
+                accent   = COLOR_DANGER;
+            } else {
                 pctLabel = "HELD";
                 pctColor = COLOR_HELD;
                 accent   = COLOR_HELD;
-            } else if (e.percent() > 0) {
-                pctLabel = e.percent() + "%";
-                pctColor = COLOR_CAPPING;
-                accent   = COLOR_CAPPING;
-            } else {
-                pctLabel = "0%";
-                pctColor = COLOR_NEUTRAL;
-                accent   = COLOR_NEUTRAL;
-                gangName = "";
             }
             out.add(new Row(label, gangName, pctLabel, pctColor, accent));
-        }
-        // If all filtered out, return at least one placeholder row so height > 0
-        if (out.isEmpty() && !all.isEmpty()) {
-            out.add(new Row("–", "", "–", COLOR_NEUTRAL, COLOR_NEUTRAL));
         }
         return out;
     }
