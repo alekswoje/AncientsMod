@@ -293,6 +293,8 @@ public final class Protocol {
     public static final int OUTPOST_MAX_ID_CHARS   = 16;
     public static final int OUTPOST_MAX_GANG_CHARS = 16;
     public static final int RATE_OUTPOST_STATE_PER_SEC = 5;
+    /** flags bit2: outpost is fully owned by the player's own gang. */
+    public static final int OUTPOST_FLAG_OWN_GANG  = 4;
 
     /**
      * S2C — Powerball fireball render hint. Lets the mod draw the bouncing

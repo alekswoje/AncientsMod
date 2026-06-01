@@ -29,8 +29,10 @@ public final class OutpostHud extends HudElement {
     private static final int MIN_WIDTH = 150;
 
     // Colors
-    private static final int COLOR_HELD    = 0xFF57E89C; // green-teal — fully held and secure
-    private static final int COLOR_DANGER  = 0xFFFF5C5C; // red — being neutralized (under attack)
+    private static final int COLOR_HELD    = 0xFF57E89C; // green  — own gang, secure
+    private static final int COLOR_DANGER  = 0xFFFF5C5C; // red    — own gang, being neutralized
+    private static final int COLOR_CAPPING = 0xFFFFD68A; // amber  — in cap, being capped
+    private static final int COLOR_NEUTRAL = 0xFF8B9BAD; // grey   — in cap, nobody here
     private static final int COLOR_GANG    = 0xFFE6E8EE;
 
     public static final String KEY_VISIBLE = "visible";
@@ -132,16 +134,33 @@ public final class OutpostHud extends HudElement {
             String pctLabel;
             int pctColor;
             int accent;
-            // All server-sent entries are owned by the player's gang.
-            // Show "HELD" when secure; show % in red if actively being neutralized.
-            if (e.percentDecreasing() && e.percent() < 100) {
-                pctLabel = e.percent() + "%";
-                pctColor = COLOR_DANGER;
-                accent   = COLOR_DANGER;
+            if (e.isOwnGang()) {
+                // Owned by the player's gang.
+                if (e.percentDecreasing() && e.percent() < 100) {
+                    pctLabel = e.percent() + "%";
+                    pctColor = COLOR_DANGER;
+                    accent   = COLOR_DANGER;
+                } else {
+                    pctLabel = "HELD";
+                    pctColor = COLOR_HELD;
+                    accent   = COLOR_HELD;
+                }
             } else {
-                pctLabel = "HELD";
-                pctColor = COLOR_HELD;
-                accent   = COLOR_HELD;
+                // Player is standing in this cap but their gang doesn't own it.
+                if (e.hasReached100()) {
+                    // Enemy-owned — show as threat
+                    pctLabel = "HELD";
+                    pctColor = COLOR_DANGER;
+                    accent   = COLOR_DANGER;
+                } else if (e.percent() > 0) {
+                    pctLabel = e.percent() + "%";
+                    pctColor = COLOR_CAPPING;
+                    accent   = COLOR_CAPPING;
+                } else {
+                    pctLabel = "0%";
+                    pctColor = COLOR_NEUTRAL;
+                    accent   = COLOR_NEUTRAL;
+                }
             }
             out.add(new Row(label, gangName, pctLabel, pctColor, accent));
         }
