@@ -38,7 +38,9 @@ public final class RateLimiter {
         SKILLTREE_OPEN(Protocol.RATE_SKILLTREE_OPEN_PER_SEC),
         SKILLTREE_STATE(Protocol.RATE_SKILLTREE_STATE_PER_SEC),
         SKILLTREE_ACK(Protocol.RATE_SKILLTREE_ACK_PER_SEC),
-        LOOT_CHUNK(Protocol.RATE_LOOT_CHUNK_PER_SEC);
+        LOOT_CHUNK(Protocol.RATE_LOOT_CHUNK_PER_SEC),
+        POWERBALL(Protocol.RATE_POWERBALL_PER_SEC),
+        OUTPOST_STATE(Protocol.RATE_OUTPOST_STATE_PER_SEC);
 
         final int perSecond;
         Kind(int perSecond) { this.perSecond = perSecond; }

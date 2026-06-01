@@ -580,7 +580,16 @@ public final class PvTerminalScreen extends Screen {
         ctx.fill(panelX + panelW - 1, panelY, panelX + panelW, panelY + panelH, 0xFF555555);
 
         ctx.fill(panelX, panelY, panelX + panelW, panelY + TITLE_BAR_H, 0xFF1A1A1A);
-        ctx.drawText(this.textRenderer, Text.literal("§ePV Terminal §8· §7" + entries.size() + " items"),
+        int totalOccupied = 0, totalCapacity = 0;
+        if (bundle != null) {
+            for (PvBundlePayload.Vault v : bundle.vaults) {
+                if (v.isAccessible()) { totalOccupied += v.slots.size(); totalCapacity += v.slotCount; }
+            }
+        }
+        int pct = totalCapacity > 0 ? (totalOccupied * 100 / totalCapacity) : 0;
+        String pctColor = pct >= 90 ? "§c" : pct >= 75 ? "§e" : "§7";
+        ctx.drawText(this.textRenderer,
+                Text.literal("§ePV Terminal §8· §7" + entries.size() + " items §8· " + pctColor + pct + "%"),
                 panelX + 10, panelY + 8, 0xFFFFFFFF, true);
         if (!canModify()) {
             // Persistent view-only indicator — you can browse/search your PVs

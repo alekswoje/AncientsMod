@@ -387,6 +387,39 @@ public final class Protocol {
 
     public static final int MAX_DISABLED_TEXTURES = 128;
 
+    /**
+     * Periodic snapshot of all outpost states (name, gang, capture %). Drives the
+     * moveable Outpost HUD. Wire: type byte + count byte + per-outpost (id string,
+     * gangName string, percent byte, flags byte). Empty gangName = neutral.
+     */
+    public static final byte PKT_OUTPOST_STATE = 33;
+
+    public static final int MAX_OUTPOST_ENTRIES    = 8;
+    public static final int OUTPOST_MAX_ID_CHARS   = 16;
+    public static final int OUTPOST_MAX_GANG_CHARS = 16;
+    public static final int RATE_OUTPOST_STATE_PER_SEC = 5;
+    /** flags bit2: outpost is fully owned by the player's own gang. */
+    public static final int OUTPOST_FLAG_OWN_GANG  = 4;
+
+    /**
+     * S2C — Powerball fireball render hint. Lets the mod draw the bouncing
+     * fireball client-side so the server stops spawning a per-ball ItemDisplay
+     * and stops streaming a per-tick entity-move packet to the miner. Path stays
+     * server-authoritative: straight-line travel is extrapolated client-side and
+     * the server pushes one update per bounce. After the type byte: a sub-op,
+     * then per op:
+     * <pre>
+     *   SPAWN  : varint wireId; double x,y,z; float vx,vy,vz; varint lifetimeMs
+     *   BOUNCE : varint wireId; double x,y,z; float vx,vy,vz
+     *   DESPAWN: varint wireId; byte fizzle
+     * </pre>
+     * Byte 27 is free on both the master and season2 server schemes — keep it so.
+     */
+    public static final byte PKT_POWERBALL = 27;
+    public static final byte POWERBALL_OP_SPAWN   = 0;
+    public static final byte POWERBALL_OP_BOUNCE  = 1;
+    public static final byte POWERBALL_OP_DESPAWN = 2;
+
     // Suggest category enum-bytes (must match plugin PrisonsModChannel).
     public static final byte SUGGEST_CAT_MOD    = 0;
     public static final byte SUGGEST_CAT_SERVER = 1;
@@ -712,14 +745,22 @@ public final class Protocol {
      *  discovery pushes stop. No payload. */
     public static final byte PKT_LOOT_CLOSE = (byte) 132;
 
+    /** C2S — report whether the mod renders Powerball client-side (1=on, 0=off).
+     *  When on, the server suppresses the server-side ItemDisplay + trail for
+     *  this player's balls and sends {@link #PKT_POWERBALL} hints instead. Sent
+     *  on join after the handshake and on every toggle flip. Byte 133 is free on
+     *  both the master and season2 server schemes. */
+    public static final byte PKT_POWERBALL_STATE = (byte) 133;
+
     // --- Hard size caps (wire-level) ---
     /** Maximum bytes for any single cosmetic S2C payload. Larger packets are dropped. */
     public static final int MAX_PAYLOAD_BYTES = 256;
     /** Larger cap reserved for {@link #PKT_BUFF_SNAPSHOT}, which carries every layer with a label. */
     public static final int MAX_SNAPSHOT_PAYLOAD_BYTES = 16_384;
     /** Even larger cap reserved for {@link #PKT_PV_BUNDLE}: 7 vaults × up to
-     *  162 slots each can produce dense payloads. */
-    public static final int MAX_PV_BUNDLE_BYTES = 65_536;
+     *  162 slots × full lore (a maxed pickaxe can be 140+ lines). Must match
+     *  server-side PrisonsModChannel.MAX_PV_BUNDLE_BYTES. */
+    public static final int MAX_PV_BUNDLE_BYTES = 262_144;
     /** Max bytes for a single {@link #PKT_LOOT_SNAPSHOT_CHUNK} packet. */
     public static final int MAX_LOOT_CHUNK_BYTES = 32_768;
     /** Hard cap on the reassembled loot snapshot body — guards against a
@@ -745,13 +786,11 @@ public final class Protocol {
     public static final int PV_MAX_MATERIAL_KEY_CHARS = 48;
     public static final int PV_MAX_DISPLAY_NAME_CHARS = 64;
     public static final int PV_MAX_AFFINITY_CSV_CHARS = 256;
-    /** Max lore lines carried per PV slot in the bundle. Set high enough to
-     *  carry a maxed pickaxe's full lore (enchants + prestige perks + base
-     *  stats ≈ 30-45 lines) untruncated, while still bounding the payload.
-     *  Must match the plugin's PrisonsModChannel.PV_MAX_LORE_LINES — a server
-     *  that sends MORE than this trips the decode guard and the bundle is
-     *  dropped (older mod jars capped at 16 see exactly that until updated). */
-    public static final int PV_MAX_LORE_LINES = 128;
+    /** Max lore lines accepted per PV slot. A maxed pickaxe can reach ~140 lines
+     *  (103 enchants + prestige + energy + ore tracking). A server that sends MORE
+     *  than this trips the decode guard and the whole bundle is dropped — keep this
+     *  ≥ server-side PrisonsModChannel.PV_MAX_LORE_LINES (currently 200). */
+    public static final int PV_MAX_LORE_LINES = 200;
     public static final int PV_MAX_LORE_LINE_CHARS = 128;
 
     // --- Semantic bounds (validated post-decode) ---
@@ -803,6 +842,9 @@ public final class Protocol {
     /** Loot snapshot is on-demand but multi-chunk; allow a burst for the chunks
      *  of one snapshot to arrive back-to-back without tripping the limiter. */
     public static final int RATE_LOOT_CHUNK_PER_SEC = 80;
+    /** Powerball is burst-prone: a stacked proc sends a spawn per ball plus a
+     *  bounce update per ball-bounce. Generous so legitimate bursts aren't dropped. */
+    public static final int RATE_POWERBALL_PER_SEC = 200;
 
     // --- Meteorite HUD tunables ---
     /** Max tier-name length the server can send us (e.g. "Ancient Debris" → 14). */

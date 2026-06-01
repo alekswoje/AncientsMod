@@ -14,6 +14,7 @@ import com.aleks.prisonsmod.client.hud.HudRegistry;
 import com.aleks.prisonsmod.client.hud.HudRenderer;
 import com.aleks.prisonsmod.client.hud.HudSettings;
 import com.aleks.prisonsmod.client.hud.MeteoriteState;
+import com.aleks.prisonsmod.client.hud.OutpostHud;
 import com.aleks.prisonsmod.client.hud.StatsHud;
 import com.aleks.prisonsmod.client.update.UpdateChecker;
 import com.aleks.prisonsmod.client.update.UpdateInstaller;
@@ -22,6 +23,7 @@ import com.aleks.prisonsmod.render.FloatingNumberRenderer;
 import com.aleks.prisonsmod.render.GangPingRenderer;
 import com.aleks.prisonsmod.render.MeteoriteLabelRenderer;
 import com.aleks.prisonsmod.render.MinePredictRenderer;
+import com.aleks.prisonsmod.render.PowerballRenderer;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
@@ -75,6 +77,7 @@ public final class PrisonsModClient implements ClientModInitializer {
         HudRegistry.register(EventsHud.INSTANCE);
         HudRegistry.register(CooldownsHud.INSTANCE);
         HudRegistry.register(StatsHud.INSTANCE);
+        HudRegistry.register(OutpostHud.INSTANCE);
         HudRenderer.register();
         MeteoriteLabelRenderer.register();
 
@@ -103,6 +106,9 @@ public final class PrisonsModClient implements ClientModInitializer {
                     // is on so it can gate server-side affinity routing (smart
                     // shift-click, /pvsort) to match.
                     NetworkHandler.sendPvFeaturesState(FeatureToggles.isPvOverviewEnabled());
+                    // Tell the server whether we render Powerball client-side so it
+                    // can suppress its per-ball ItemDisplay + per-tick packet stream.
+                    NetworkHandler.sendPowerballState(FeatureToggles.isPowerballRenderEnabled());
                 });
             }
         });
@@ -126,6 +132,7 @@ public final class PrisonsModClient implements ClientModInitializer {
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             ServerAllowlist.onDisconnect();
             MinePredictRenderer.reset();
+            PowerballRenderer.reset();
             GangPingManager.reset();
             GangRoster.reset();
             DuelState.reset();
@@ -144,6 +151,7 @@ public final class PrisonsModClient implements ClientModInitializer {
             long now = System.currentTimeMillis();
             FloatingNumberRenderer.tick(now);
             MinePredictRenderer.tick();
+            PowerballRenderer.tick(now);
             GangPingManager.tick(now);
             BugReportClient.tick();
             SuggestClient.tick();
