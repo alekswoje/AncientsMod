@@ -14,6 +14,7 @@ import com.aleks.prisonsmod.client.hud.HudRegistry;
 import com.aleks.prisonsmod.client.hud.HudRenderer;
 import com.aleks.prisonsmod.client.hud.HudSettings;
 import com.aleks.prisonsmod.client.hud.MeteoriteState;
+import com.aleks.prisonsmod.client.hud.OutpostHud;
 import com.aleks.prisonsmod.client.hud.StatsHud;
 import com.aleks.prisonsmod.client.update.UpdateChecker;
 import com.aleks.prisonsmod.client.update.UpdateInstaller;
@@ -76,6 +77,7 @@ public final class PrisonsModClient implements ClientModInitializer {
         HudRegistry.register(EventsHud.INSTANCE);
         HudRegistry.register(CooldownsHud.INSTANCE);
         HudRegistry.register(StatsHud.INSTANCE);
+        HudRegistry.register(OutpostHud.INSTANCE);
         HudRenderer.register();
         MeteoriteLabelRenderer.register();
 

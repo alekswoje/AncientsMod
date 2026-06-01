@@ -283,6 +283,18 @@ public final class Protocol {
     public static final byte PKT_LOOT_SNAPSHOT_CHUNK = 25;
 
     /**
+     * Periodic snapshot of all outpost states (name, gang, capture %). Drives the
+     * moveable Outpost HUD. Wire: type byte + count byte + per-outpost (id string,
+     * gangName string, percent byte, flags byte). Empty gangName = neutral.
+     */
+    public static final byte PKT_OUTPOST_STATE = 26;
+
+    public static final int MAX_OUTPOST_ENTRIES    = 8;
+    public static final int OUTPOST_MAX_ID_CHARS   = 16;
+    public static final int OUTPOST_MAX_GANG_CHARS = 16;
+    public static final int RATE_OUTPOST_STATE_PER_SEC = 5;
+
+    /**
      * S2C — Powerball fireball render hint. Lets the mod draw the bouncing
      * fireball client-side so the server stops spawning a per-ball ItemDisplay
      * and stops streaming a per-tick entity-move packet to the miner. Path stays

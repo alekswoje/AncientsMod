@@ -14,7 +14,9 @@ import com.aleks.prisonsmod.client.hud.CooldownState;
 import com.aleks.prisonsmod.client.hud.EventState;
 import com.aleks.prisonsmod.client.hud.MeteoriteState;
 import com.aleks.prisonsmod.client.hud.MiningStatsState;
+import com.aleks.prisonsmod.client.hud.OutpostState;
 import com.aleks.prisonsmod.client.hud.PveStatsState;
+import com.aleks.prisonsmod.net.payload.OutpostStatePayload;
 import com.aleks.prisonsmod.net.payload.BoosterUpdatePayload;
 import com.aleks.prisonsmod.net.payload.BugReportAiReplyPayload;
 import com.aleks.prisonsmod.net.payload.BugReportErrorPayload;
@@ -215,6 +217,11 @@ public final class NetworkHandler {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.PV_BUNDLE)) return;
                     PvBundlePayload p = PvBundlePayload.decode(buf);
                     PvClient.onBundle(p);
+                }
+                case Protocol.PKT_OUTPOST_STATE -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.OUTPOST_STATE)) return;
+                    OutpostStatePayload p = OutpostStatePayload.decode(buf);
+                    OutpostState.update(p);
                 }
                 case Protocol.PKT_LOOT_SNAPSHOT_CHUNK -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.LOOT_CHUNK)) return;

@@ -34,7 +34,8 @@ public final class RateLimiter {
         SUGGEST(Protocol.RATE_SUGGEST_PER_SEC),
         PV_BUNDLE(Protocol.RATE_PV_BUNDLE_PER_SEC),
         LOOT_CHUNK(Protocol.RATE_LOOT_CHUNK_PER_SEC),
-        POWERBALL(Protocol.RATE_POWERBALL_PER_SEC);
+        POWERBALL(Protocol.RATE_POWERBALL_PER_SEC),
+        OUTPOST_STATE(Protocol.RATE_OUTPOST_STATE_PER_SEC);
 
         final int perSecond;
         Kind(int perSecond) { this.perSecond = perSecond; }

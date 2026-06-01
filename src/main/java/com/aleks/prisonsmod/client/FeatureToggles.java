@@ -55,6 +55,9 @@ public final class FeatureToggles {
     /** Show the draggable Stats HUD (session kill + drop counts, auto-context per world). */
     private static volatile boolean statsHud = true;
 
+    /** Show the draggable Outpost HUD (name, gang, capture % for all 5 outposts). */
+    private static volatile boolean outpostHud = true;
+
     /** Check GitHub for a newer mod release on server join and alert (chat + toast + sound) once per session if one's out. */
     private static volatile boolean updateAlert = true;
 
@@ -101,6 +104,10 @@ public final class FeatureToggles {
      *  color-matched to the boost type. Parsed from the synced name + lore — no server change. */
     private static volatile boolean boosterInfoOverlay = true;
 
+    /** Draw the % value (bottom-right) on Enchant Dust and Calcified Dust slots.
+     *  Parsed from the synced lore — no server change needed. */
+    private static volatile boolean dustPercentOverlay = true;
+
     /** Render Powerball fireballs client-side (a flame stream following the
      *  server-authoritative bounce path) instead of the server's per-ball
      *  ItemDisplay. On = the server stops streaming per-tick entity-move packets
@@ -134,7 +141,8 @@ public final class FeatureToggles {
             meteoriteHud = parseBool(props.getProperty("meteoriteHud"), meteoriteHud);
             eventsHud = parseBool(props.getProperty("eventsHud"), eventsHud);
             cooldownsHud = parseBool(props.getProperty("cooldownsHud"), cooldownsHud);
-            statsHud = parseBool(props.getProperty("statsHud"), statsHud);
+            statsHud   = parseBool(props.getProperty("statsHud"),   statsHud);
+            outpostHud = parseBool(props.getProperty("outpostHud"), outpostHud);
             updateAlert = parseBool(props.getProperty("updateAlert"), updateAlert);
             bugReportUi = parseBool(props.getProperty("bugReportUi"), bugReportUi);
             suggestUi = parseBool(props.getProperty("suggestUi"), suggestUi);
@@ -149,6 +157,7 @@ public final class FeatureToggles {
             currencyAmountOverlay = parseBool(props.getProperty("currencyAmountOverlay"), currencyAmountOverlay);
             gearStatsOverlay = parseBool(props.getProperty("gearStatsOverlay"), gearStatsOverlay);
             boosterInfoOverlay = parseBool(props.getProperty("boosterInfoOverlay"), boosterInfoOverlay);
+            dustPercentOverlay = parseBool(props.getProperty("dustPercentOverlay"), dustPercentOverlay);
             powerballRender = parseBool(props.getProperty("powerballRender"), powerballRender);
         } catch (IOException e) {
             PrisonsMod.LOGGER.warn("failed to load {}: {}", FILE_NAME, e.getMessage());
@@ -166,7 +175,8 @@ public final class FeatureToggles {
         props.setProperty("meteoriteHud", Boolean.toString(meteoriteHud));
         props.setProperty("eventsHud", Boolean.toString(eventsHud));
         props.setProperty("cooldownsHud", Boolean.toString(cooldownsHud));
-        props.setProperty("statsHud", Boolean.toString(statsHud));
+        props.setProperty("statsHud",   Boolean.toString(statsHud));
+        props.setProperty("outpostHud", Boolean.toString(outpostHud));
         props.setProperty("updateAlert", Boolean.toString(updateAlert));
         props.setProperty("bugReportUi", Boolean.toString(bugReportUi));
         props.setProperty("suggestUi", Boolean.toString(suggestUi));
@@ -181,6 +191,7 @@ public final class FeatureToggles {
         props.setProperty("currencyAmountOverlay", Boolean.toString(currencyAmountOverlay));
         props.setProperty("gearStatsOverlay", Boolean.toString(gearStatsOverlay));
         props.setProperty("boosterInfoOverlay", Boolean.toString(boosterInfoOverlay));
+        props.setProperty("dustPercentOverlay", Boolean.toString(dustPercentOverlay));
         props.setProperty("powerballRender", Boolean.toString(powerballRender));
         try {
             Files.createDirectories(configPath().getParent());
@@ -294,6 +305,14 @@ public final class FeatureToggles {
     public static void setCooldownsHud(boolean value) {
         if (cooldownsHud == value) return;
         cooldownsHud = value;
+        save();
+    }
+
+    public static boolean isOutpostHudEnabled() { return outpostHud; }
+
+    public static void setOutpostHud(boolean value) {
+        if (outpostHud == value) return;
+        outpostHud = value;
         save();
     }
 
@@ -424,6 +443,14 @@ public final class FeatureToggles {
     public static void setBoosterInfoOverlay(boolean value) {
         if (boosterInfoOverlay == value) return;
         boosterInfoOverlay = value;
+        save();
+    }
+
+    public static boolean isDustPercentOverlayEnabled() { return dustPercentOverlay; }
+
+    public static void setDustPercentOverlay(boolean value) {
+        if (dustPercentOverlay == value) return;
+        dustPercentOverlay = value;
         save();
     }
 
