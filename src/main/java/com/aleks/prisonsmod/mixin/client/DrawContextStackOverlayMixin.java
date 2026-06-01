@@ -2,6 +2,7 @@ package com.aleks.prisonsmod.mixin.client;
 
 import com.aleks.prisonsmod.client.BoosterItemOverlay;
 import com.aleks.prisonsmod.client.CurrencyAmountOverlay;
+import com.aleks.prisonsmod.client.DustPercentOverlay;
 import com.aleks.prisonsmod.client.FeatureToggles;
 import com.aleks.prisonsmod.client.GearStatsOverlay;
 import com.aleks.prisonsmod.client.ServerAllowlist;
@@ -41,6 +42,9 @@ public abstract class DrawContextStackOverlayMixin {
         }
         if (FeatureToggles.isBoosterInfoOverlayEnabled()) {
             BoosterItemOverlay.render(ctx, x, y, stack);
+        }
+        if (FeatureToggles.isDustPercentOverlayEnabled()) {
+            DustPercentOverlay.render(ctx, x, y, stack);
         }
     }
 }

@@ -45,6 +45,8 @@ public final class SettingsScreen extends WidgetSettingsScreen {
                 FeatureToggles::isGearStatsOverlayEnabled, FeatureToggles::setGearStatsOverlay);
         addToggle("Multiplier / duration on boosters",
                 FeatureToggles::isBoosterInfoOverlayEnabled, FeatureToggles::setBoosterInfoOverlay);
+        addToggle("% on enchant / calcified dust",
+                FeatureToggles::isDustPercentOverlayEnabled, FeatureToggles::setDustPercentOverlay);
 
         addSection("PvP");
         addToggle("Peaceful PvP",
