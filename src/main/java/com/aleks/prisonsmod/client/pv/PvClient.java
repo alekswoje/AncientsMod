@@ -3,9 +3,7 @@ package com.aleks.prisonsmod.client.pv;
 import com.aleks.prisonsmod.PrisonsMod;
 import com.aleks.prisonsmod.client.FeatureToggles;
 import com.aleks.prisonsmod.client.ServerAllowlist;
-import com.aleks.prisonsmod.client.screen.PvAffinityPickerScreen;
 import com.aleks.prisonsmod.client.screen.PvOverviewScreen;
-import com.aleks.prisonsmod.client.screen.PvPresetsScreen;
 import com.aleks.prisonsmod.client.screen.PvTerminalScreen;
 import com.aleks.prisonsmod.net.NetworkHandler;
 import com.aleks.prisonsmod.net.Protocol;
@@ -127,17 +125,19 @@ public final class PvClient {
     public static void onBundle(PvBundlePayload payload) {
         latestBundle = payload;
         MinecraftClient.getInstance().execute(() -> {
+            // A pending /pvsee open: this bundle carries the inspected player's
+            // vaults — force the terminal (pvsee mode) regardless of the user's
+            // own card-vs-terminal preference.
+            if (pendingPvSee) {
+                pendingPvSee = false;
+                state = State.OPEN;
+                MinecraftClient.getInstance().setScreen(
+                        new PvTerminalScreen(payload, pvSeeTargetName));
+                return;
+            }
             // If a mod-side PV screen is open, this bundle is a refresh —
             // re-render in place instead of swapping screens.
             Screen current = MinecraftClient.getInstance().currentScreen;
-            if (current instanceof PvAffinityPickerScreen picker) {
-                picker.onBundleUpdated(payload);
-                return;
-            }
-            if (current instanceof PvPresetsScreen presets) {
-                presets.onBundleUpdated(payload);
-                return;
-            }
             if (current instanceof PvOverviewScreen overview) {
                 overview.onBundleUpdated(payload);
                 return;
@@ -186,29 +186,26 @@ public final class PvClient {
         }
     }
 
-    /** Open the presets screen from the picker's "Presets" button. */
-    public static void openPresetsFromPicker(int returnVault) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        PvBundlePayload b = latestBundle;
-        if (b == null) {
-            NetworkHandler.sendPvBundleRequest();
-            return;
-        }
-        client.setScreen(new PvPresetsScreen(returnVault, b));
-    }
-
-    /** Re-open the affinity picker from the presets screen's "Back" button. */
-    public static void openAffinityPickerFromPresets(int vaultNumber) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        PvBundlePayload b = latestBundle;
-        if (b == null) {
-            NetworkHandler.sendPvBundleRequest();
-            return;
-        }
-        client.setScreen(new PvAffinityPickerScreen(vaultNumber, b));
-    }
-
     private static volatile PvBundlePayload latestBundle = null;
+
+    /** Set by {@link #onOpenTerminal} when the server initiates a /pvsee view;
+     *  consumed by the next {@link #onBundle} (the target's data) to open the
+     *  terminal in pvsee mode. */
+    private static volatile boolean pendingPvSee = false;
+    private static volatile String pvSeeTargetName = "";
+
+    /**
+     * Server told us (via PKT_PV_OPEN_TERMINAL) to open the PV terminal on
+     * another player's vaults — the result of an admin running
+     * {@code /pvsee <player>}. The target's bundle is pushed immediately after,
+     * and {@link #onBundle} opens the terminal in pvsee mode. The target name
+     * is display-only; the server tracks the real target and re-checks the
+     * admin's permission on every action.
+     */
+    public static void onOpenTerminal(String targetName, boolean editable) {
+        pvSeeTargetName = (targetName == null) ? "" : targetName;
+        pendingPvSee = true;
+    }
 
     /** Open a specific PV from the overview. Sends a custom packet rather
      *  than {@code /pv N} so the server can open with
@@ -224,45 +221,14 @@ public final class PvClient {
         NetworkHandler.sendPvOpenRequest(vaultNumber);
     }
 
-    /** Open the client-side affinity picker for a vault. Triggered by
-     *  right-click on an overview card. Uses the cached bundle so categories
-     *  show current bindings; toggle clicks send PKT_PV_AFFINITY_TOGGLE and
-     *  the server replies with an updated bundle that we route back via
-     *  {@link #onBundle}. */
-    public static void openAffinityPicker(int vaultNumber) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.player == null || client.getNetworkHandler() == null) return;
-        if (vaultNumber < 1 || vaultNumber > Protocol.PV_MAX_VAULTS) return;
-        if (latestBundle == null) {
-            // No data yet — kick off a bundle request and the post-bundle path
-            // will open the overview; user can right-click again.
-            NetworkHandler.sendPvBundleRequest();
-            return;
-        }
-        client.setScreen(new PvAffinityPickerScreen(vaultNumber, latestBundle));
-    }
-
     public static boolean isExpectingMenuReopen() {
         return expectingMenuReopen;
     }
 
-    /** Cached PV bundle from the last server-side PKT_PV_BUNDLE. Used by the
-     *  shift-click mixin to decide whether to intercept (only when at least
-     *  one vault has an affinity bound). May be null until the first /pv. */
+    /** Cached PV bundle from the last server-side PKT_PV_BUNDLE. May be null
+     *  until the first /pv. */
     public static PvBundlePayload latestBundle() {
         return latestBundle;
-    }
-
-    /** True if the cached bundle indicates at least one vault has a non-empty
-     *  affinity binding. Cheap call — used per shift-click. */
-    public static boolean hasAnyAffinity() {
-        PvBundlePayload b = latestBundle;
-        if (b == null) return false;
-        for (PvBundlePayload.Vault v : b.vaults) {
-            String csv = v.affinityCsv;
-            if (csv != null && !csv.isEmpty()) return true;
-        }
-        return false;
     }
 
     public static void clearExpectingMenuReopen() {

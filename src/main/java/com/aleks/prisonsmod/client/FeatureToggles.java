@@ -46,6 +46,9 @@ public final class FeatureToggles {
     /** Show the floating "247 Emerald" label above each known meteorite block. Off = no world-space label; the chat line still fires. */
     private static volatile boolean meteoriteHud = true;
 
+    /** Show a world-space beam + label pinging where a mining rush spawned in your tier's mine (same look as meteor pings). Off = no beam; the chat announcement still fires. */
+    private static volatile boolean miningRushPings = true;
+
     /** Show the draggable Events HUD (KOTH / BAH / Meteor / Rift / etc. countdowns). */
     private static volatile boolean eventsHud = true;
 
@@ -70,8 +73,8 @@ public final class FeatureToggles {
     /** Intercept {@code /pv} (no args) and open the mod's overview screen showing all 7 PVs at once. Off = vanilla server menu. */
     private static volatile boolean pvOverview = true;
 
-    /** Use the ME-terminal style PV view (single grid of every stack across every unlocked PV, click to extract, drag to deposit) instead of the per-PV card overview. Off = card overview (current behavior). Only takes effect when {@link #pvOverview} is also on. */
-    private static volatile boolean pvTerminal = false;
+    /** Use the ME-terminal style PV view (single grid of every stack across every unlocked PV, click to extract, drag to deposit) instead of the per-PV card overview. On by default — the terminal is the standard {@code /pv} view. Off = card overview (alternative view). Only takes effect when {@link #pvOverview} is also on. */
+    private static volatile boolean pvTerminal = true;
 
     /** Auto-focus the PV terminal's search box the moment the terminal opens, so
      *  the player can start typing a query without clicking the field first. Only
@@ -142,6 +145,7 @@ public final class FeatureToggles {
             peacefulPvp = parseBool(props.getProperty("peacefulPvp"), peacefulPvp);
             boosterHud = parseBool(props.getProperty("boosterHud"), boosterHud);
             meteoriteHud = parseBool(props.getProperty("meteoriteHud"), meteoriteHud);
+            miningRushPings = parseBool(props.getProperty("miningRushPings"), miningRushPings);
             eventsHud = parseBool(props.getProperty("eventsHud"), eventsHud);
             cooldownsHud = parseBool(props.getProperty("cooldownsHud"), cooldownsHud);
             statsHud   = parseBool(props.getProperty("statsHud"),   statsHud);
@@ -177,6 +181,7 @@ public final class FeatureToggles {
         props.setProperty("peacefulPvp", Boolean.toString(peacefulPvp));
         props.setProperty("boosterHud", Boolean.toString(boosterHud));
         props.setProperty("meteoriteHud", Boolean.toString(meteoriteHud));
+        props.setProperty("miningRushPings", Boolean.toString(miningRushPings));
         props.setProperty("eventsHud", Boolean.toString(eventsHud));
         props.setProperty("cooldownsHud", Boolean.toString(cooldownsHud));
         props.setProperty("statsHud",   Boolean.toString(statsHud));
@@ -297,6 +302,14 @@ public final class FeatureToggles {
         save();
     }
 
+    public static boolean isMiningRushPingsEnabled() { return miningRushPings; }
+
+    public static void setMiningRushPings(boolean value) {
+        if (miningRushPings == value) return;
+        miningRushPings = value;
+        save();
+    }
+
     public static boolean isEventsHudEnabled() { return eventsHud; }
 
     public static void setEventsHud(boolean value) {
@@ -364,11 +377,6 @@ public final class FeatureToggles {
         if (pvOverview == value) return;
         pvOverview = value;
         save();
-        // Notify the server so it can gate server-side affinity routing —
-        // when this is off, vanilla shift-click behavior applies and the
-        // mod's shift-click mixin also stops intercepting. No-op when not
-        // connected.
-        com.aleks.prisonsmod.net.NetworkHandler.sendPvFeaturesState(value);
     }
 
     public static boolean isPvTerminalEnabled() { return pvTerminal; }

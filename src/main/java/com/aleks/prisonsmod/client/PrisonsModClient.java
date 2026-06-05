@@ -102,10 +102,6 @@ public final class PrisonsModClient implements ClientModInitializer {
                     // the action-bar XP/h / Energy/h / $/h trio defaults off.
                     NetworkHandler.sendMiningHudState(
                             com.aleks.prisonsmod.client.hud.StatsHud.isMiningEffectivelyEnabled());
-                    // Tell the server whether the PV-overview / affinity feature
-                    // is on so it can gate server-side affinity routing (smart
-                    // shift-click, /pvsort) to match.
-                    NetworkHandler.sendPvFeaturesState(FeatureToggles.isPvOverviewEnabled());
                     // Tell the server whether we render Powerball client-side so it
                     // can suppress its per-ball ItemDisplay + per-tick packet stream.
                     NetworkHandler.sendPowerballState(FeatureToggles.isPowerballRenderEnabled());
