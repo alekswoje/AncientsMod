@@ -68,6 +68,8 @@ public final class SettingsScreen extends WidgetSettingsScreen {
         });
 
         addSection("World");
+        addToggle("Mining rush pings",
+                FeatureToggles::isMiningRushPingsEnabled, FeatureToggles::setMiningRushPings);
         addToggle("Rift texture pack",
                 FeatureToggles::isRiftTexturePackEnabled, FeatureToggles::setRiftTexturePack);
 

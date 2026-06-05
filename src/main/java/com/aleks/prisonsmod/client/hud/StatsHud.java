@@ -35,13 +35,32 @@ public final class StatsHud extends HudElement {
      * `lootbox:<subtype>` key — the mod aggregates locally based on this flag.
      */
     public static final String KEY_SPLIT_LOOTBOX_SUBTYPES = "split_lootbox_subtypes";
+    /** Setting key: comma-separated list of ore-ids (Bukkit Material names) the
+     *  player wants shown in the blocks section. Empty = curated default. */
+    public static final String KEY_VISIBLE_BLOCKS = "visible_blocks";
+    /** Setting key: when true the blocks section shows this-session counts; when
+     *  false it shows lifetime totals on the held pickaxe (prestige-style). */
+    public static final String KEY_BLOCKS_SESSION = "blocks_session";
 
     /** Drop-key prefixes that the mod can aggregate or split. Matches the
      *  server-side allowlist in {@code LootTableRegistry.rollAndDropKillerOnly}. */
     private static final Set<String> SPLITTABLE_DROP_PREFIXES = Set.of("lootbox", "lockbox", "seasonal_crate");
 
-    public static final List<String> ALL_SECTIONS = List.of("world", "mining", "kills", "drops");
-    public static final Set<String> DEFAULT_SECTIONS = new LinkedHashSet<>(ALL_SECTIONS);
+    public static final List<String> ALL_SECTIONS = List.of("world", "mining", "blocks", "kills", "drops");
+    /** Blocks is opt-in, so it is NOT in the default set — existing users don't
+     *  suddenly get a new section until they enable it in settings. */
+    public static final Set<String> DEFAULT_SECTIONS =
+            new LinkedHashSet<>(List.of("world", "mining", "kills", "drops"));
+
+    /** Ores offered as toggles in the blocks-section settings (display order). */
+    public static final List<String> CANDIDATE_BLOCKS = List.of(
+            "COAL_ORE", "IRON_ORE", "COPPER_ORE", "GOLD_ORE", "REDSTONE_ORE",
+            "LAPIS_ORE", "DIAMOND_ORE", "EMERALD_ORE",
+            "NETHER_GOLD_ORE", "NETHER_QUARTZ_ORE", "ANCIENT_DEBRIS"
+    );
+    /** Curated "not too big" default — the headline ores most players care about. */
+    public static final Set<String> DEFAULT_VISIBLE_BLOCKS =
+            new LinkedHashSet<>(List.of("IRON_ORE", "GOLD_ORE", "DIAMOND_ORE", "EMERALD_ORE"));
 
     /** Display order for kill kinds — anything not listed renders after these, in arrival order. */
     public static final List<String> KILL_ORDER = List.of(
@@ -69,7 +88,9 @@ public final class StatsHud extends HudElement {
         // the HUD naturally disappears once both are quiet.
         Set<String> sections = enabledSections();
         boolean miningLive = sections.contains("mining") && MiningStatsState.isLive();
+        boolean blocksLive = sections.contains("blocks") && MiningBlocksState.isLive() && !blockRows().isEmpty();
         return miningLive
+            || blocksLive
             || !PveStatsState.kills().isEmpty()
             || !PveStatsState.drops().isEmpty();
     }
@@ -109,6 +130,16 @@ public final class StatsHud extends HudElement {
         return HudSettings.getBoolean(id(), KEY_SPLIT_LOOTBOX_SUBTYPES, false);
     }
 
+    /** Ores the player wants shown in the blocks section (curated default when unset). */
+    public Set<String> visibleBlocks() {
+        return HudSettings.getStringSet(id(), KEY_VISIBLE_BLOCKS, DEFAULT_VISIBLE_BLOCKS);
+    }
+
+    /** True = blocks section shows this-session counts; false = lifetime totals. */
+    public boolean blocksSessionMode() {
+        return HudSettings.getBoolean(id(), KEY_BLOCKS_SESSION, false);
+    }
+
     @Override
     public int width() {
         TextRenderer fr = textRenderer();
@@ -124,6 +155,13 @@ public final class StatsHud extends HudElement {
         }
         if (sections.contains("mining") && MiningStatsState.isLive()) {
             for (MiningRow r : miningRows()) {
+                int w = fr.getWidth(r.label) + colGap + fr.getWidth(r.value);
+                if (w > widest) widest = w;
+            }
+        }
+        if (sections.contains("blocks") && MiningBlocksState.isLive()) {
+            widest = Math.max(widest, fr.getWidth(blocksHeader()));
+            for (MiningRow r : blockRows()) {
                 int w = fr.getWidth(r.label) + colGap + fr.getWidth(r.value);
                 if (w > widest) widest = w;
             }
@@ -149,6 +187,10 @@ public final class StatsHud extends HudElement {
         int rows = 0;
         if (sections.contains("world") && !PveStatsState.worldName().isEmpty()) rows += 1;
         if (sections.contains("mining") && MiningStatsState.isLive()) rows += miningRows().size();
+        if (sections.contains("blocks") && MiningBlocksState.isLive()) {
+            int br = blockRows().size();
+            if (br > 0) rows += 1 + br; // sub-header + ore rows
+        }
         if (sections.contains("kills")) rows += Math.max(1, killRows().size());
         if (sections.contains("drops") && !dropRows().isEmpty()) rows += dropRows().size();
         rows = Math.max(rows, 1);
@@ -189,6 +231,24 @@ public final class StatsHud extends HudElement {
                 ctx.drawText(fr, Text.literal(r.label), textX, textY,
                         (r.accent & 0x00FFFFFF) | 0xFF000000, true);
                 rowY += rowH;
+            }
+        }
+
+        if (sections.contains("blocks") && MiningBlocksState.isLive()) {
+            List<MiningRow> br = blockRows();
+            if (!br.isEmpty()) {
+                ctx.drawText(fr, Text.literal(blocksHeader()), padX + stripW + stripGap, rowY + 2, SUBHEADER, true);
+                rowY += rowH;
+                for (MiningRow r : br) {
+                    ctx.fill(padX, rowY, padX + stripW, rowY + rowH - 2, r.accent);
+                    int textX = padX + stripW + stripGap;
+                    int textY = rowY + 2;
+                    int valW = fr.getWidth(r.value);
+                    ctx.drawText(fr, Text.literal(r.value), w - padX - valW, textY, VALUE_COLOR, true);
+                    ctx.drawText(fr, Text.literal(r.label), textX, textY,
+                            (r.accent & 0x00FFFFFF) | 0xFF000000, true);
+                    rowY += rowH;
+                }
             }
         }
 
@@ -235,6 +295,50 @@ public final class StatsHud extends HudElement {
         if (energy > 0) out.add(new MiningRow("Energy/h",  formatCompact(energy),0xFF8AC2FF));
         if (money > 0)  out.add(new MiningRow("$/h",       "$" + formatCompact(money), 0xFFE6B05A));
         return out;
+    }
+
+    private String blocksHeader() {
+        return blocksSessionMode() ? "Blocks (session)" : "Blocks";
+    }
+
+    /** Per-ore rows for the blocks section: only the player's chosen ores that
+     *  have a non-zero count in the current mode. Wire order is preserved. */
+    private List<MiningRow> blockRows() {
+        List<MiningRow> out = new ArrayList<>();
+        if (!MiningBlocksState.isLive()) return out;
+        Set<String> whitelist = visibleBlocks();
+        boolean session = blocksSessionMode();
+        for (com.aleks.prisonsmod.net.payload.MiningBlocksPayload.Row r : MiningBlocksState.rows()) {
+            if (!whitelist.contains(r.oreId())) continue;
+            long v = session ? r.session() : r.lifetime();
+            if (v <= 0) continue;
+            out.add(new MiningRow(prettyOre(r.oreId()), formatCompact(v), oreColor(r.oreId())));
+        }
+        return out;
+    }
+
+    /** "DIAMOND_ORE" → "Diamond", "ANCIENT_DEBRIS" → "Ancient Debris". */
+    public static String prettyOre(String oreId) {
+        if (oreId == null || oreId.isEmpty()) return "?";
+        String s = oreId;
+        if (s.endsWith("_ORE")) s = s.substring(0, s.length() - 4);
+        return titleCase(s);
+    }
+
+    private static int oreColor(String oreId) {
+        return switch (oreId) {
+            case "DIAMOND_ORE"      -> 0xFF6BE0D6;
+            case "EMERALD_ORE"      -> 0xFF49C96A;
+            case "GOLD_ORE", "NETHER_GOLD_ORE" -> 0xFFE6C04A;
+            case "IRON_ORE"         -> 0xFFD8C2B0;
+            case "COPPER_ORE"       -> 0xFFE08A5A;
+            case "REDSTONE_ORE"     -> 0xFFE05A5A;
+            case "LAPIS_ORE"        -> 0xFF4A78E6;
+            case "COAL_ORE"         -> 0xFF8A8A8A;
+            case "NETHER_QUARTZ_ORE"-> 0xFFEAE0D6;
+            case "ANCIENT_DEBRIS"   -> 0xFF9A6A4A;
+            default                 -> 0xFFFFFFFF;
+        };
     }
 
     /** Format compact numbers like the action bar does: 12345 → "12.3K". */

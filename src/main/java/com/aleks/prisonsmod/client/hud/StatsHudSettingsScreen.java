@@ -33,6 +33,7 @@ public final class StatsHudSettingsScreen extends WidgetSettingsScreen {
             String label = switch (section) {
                 case "world"  -> "Show world name";
                 case "mining" -> "Show mining (XP/h, Energy/h, $/h)";
+                case "blocks" -> "Show blocks (per-ore counts)";
                 case "kills"  -> "Show kills section";
                 case "drops"  -> "Show drops section";
                 default       -> "Show " + section;
@@ -49,6 +50,21 @@ public final class StatsHudSettingsScreen extends WidgetSettingsScreen {
                             com.aleks.prisonsmod.net.NetworkHandler.sendMiningHudState(
                                     StatsHud.isMiningEffectivelyEnabled());
                         }
+                    });
+        }
+
+        addSection("Blocks");
+        addToggle("Count mode: session (off = lifetime total on pickaxe)",
+                stats::blocksSessionMode,
+                v -> HudSettings.setBoolean(stats.id(), StatsHud.KEY_BLOCKS_SESSION, v));
+        // Per-ore visibility — curated default set; toggle which ores show.
+        for (String ore : StatsHud.CANDIDATE_BLOCKS) {
+            addToggle("Show " + StatsHud.prettyOre(ore),
+                    () -> stats.visibleBlocks().contains(ore),
+                    v -> {
+                        Set<String> current = new LinkedHashSet<>(stats.visibleBlocks());
+                        if (v) current.add(ore); else current.remove(ore);
+                        HudSettings.setStringSet(stats.id(), StatsHud.KEY_VISIBLE_BLOCKS, current);
                     });
         }
 
