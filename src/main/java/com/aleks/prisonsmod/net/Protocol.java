@@ -258,10 +258,24 @@ public final class Protocol {
 
     /**
      * Bundle of all 7 PVs' contents (material id + custom name + amount per
-     * non-empty slot, plus affinity csv per vault). Drives the mod's custom
-     * {@code /pv} overview screen. Bounded by {@link #MAX_PV_BUNDLE_BYTES}.
+     * non-empty slot, plus a now-vestigial empty affinity-csv field per vault
+     * kept for wire compatibility). Drives the mod's {@code /pv} terminal +
+     * card views. Bounded by {@link #MAX_PV_BUNDLE_BYTES}.
      */
     public static final byte PKT_PV_BUNDLE = 23;
+
+    /**
+     * S2C — open the PV terminal pointed at another player's vaults (admin
+     * {@code /pvsee}). The target's bundle follows immediately as a
+     * {@link #PKT_PV_BUNDLE}. Carries no UUID — only a display name + editable
+     * flag; the server tracks the real target and re-checks permission per
+     * action. Wire: {@code varint+string targetName; byte editable}.
+     * Byte 36 is free on both the master and season2 schemes (35 is
+     * PKT_MINING_BLOCKS).
+     */
+    public static final byte PKT_PV_OPEN_TERMINAL = 36;
+    /** Max chars for the target name in {@link #PKT_PV_OPEN_TERMINAL}. */
+    public static final int PV_OPEN_TERMINAL_MAX_NAME_CHARS = 16;
 
     /**
      * Live mining rates snapshot (XP/h, Energy/h, $/h) for the Stats HUD
@@ -314,6 +328,40 @@ public final class Protocol {
     public static final byte POWERBALL_OP_SPAWN   = 0;
     public static final byte POWERBALL_OP_BOUNCE  = 1;
     public static final byte POWERBALL_OP_DESPAWN = 2;
+
+    /**
+     * Server-broadcast mining-rush ping: "a mining rush block spawned here".
+     * Same wire format and renderer path as {@link #PKT_METEOR_PING} — a
+     * world-space beam + HUD label with a server-chosen per-tier ore colour and
+     * a payload-carried lifetime sized to the rush's expiry window. The server
+     * only sends this to players of the rush's tier, so each player sees the
+     * beam for the mine they can actually rush. Client-gated by the
+     * "Mining rush pings" toggle (dropped at intake when off).
+     *
+     * <p>Byte 34 is free on BOTH the master/dev scheme (tops out at 33) and the
+     * season2 scheme (28-30 = skilltree, 31 = loot, 33 = outpost), so this id
+     * needs no renumber when merging dev→season2 — same anchor strategy as
+     * {@link #PKT_POWERBALL}. Keep it that way.
+     */
+    public static final byte PKT_MINING_RUSH_PING = 34;
+
+    /**
+     * Per-ore mined-block counts (lifetime on the held pickaxe + this-session)
+     * for the Stats HUD "blocks" section. Server emits at 1 Hz only while a live
+     * mining window is active — when the wire goes quiet, the section stales out.
+     * Wire: type byte + {@code byte count; for each: varint+string oreId (Bukkit
+     * Material name), varint lifetime, varint session}.
+     *
+     * <p>Byte 35 is free on BOTH the master/dev scheme (tops at 34 = mining-rush)
+     * and the season2 scheme (28-33), so it needs no renumber when merging
+     * dev→season2 — same anchor strategy as {@link #PKT_POWERBALL}. Keep it so.
+     */
+    public static final byte PKT_MINING_BLOCKS = 35;
+
+    /** Hard cap on per-ore rows in a mining-blocks snapshot (mirrors plugin). */
+    public static final int MAX_MINING_BLOCK_ROWS = 32;
+    /** Max ore-id (Bukkit Material name) length accepted on the wire. */
+    public static final int MINING_BLOCK_MAX_ID_CHARS = 48;
 
     /**
      * Server → client: the set of custom item textures this player has turned
@@ -513,22 +561,10 @@ public final class Protocol {
      * fresh overview). Wire format: single byte vault (1..7).
      */
     public static final byte PKT_PV_OPEN_REQ = (byte) 113;
-    /**
-     * Player right-clicked a vault card in the mod's overview — open the
-     * affinity picker for that vault. Wire format: single byte vault (1..7).
-     */
-    public static final byte PKT_PV_AFFINITY_OPEN_REQ = (byte) 114;
-    /** Toggle a single category on a vault. Server enforces exclusivity and
-     *  replies with PKT_PV_BUNDLE. Wire: byte vault, varint+string key. */
-    public static final byte PKT_PV_AFFINITY_TOGGLE = (byte) 115;
-    /** Clear every affinity bound to a vault. Wire: byte vault. */
-    public static final byte PKT_PV_AFFINITY_CLEAR = (byte) 116;
-    /** Apply an affinity preset (overwrites every unlocked PV's affinities).
-     *  Wire: varint+string presetKey. */
-    public static final byte PKT_PV_APPLY_PRESET = (byte) 117;
-    /** Trigger /pvsort and re-send the bundle so the overview refreshes
-     *  in place. No payload. */
-    public static final byte PKT_PV_SORT_REQ = (byte) 118;
+    // C2S bytes 114-118 were the PV affinity/sort packets (AFFINITY_OPEN_REQ,
+    // AFFINITY_TOGGLE, AFFINITY_CLEAR, APPLY_PRESET, SORT_REQ). The affinity +
+    // /pvsort system was removed (replaced by the PV terminal); these ids are
+    // now free.
     /**
      * Report the current state of the client-side booster HUD toggle. Server
      * uses this to default the action-bar booster line OFF while the mod is
@@ -539,18 +575,17 @@ public final class Protocol {
      * flips. Wire format: type byte + single state byte (1 = HUD on, 0 = off).
      */
     public static final byte PKT_BOOSTER_HUD_STATE = (byte) 119;
-    /** Sent by the shift-click mixin when the player shift-clicks a player-
-     *  inventory slot while a PV menu is open. The server runs affinity
-     *  routing in place of the vanilla container click, so the client never
-     *  applies its predicted "item lands in open container" state — no
-     *  flicker as the server corrects the prediction. Wire: type byte +
+    /** Terminal deposit: the player shift-clicked a player-inventory slot while
+     *  the PV terminal screen is open. The server pushes that stack into the
+     *  first accessible vault with space (merge-then-fill, no affinity) and
+     *  replies with a fresh PKT_PV_BUNDLE. Wire: type byte +
      *  {@code int playerInvSlot} (0..35, Bukkit ordering — hotbar 0..8,
      *  main inv 9..35). */
     public static final byte PKT_PV_SHIFT_CLICK_REQ = (byte) 120;
 
-    /** Swap two vaults' contents + affinities. Sent by the overview screen on
-     *  drag-drop. Wire: byte fromVault, byte toVault. Server replies with a
-     *  fresh PKT_PV_BUNDLE so the screen re-renders. */
+    /** Swap two vaults' contents. Sent by the overview screen on drag-drop.
+     *  Wire: byte fromVault, byte toVault. Server replies with a fresh
+     *  PKT_PV_BUNDLE so the screen re-renders. */
     public static final byte PKT_PV_SWAP_REQ = (byte) 121;
 
     /**
@@ -564,18 +599,8 @@ public final class Protocol {
      */
     public static final byte PKT_MINING_HUD_STATE = (byte) 122;
 
-    /**
-     * Report whether the PV-overview / affinity-routing feature is enabled
-     * in the mod's settings. Server uses this to gate affinity routing
-     * (shift-click cascade, /pvsort, preset apply) — when the player turns
-     * this off, the server falls back to vanilla shift-click behavior so
-     * items aren't silently rerouted by stale affinity bindings.
-     *
-     * <p>Sent on every join (right after the handshake) and whenever the
-     * toggle flips. Wire format: type byte + single state byte
-     * (1 = features on, 0 = off).
-     */
-    public static final byte PKT_PV_FEATURES_STATE = (byte) 123;
+    // C2S byte 123 was PKT_PV_FEATURES_STATE (gated the now-removed affinity
+    // routing). Retired with the affinity system.
 
     /**
      * Player clicked a tile in the PV terminal view: pull from a specific
@@ -620,6 +645,13 @@ public final class Protocol {
      * cursor so picked-up items are never lost. No payload.
      */
     public static final byte PKT_PV_CURSOR_RETURN = (byte) 126;
+
+    /**
+     * The admin closed the {@code /pvsee} terminal — end the server-side session
+     * so subsequent PV packets act on the admin's own vaults again. No payload.
+     * Byte 134 is free on both the master and season2 schemes.
+     */
+    public static final byte PKT_PV_PVSEE_CLOSE = (byte) 134;
 
     /**
      * Player ran {@code /loottables} (or its {@code /loot} alias) on a modded
@@ -695,6 +727,8 @@ public final class Protocol {
     public static final int RATE_GANG_PING_PER_SEC = 10;
     /** Max inbound meteor pings per second. */
     public static final int RATE_METEOR_PING_PER_SEC = 5;
+    /** Max inbound mining-rush pings per second. At most one per tier per spawn cycle. */
+    public static final int RATE_MINING_RUSH_PING_PER_SEC = 5;
     /** Roster + duel state are low-frequency keepalives — a handful per second is the ceiling. */
     public static final int RATE_GANG_ROSTER_PER_SEC = 4;
     public static final int RATE_DUEL_STATE_PER_SEC = 4;
@@ -708,6 +742,8 @@ public final class Protocol {
     public static final int RATE_PVE_STATS_PER_SEC = 5;
     /** Mining stats heartbeat — same shape. */
     public static final int RATE_MINING_STATS_PER_SEC = 5;
+    /** Mining block-counts heartbeat — same shape as mining stats. */
+    public static final int RATE_MINING_BLOCKS_PER_SEC = 5;
     /** Per-block-break + right-click. A meteorite is 200–300 blocks; cap at theoretical max mining cadence. */
     public static final int RATE_METEORITE_HUD_PER_SEC = 40;
     /** Buff snapshot is on-demand (only on /pickbuffs or refresh-button). */

@@ -129,13 +129,6 @@ public final class PvOverviewScreen extends Screen {
         });
         this.addDrawableChild(this.searchField);
 
-        int btnW = 90;
-        int btnY = panelY + panelH - FOOTER_H + 4;
-        ButtonWidget sortBtn = ButtonWidget.builder(Text.literal("Sort"), b -> NetworkHandler.sendPvSortRequest())
-                .dimensions(panelX + panelW - btnW - 10, btnY, btnW, 20)
-                .build();
-        this.addDrawableChild(sortBtn);
-
         recomputeVisibleVaults();
     }
 
@@ -309,20 +302,6 @@ public final class PvOverviewScreen extends Screen {
         double mouseY = click.y();
         currentMouseX = mouseX;
         currentMouseY = mouseY;
-
-        if (button == 1) {
-            // Right-click → open affinity picker immediately (no drag for RMB).
-            int v = vaultUnderCursor(mouseX, mouseY);
-            if (v > 0) {
-                PvBundlePayload.Vault vault = vaultByNumber(v);
-                if (vault != null && vault.isAccessible()) {
-                    defocusSearch();
-                    PvClient.openAffinityPicker(v);
-                    return true;
-                }
-            }
-            return super.mouseClicked(click, doubleClick);
-        }
 
         if (button == 0) {
             // Left-press starts a potential click or drag. Don't open the
@@ -641,18 +620,6 @@ public final class PvOverviewScreen extends Screen {
             }
         }
 
-        int affY = y + CARD_H - 14;
-        int maxAffW = CARD_W - 12;
-        String affText = formatAffinity(vault.affinityCsv);
-        if (affText.isEmpty()) {
-            ctx.drawText(this.textRenderer, Text.literal("§8No affinities · §oRMB to edit"),
-                    x + 6, affY, 0xFF777777, false);
-        } else {
-            String trimmed = trimAffinityToWidth(affText, maxAffW);
-            ctx.drawText(this.textRenderer, Text.literal("§b" + trimmed),
-                    x + 6, affY, 0xFF88EEFF, false);
-        }
-
         if (dimmed) {
             // Dim the source tile while dragging — half-opacity black overlay.
             ctx.fill(x + 1, y + 1, x + CARD_W - 1, y + CARD_H - 1, 0x88000000);
@@ -689,48 +656,11 @@ public final class PvOverviewScreen extends Screen {
         return (a << 24) | (r << 16) | (g << 8) | b;
     }
 
-    private String trimAffinityToWidth(String text, int maxWidth) {
-        if (this.textRenderer.getWidth(text) <= maxWidth) return text;
-        String ellipsis = "…";
-        int ellipsisW = this.textRenderer.getWidth(ellipsis);
-        String trimmed = this.textRenderer.trimToWidth(text, Math.max(0, maxWidth - ellipsisW));
-        return trimmed + ellipsis;
-    }
-
     private ItemStack resolveStack(PvBundlePayload.Slot slot) {
         if (slot.materialKey == null || slot.materialKey.isEmpty()) {
             return ItemStack.EMPTY;
         }
         return com.aleks.prisonsmod.client.IconResolver.resolve(slot.materialKey, Items.BARRIER, slot.amount);
-    }
-
-    private String formatAffinity(String csv) {
-        if (csv == null || csv.isEmpty()) return "";
-        List<String> parts = new ArrayList<>();
-        for (String token : csv.split(",")) {
-            String trimmed = token.trim();
-            if (trimmed.isEmpty()) continue;
-            parts.add(prettifyKey(trimmed));
-        }
-        return String.join(", ", parts);
-    }
-
-    private static String prettifyKey(String storageKey) {
-        StringBuilder out = new StringBuilder(storageKey.length());
-        boolean upperNext = true;
-        for (int i = 0; i < storageKey.length(); i++) {
-            char c = storageKey.charAt(i);
-            if (c == '_') {
-                out.append(' ');
-                upperNext = true;
-            } else if (upperNext) {
-                out.append(Character.toUpperCase(c));
-                upperNext = false;
-            } else {
-                out.append(c);
-            }
-        }
-        return out.toString();
     }
 
     @Override

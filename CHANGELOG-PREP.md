@@ -10,9 +10,16 @@
 
 ## HUDs
 
+- **New "Blocks" section in the Stats HUD** — shows how many of each ore you've mined while you're mining, right in the HUD instead of the action bar. Fully toggleable: pick which ores to show (defaults to Iron / Gold / Diamond / Emerald) and switch between **lifetime totals on your pickaxe** (great for prestige) and **this-session** counts, under Settings → Stats HUD → Blocks. Off by default — flip on "Show blocks (per-ore counts)" to enable.
+
 ## Rendering & Visuals
 
+- **Mining rushes now show a ping beam**, just like meteors — when a rush spawns in your tier's mine, a colored beacon beam (tinted to the ore) and a distance label point you straight to it. Toggle under Settings → World → "Mining rush pings".
+
 ## UI & Screens
+
+- **The PV terminal is now the default `/pv` view** — open `/pv` and you get the searchable single-grid terminal (every item across all your vaults at once) instead of the card overview. Prefer the cards? Turn the terminal off under Settings → PV to switch back.
+- **Personal Vault affinities are gone** — the affinity picker, presets, and the Sort button have been removed from the PV screens (the server-side affinity routing and `/pvsort` were retired too). The terminal replaces all of it.
 
 ## Input & Keybinds
 

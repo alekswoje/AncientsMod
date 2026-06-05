@@ -13,7 +13,6 @@
     "client.GameRendererTargetMixin",
     "client.HandledScreenItemLockMixin",
     "client.HandledScreenLockKeyMixin",
-    "client.HandledScreenShiftClickMixin",
     "client.HandledScreenSlotOverlayMixin",
     "client.HoveredTooltipPositionerMixin",
     "client.LivingEntityRendererMixin"

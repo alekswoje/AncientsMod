@@ -35,6 +35,7 @@ import com.aleks.prisonsmod.net.payload.GangPingPayload;
 import com.aleks.prisonsmod.net.payload.GangRosterPayload;
 import com.aleks.prisonsmod.net.payload.HudUpdatePayload;
 import com.aleks.prisonsmod.net.payload.MeteorPingPayload;
+import com.aleks.prisonsmod.net.payload.MiningRushPingPayload;
 import com.aleks.prisonsmod.net.payload.MineCancelPayload;
 import com.aleks.prisonsmod.net.payload.MineStartPayload;
 import com.aleks.prisonsmod.net.payload.PointGainPayload;
@@ -126,6 +127,11 @@ public final class NetworkHandler {
                     MeteorPingPayload p = MeteorPingPayload.decode(buf);
                     GangPingManager.onMeteorPing(p);
                 }
+                case Protocol.PKT_MINING_RUSH_PING -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.MINING_RUSH_PING)) return;
+                    MiningRushPingPayload p = MiningRushPingPayload.decode(buf);
+                    GangPingManager.onMiningRushPing(p);
+                }
                 case Protocol.PKT_GANG_ROSTER -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.GANG_ROSTER)) return;
                     GangRosterPayload p = GangRosterPayload.decode(buf);
@@ -165,6 +171,12 @@ public final class NetworkHandler {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.MINING_STATS)) return;
                     MiningStatsPayload p = MiningStatsPayload.decode(buf);
                     MiningStatsState.update(p);
+                }
+                case Protocol.PKT_MINING_BLOCKS -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.MINING_BLOCKS)) return;
+                    com.aleks.prisonsmod.net.payload.MiningBlocksPayload p =
+                            com.aleks.prisonsmod.net.payload.MiningBlocksPayload.decode(buf);
+                    com.aleks.prisonsmod.client.hud.MiningBlocksState.update(p);
                 }
                 case Protocol.PKT_BUFF_SNAPSHOT -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.BUFF_SNAPSHOT)) {
@@ -217,6 +229,13 @@ public final class NetworkHandler {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.PV_BUNDLE)) return;
                     PvBundlePayload p = PvBundlePayload.decode(buf);
                     PvClient.onBundle(p);
+                }
+                case Protocol.PKT_PV_OPEN_TERMINAL -> {
+                    // Server-initiated (admin /pvsee). Not client-spammable, so
+                    // no rate-limit gate — the target bundle follows immediately.
+                    String tName = buf.readString(Protocol.PV_OPEN_TERMINAL_MAX_NAME_CHARS);
+                    boolean editable = buf.readByte() != 0;
+                    PvClient.onOpenTerminal(tName, editable);
                 }
                 case Protocol.PKT_OUTPOST_STATE -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.OUTPOST_STATE)) return;
@@ -341,24 +360,6 @@ public final class NetworkHandler {
             }));
         } catch (Throwable t) {
             PrisonsMod.LOGGER.debug("send mining hud state failed", t);
-        }
-    }
-
-    /**
-     * Report whether the mod's PV-overview / affinity-routing feature is on.
-     * Server gates server-side affinity routing on this — when off, vanilla
-     * shift-click behavior applies (no auto-routing to bound vaults).
-     * Sent right after the handshake on join and on every toggle change.
-     */
-    public static void sendPvFeaturesState(boolean on) {
-        if (!ServerAllowlist.isAllowed()) return;
-        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
-        try {
-            ClientPlayNetworking.send(new RawPayload(new byte[] {
-                    Protocol.PKT_PV_FEATURES_STATE, (byte) (on ? 1 : 0)
-            }));
-        } catch (Throwable t) {
-            PrisonsMod.LOGGER.debug("send pv features state failed", t);
         }
     }
 
@@ -553,85 +554,22 @@ public final class NetworkHandler {
         }
     }
 
-    /**
-     * "Open the affinity picker for this vault." Same flow as shift- or right-
-     * clicking the tile in PersonalVaultMenu, but accessible directly from
-     * the mod overview.
-     */
-    public static void sendPvAffinityOpenRequest(int vaultNumber) {
-        if (!ServerAllowlist.isAllowed()) return;
-        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
-        if (vaultNumber < 1 || vaultNumber > Protocol.PV_MAX_VAULTS) return;
-        try {
-            ClientPlayNetworking.send(new RawPayload(new byte[] {
-                    Protocol.PKT_PV_AFFINITY_OPEN_REQ, (byte) (vaultNumber & 0xFF) }));
-        } catch (Throwable t) {
-            PrisonsMod.LOGGER.debug("send pv affinity open req failed", t);
-        }
-    }
-
-    /** "Toggle this category on this vault." Server runs exclusive toggle
-     *  (strips the category from other vaults) and replies with a fresh
-     *  PKT_PV_BUNDLE so the client picker can re-render. */
-    public static void sendPvAffinityToggle(int vaultNumber, String categoryKey) {
-        if (!ServerAllowlist.isAllowed()) return;
-        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
-        if (vaultNumber < 1 || vaultNumber > Protocol.PV_MAX_VAULTS) return;
-        if (categoryKey == null || categoryKey.isEmpty()) return;
-        try {
-            PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer(32));
-            buf.writeByte(Protocol.PKT_PV_AFFINITY_TOGGLE);
-            buf.writeByte(vaultNumber & 0xFF);
-            buf.writeString(clamp(categoryKey, 64));
-            sendBuf(buf);
-        } catch (Throwable t) {
-            PrisonsMod.LOGGER.debug("send pv affinity toggle failed", t);
-        }
-    }
-
-    /** "Clear every affinity bound to this vault." */
-    public static void sendPvAffinityClear(int vaultNumber) {
-        if (!ServerAllowlist.isAllowed()) return;
-        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
-        if (vaultNumber < 1 || vaultNumber > Protocol.PV_MAX_VAULTS) return;
-        try {
-            ClientPlayNetworking.send(new RawPayload(new byte[] {
-                    Protocol.PKT_PV_AFFINITY_CLEAR, (byte) (vaultNumber & 0xFF) }));
-        } catch (Throwable t) {
-            PrisonsMod.LOGGER.debug("send pv affinity clear failed", t);
-        }
-    }
-
-    /** "Apply this affinity preset." Server overwrites every unlocked PV's affinities. */
-    public static void sendPvApplyPreset(String presetKey) {
-        if (!ServerAllowlist.isAllowed()) return;
-        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
-        if (presetKey == null || presetKey.isEmpty()) return;
-        try {
-            PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer(32));
-            buf.writeByte(Protocol.PKT_PV_APPLY_PRESET);
-            buf.writeString(clamp(presetKey, 64));
-            sendBuf(buf);
-        } catch (Throwable t) {
-            PrisonsMod.LOGGER.debug("send pv apply preset failed", t);
-        }
-    }
-
-    /** "Run /pvsort." Server reshuffles items by affinity and pushes back
-     *  a fresh PKT_PV_BUNDLE so the overview re-renders in place. */
-    public static void sendPvSortRequest() {
+    /** "I closed the /pvsee terminal — end my admin session." Tells the server
+     *  to stop treating my PV packets as acting on the inspected player's
+     *  vaults. No payload. */
+    public static void sendPvSeeClose() {
         if (!ServerAllowlist.isAllowed()) return;
         if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
         try {
-            ClientPlayNetworking.send(new RawPayload(new byte[] { Protocol.PKT_PV_SORT_REQ }));
+            ClientPlayNetworking.send(new RawPayload(new byte[] { Protocol.PKT_PV_PVSEE_CLOSE }));
         } catch (Throwable t) {
-            PrisonsMod.LOGGER.debug("send pv sort req failed", t);
+            PrisonsMod.LOGGER.debug("send pvsee close failed", t);
         }
     }
 
     /** "Swap PV from ↔ PV to." Triggered by drag-drop in the overview. Server
-     *  validates accessibility + slot capacity, swaps contents + affinities
-     *  atomically, then pushes a fresh PKT_PV_BUNDLE. */
+     *  validates accessibility + slot capacity, swaps contents atomically, then
+     *  pushes a fresh PKT_PV_BUNDLE. */
     public static void sendPvSwapRequest(int from, int to) {
         if (!ServerAllowlist.isAllowed()) return;
         if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
@@ -696,10 +634,10 @@ public final class NetworkHandler {
         }
     }
 
-    /** Tell the server to route a player-inventory shift-click through PV
-     *  affinity rules instead of vanilla container click handling. Eliminates
-     *  the client-prediction flicker that happens when the server cancels
-     *  the vanilla event and reroutes to a different PV. */
+    /** Terminal deposit: shift-clicking a player-inventory slot while the PV
+     *  terminal is open asks the server to push that stack into the first vault
+     *  with space (merge-then-fill, no affinity). During a /pvsee session the
+     *  items land in the inspected player's vaults. */
     public static void sendPvShiftClick(int playerInvSlot) {
         if (!ServerAllowlist.isAllowed()) return;
         if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;

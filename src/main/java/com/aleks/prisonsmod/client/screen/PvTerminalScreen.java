@@ -31,9 +31,11 @@ import java.util.Locale;
  * unlocked PV as a single flat grid, with a search bar and a hotbar strip at
  * the bottom for drag-deposits.
  *
- * <p>Gated behind the {@code pvTerminal} feature toggle (off by default). When
- * the toggle is off, {@link PvClient} opens the existing
- * {@link PvOverviewScreen} instead — the card view stays untouched.
+ * <p>This is the default {@code /pv} view ({@code pvTerminal} toggle on by
+ * default). When the toggle is off, {@link PvClient} opens the
+ * {@link PvOverviewScreen} card view instead. Also opened directly (in a
+ * read/edit "{@code /pvsee}" mode) when an admin inspects another player's
+ * vaults.
  *
  * <h2>Interactions</h2>
  * <ul>
@@ -42,8 +44,8 @@ import java.util.Locale;
  *   <li>Shift+L-click tile → extract entire stack
  *       ({@link Protocol#PV_EXTRACT_ALL}).</li>
  *   <li>L-press hotbar slot, drag onto grid, release → deposit that hotbar
- *       slot via {@link NetworkHandler#sendPvShiftClick(int)} (server routes
- *       by affinity).</li>
+ *       slot via {@link NetworkHandler#sendPvShiftClick(int)} (server fills the
+ *       first vault with space).</li>
  * </ul>
  *
  * <p>The screen is bundle-driven: after every extract / deposit the server
@@ -108,9 +110,29 @@ public final class PvTerminalScreen extends Screen {
      *  blocked take/put attempt while the bundle reports view-only. */
     private long blockedFlashUntilMs = 0L;
 
+    /** Non-null only for a {@code /pvsee} admin session (viewing/editing
+     *  another player's vaults). Drives the title and the close-out packet that
+     *  ends the server-side session. */
+    private final String pvSeeTargetName;
+
     public PvTerminalScreen(PvBundlePayload bundle) {
-        super(Text.literal("PV Terminal"));
+        this(bundle, null);
+    }
+
+    /**
+     * @param pvSeeTargetName the inspected player's name for a {@code /pvsee}
+     *                        session, or null for the player's own terminal.
+     */
+    public PvTerminalScreen(PvBundlePayload bundle, String pvSeeTargetName) {
+        super(Text.literal(pvSeeTargetName == null || pvSeeTargetName.isEmpty()
+                ? "PV Terminal" : pvSeeTargetName + "'s Vaults"));
         this.bundle = bundle;
+        this.pvSeeTargetName = (pvSeeTargetName == null || pvSeeTargetName.isEmpty())
+                ? null : pvSeeTargetName;
+    }
+
+    private boolean isPvSee() {
+        return pvSeeTargetName != null;
     }
 
     public void onBundleUpdated(PvBundlePayload payload) {
@@ -588,8 +610,9 @@ public final class PvTerminalScreen extends Screen {
         }
         int pct = totalCapacity > 0 ? (totalOccupied * 100 / totalCapacity) : 0;
         String pctColor = pct >= 90 ? "§c" : pct >= 75 ? "§e" : "§7";
+        String titleLabel = isPvSee() ? "§d" + pvSeeTargetName + "'s Vaults" : "§ePV Terminal";
         ctx.drawText(this.textRenderer,
-                Text.literal("§ePV Terminal §8· §7" + entries.size() + " items §8· " + pctColor + pct + "%"),
+                Text.literal(titleLabel + " §8· §7" + entries.size() + " items §8· " + pctColor + pct + "%"),
                 panelX + 10, panelY + 8, 0xFFFFFFFF, true);
         if (!canModify()) {
             // Persistent view-only indicator — you can browse/search your PVs
@@ -811,6 +834,11 @@ public final class PvTerminalScreen extends Screen {
         // back into a PV (or the player's inventory).
         if (!cursorStack().isEmpty()) {
             NetworkHandler.sendPvCursorReturn();
+        }
+        // End the server-side /pvsee session so the admin's own PV packets stop
+        // acting on the inspected player's vaults.
+        if (isPvSee()) {
+            NetworkHandler.sendPvSeeClose();
         }
         PvClient.onScreenClosed();
         super.close();
