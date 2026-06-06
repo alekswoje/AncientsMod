@@ -103,9 +103,10 @@ public final class LootTablesScreen extends Screen {
 
         if (searchMode) {
             for (LootSnapshotPayload.Table t : snapshot.tables) {
+                boolean tableNameMatches = t.name.toLowerCase(Locale.ROOT).contains(q);
                 for (LootSnapshotPayload.Entry e : t.entries) {
                     if (e.masked || e.name == null) continue;
-                    if (e.name.toLowerCase(Locale.ROOT).contains(q)) {
+                    if (tableNameMatches || e.name.toLowerCase(Locale.ROOT).contains(q)) {
                         searchHits.add(new Hit(t, e));
                     }
                 }
@@ -264,7 +265,7 @@ public final class LootTablesScreen extends Screen {
             String msg = searchMode
                     ? "§7No items match §f\"" + searchQuery + "\""
                     : "§7No loot tables available.";
-            ctx.drawText(this.textRenderer, Text.literal(msg), lx + 4, ly + listH / 2 - 4, 0xFFAAAAAA, false);
+            ctx.drawText(this.textRenderer, Text.literal(msg), lx + 4, ly + 4, 0xFFAAAAAA, false);
         }
 
         // Scrollbar.
