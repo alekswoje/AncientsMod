@@ -17,8 +17,11 @@ import java.util.Set;
 
 /**
  * Session PvE stats HUD. Reads from {@link PveStatsState} every frame and
- * renders kill / drop tallies. The current world is shown as a sub-header so
- * the widget auto-contexts to where the player actually is.
+ * renders kill / drop tallies plus the live Hunter XP rate. Drops are grouped
+ * by <b>rarity</b> (the server classifies each drop with the same tiers as the
+ * chat drop announcements) rather than per-item, so the panel stays compact
+ * during a long farm. The current world is shown as a sub-header so the widget
+ * auto-contexts to where the player actually is.
  */
 public final class StatsHud extends HudElement {
 
@@ -28,13 +31,6 @@ public final class StatsHud extends HudElement {
     public static final String KEY_SECTIONS = "sections";
     /** Setting key: comma-separated list of kill kinds the player wants visible (empty = all). */
     public static final String KEY_VISIBLE_KILLS = "visible_kills";
-    /**
-     * Setting key: when true, lootbox / lockbox / seasonal_crate drops show
-     * one row per subtype (e.g. "Rare Booster Box") instead of being lumped
-     * under a single "Lootbox" row. The server always sends the full
-     * `lootbox:<subtype>` key — the mod aggregates locally based on this flag.
-     */
-    public static final String KEY_SPLIT_LOOTBOX_SUBTYPES = "split_lootbox_subtypes";
     /** Setting key: comma-separated list of ore-ids (Bukkit Material names) the
      *  player wants shown in the blocks section. Empty = curated default. */
     public static final String KEY_VISIBLE_BLOCKS = "visible_blocks";
@@ -42,15 +38,19 @@ public final class StatsHud extends HudElement {
      *  false it shows lifetime totals on the held pickaxe (prestige-style). */
     public static final String KEY_BLOCKS_SESSION = "blocks_session";
 
-    /** Drop-key prefixes that the mod can aggregate or split. Matches the
-     *  server-side allowlist in {@code LootTableRegistry.rollAndDropKillerOnly}. */
-    private static final Set<String> SPLITTABLE_DROP_PREFIXES = Set.of("lootbox", "lockbox", "seasonal_crate");
+    /**
+     * Drop rarity tiers, rarest → most common. The server tallies each drop
+     * into one of these buckets (mirroring the plugin's {@code LootRarity}); the
+     * HUD renders one row per non-empty tier in this order.
+     */
+    private static final List<String> RARITY_ORDER =
+            List.of("mythic", "legendary", "epic", "rare", "uncommon", "common");
 
-    public static final List<String> ALL_SECTIONS = List.of("world", "mining", "blocks", "kills", "drops");
+    public static final List<String> ALL_SECTIONS = List.of("world", "hunter", "mining", "blocks", "kills", "drops");
     /** Blocks is opt-in, so it is NOT in the default set — existing users don't
      *  suddenly get a new section until they enable it in settings. */
     public static final Set<String> DEFAULT_SECTIONS =
-            new LinkedHashSet<>(List.of("world", "mining", "kills", "drops"));
+            new LinkedHashSet<>(List.of("world", "hunter", "mining", "kills", "drops"));
 
     /** Ores offered as toggles in the blocks-section settings (display order). */
     public static final List<String> CANDIDATE_BLOCKS = List.of(
@@ -72,6 +72,10 @@ public final class StatsHud extends HudElement {
     private static final int MIN_WIDTH    = 158;
     private static final int VALUE_COLOR  = 0xFFFFFFFF;
     private static final int SUBHEADER    = 0xFFA0A8B4;
+    /** Hunter-section strip colour — the Polis/hunter violet (ServerTheme accent). */
+    private static final int HUNTER_ACCENT = 0xFFA78BFA;
+    /** Fallback drop-row colour for keys that aren't a known rarity tier. */
+    private static final int DROP_DEFAULT_ACCENT = 0xFF8AC2FF;
 
     private StatsHud() {}
 
@@ -84,15 +88,17 @@ public final class StatsHud extends HudElement {
         if (HudStyle.isAlwaysShown(id())) return true;
         // Only show when the player has something to look at — bare world
         // name on its own meant the widget hung around in spawn/hub with
-        // no rows. Kills/drops are session-only, mining is live-only, so
-        // the HUD naturally disappears once both are quiet.
+        // no rows. Kills/drops/hunter are session-only, mining/blocks are
+        // live-only, so the HUD naturally disappears once they're all quiet.
         Set<String> sections = enabledSections();
         boolean miningLive = sections.contains("mining") && MiningStatsState.isLive();
         boolean blocksLive = sections.contains("blocks") && MiningBlocksState.isLive() && !blockRows().isEmpty();
         return miningLive
             || blocksLive
             || !PveStatsState.kills().isEmpty()
-            || !PveStatsState.drops().isEmpty();
+            || !PveStatsState.drops().isEmpty()
+            || PveStatsState.sessionHunterXp() > 0
+            || PveStatsState.hunterXpPerHour() > 0;
     }
 
     @Override
@@ -125,11 +131,6 @@ public final class StatsHud extends HudElement {
         return HudSettings.getStringSet(id(), KEY_VISIBLE_KILLS, new LinkedHashSet<>());
     }
 
-    /** When true, lootbox/lockbox/crate rows split by subtype instead of aggregating. */
-    public boolean splitLootboxSubtypes() {
-        return HudSettings.getBoolean(id(), KEY_SPLIT_LOOTBOX_SUBTYPES, false);
-    }
-
     /** Ores the player wants shown in the blocks section (curated default when unset). */
     public Set<String> visibleBlocks() {
         return HudSettings.getStringSet(id(), KEY_VISIBLE_BLOCKS, DEFAULT_VISIBLE_BLOCKS);
@@ -152,6 +153,12 @@ public final class StatsHud extends HudElement {
         Set<String> sections = enabledSections();
         if (sections.contains("world")) {
             widest = Math.max(widest, fr.getWidth(prettyWorld(PveStatsState.worldName())));
+        }
+        if (sections.contains("hunter")) {
+            for (MiningRow r : hunterRows()) {
+                int w = fr.getWidth(r.label) + colGap + fr.getWidth(r.value);
+                if (w > widest) widest = w;
+            }
         }
         if (sections.contains("mining") && MiningStatsState.isLive()) {
             for (MiningRow r : miningRows()) {
@@ -186,6 +193,7 @@ public final class StatsHud extends HudElement {
         Set<String> sections = enabledSections();
         int rows = 0;
         if (sections.contains("world") && !PveStatsState.worldName().isEmpty()) rows += 1;
+        if (sections.contains("hunter")) rows += hunterRows().size();
         if (sections.contains("mining") && MiningStatsState.isLive()) rows += miningRows().size();
         if (sections.contains("blocks") && MiningBlocksState.isLive()) {
             int br = blockRows().size();
@@ -219,6 +227,19 @@ public final class StatsHud extends HudElement {
             String pretty = prettyWorld(PveStatsState.worldName());
             ctx.drawText(fr, Text.literal(pretty), padX + stripW + stripGap, rowY + 2, SUBHEADER, true);
             rowY += rowH;
+        }
+
+        if (sections.contains("hunter")) {
+            for (MiningRow r : hunterRows()) {
+                ctx.fill(padX, rowY, padX + stripW, rowY + rowH - 2, r.accent);
+                int textX = padX + stripW + stripGap;
+                int textY = rowY + 2;
+                int valW = fr.getWidth(r.value);
+                ctx.drawText(fr, Text.literal(r.value), w - padX - valW, textY, VALUE_COLOR, true);
+                ctx.drawText(fr, Text.literal(r.label), textX, textY,
+                        (r.accent & 0x00FFFFFF) | 0xFF000000, true);
+                rowY += rowH;
+            }
         }
 
         if (sections.contains("mining") && MiningStatsState.isLive()) {
@@ -269,7 +290,7 @@ public final class StatsHud extends HudElement {
 
         if (sections.contains("drops") && !dropRows().isEmpty()) {
             for (Row r : dropRows()) {
-                int accent = 0xFF8AC2FF;
+                int accent = dropColorFor(r.key);
                 ctx.fill(padX, rowY, padX + stripW, rowY + rowH - 2, accent);
                 int textX = padX + stripW + stripGap;
                 int textY = rowY + 2;
@@ -280,6 +301,16 @@ public final class StatsHud extends HudElement {
                 rowY += rowH;
             }
         }
+    }
+
+    /** Live Hunter XP rows: rolling XP/h (while farming) + the session total. */
+    private List<MiningRow> hunterRows() {
+        List<MiningRow> out = new ArrayList<>(2);
+        long rate = PveStatsState.hunterXpPerHour();
+        long total = PveStatsState.sessionHunterXp();
+        if (rate > 0)  out.add(new MiningRow("Hunter XP/h", formatCompact(rate),  HUNTER_ACCENT));
+        if (total > 0) out.add(new MiningRow("Hunter XP",   formatCompact(total), HUNTER_ACCENT));
+        return out;
     }
 
     private List<MiningRow> miningRows() {
@@ -380,30 +411,28 @@ public final class StatsHud extends HudElement {
         return out;
     }
 
+    /**
+     * Drops grouped by rarity tier. The server sends one entry per rarity
+     * ("common".."mythic"); we render them rarest-first. Any non-rarity key
+     * (e.g. an older server still sending per-item keys mid-rollout) falls
+     * through to its own row so nothing is silently hidden.
+     */
     private List<Row> dropRows() {
         Map<String, Integer> all = PveStatsState.drops();
-        boolean split = splitLootboxSubtypes();
-        // First pass: aggregate any splittable-prefix keys into the bare
-        // prefix when split is off. Stable iteration order via LinkedHashMap
-        // matches the server's first-seen order.
-        Map<String, Integer> grouped = new LinkedHashMap<>();
+        Map<String, Integer> buckets = new LinkedHashMap<>();
         for (Map.Entry<String, Integer> e : all.entrySet()) {
             if (e.getValue() == null || e.getValue() <= 0) continue;
-            String key = e.getKey();
-            if (!split) {
-                int colon = key.indexOf(':');
-                if (colon > 0) {
-                    String prefix = key.substring(0, colon);
-                    if (SPLITTABLE_DROP_PREFIXES.contains(prefix)) {
-                        grouped.merge(prefix, e.getValue(), Integer::sum);
-                        continue;
-                    }
-                }
-            }
-            grouped.merge(key, e.getValue(), Integer::sum);
+            buckets.merge(e.getKey(), e.getValue(), Integer::sum);
         }
-        List<Row> out = new ArrayList<>(grouped.size());
-        for (Map.Entry<String, Integer> e : grouped.entrySet()) {
+        List<Row> out = new ArrayList<>(buckets.size());
+        // Known rarity tiers first, rarest → most common.
+        for (String tier : RARITY_ORDER) {
+            Integer v = buckets.remove(tier);
+            if (v == null || v <= 0) continue;
+            out.add(new Row(tier, titleCase(tier), v));
+        }
+        // Leftover non-rarity keys in arrival order.
+        for (Map.Entry<String, Integer> e : buckets.entrySet()) {
             out.add(new Row(e.getKey(), dropDisplayName(e.getKey()), e.getValue()));
         }
         return out;
@@ -461,6 +490,19 @@ public final class StatsHud extends HudElement {
             case "hephaestus"       -> 0xFFFFA070;
             case "thanatos"         -> 0xFF888888;
             default                 -> 0xFFFFFFFF;
+        };
+    }
+
+    /** Per-rarity strip colour; unknown keys use the neutral drop blue. */
+    private static int dropColorFor(String key) {
+        return switch (key) {
+            case "common"    -> 0xFFB0B0B8;
+            case "uncommon"  -> 0xFF8AE08A;
+            case "rare"      -> 0xFF8AC2FF;
+            case "epic"      -> 0xFFC6A0FF;
+            case "legendary" -> 0xFFE6B05A;
+            case "mythic"    -> 0xFFFF7CC8;
+            default          -> DROP_DEFAULT_ACCENT;
         };
     }
 
