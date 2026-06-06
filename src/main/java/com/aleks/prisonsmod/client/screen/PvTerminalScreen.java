@@ -90,6 +90,14 @@ public final class PvTerminalScreen extends Screen {
     private int scrollRowOffset = 0;
     private List<Text> hoverTooltip = null;
 
+    /** While Shift is held, tile order is frozen to this snapshot of item keys so
+     *  repeated shift-click extracts don't reshuffle tiles under the cursor (a
+     *  tile whose count drops would otherwise re-sort away mid-pull). Null = not
+     *  frozen (sort by the active mode). Captured on shift press, cleared on
+     *  release (and on a sort-mode change). */
+    private java.util.List<String> frozenOrder = null;
+    private boolean prevShiftDown = false;
+
     /** Optimistic local override of slot amounts — keyed by (vault &lt;&lt; 16) | slot.
      *  Set on extract click so the tile updates instantly without waiting for the
      *  server's bundle refresh. Cleared whenever a fresh bundle arrives (server
@@ -263,17 +271,41 @@ public final class PvTerminalScreen extends Screen {
     }
 
     /** Sort the aggregated tiles by the persisted sort mode (Quantity / A-Z /
-     *  Category). Quantity is the default; all three cycle via the sort button. */
+     *  Category). Quantity is the default; all three cycle via the sort button.
+     *  While {@link #frozenOrder} is set (Shift held), tiles keep that frozen
+     *  position instead, so a shift-click pull never moves the tile. */
     private void sortEntries() {
-        int mode = FeatureToggles.getPvTerminalSortMode();
         java.util.Comparator<Entry> byName =
                 java.util.Comparator.comparing((Entry e) -> e.sortName, String.CASE_INSENSITIVE_ORDER);
+        if (frozenOrder != null) {
+            java.util.Map<String, Integer> idx = new java.util.HashMap<>();
+            for (int i = 0; i < frozenOrder.size(); i++) idx.putIfAbsent(frozenOrder.get(i), i);
+            // Frozen tiles keep their snapshot position; anything new (e.g. just
+            // deposited) falls to the end in name order.
+            entries.sort(java.util.Comparator
+                    .comparingInt((Entry e) -> idx.getOrDefault(entryKey(e), Integer.MAX_VALUE))
+                    .thenComparing(byName));
+            return;
+        }
+        int mode = FeatureToggles.getPvTerminalSortMode();
         java.util.Comparator<Entry> cmp = switch (mode) {
             case 1 -> byName;
             case 2 -> java.util.Comparator.comparing((Entry e) -> e.category).thenComparing(byName);
             default -> java.util.Comparator.comparingInt((Entry e) -> -e.total).thenComparing(byName);
         };
         entries.sort(cmp);
+    }
+
+    /** Stable per-item key for freeze ordering — same identity used for merging. */
+    private static String entryKey(Entry e) {
+        return identityKey(e.rep);
+    }
+
+    /** Snapshot the current on-screen tile order (by item key) for the freeze. */
+    private java.util.List<String> captureOrder() {
+        java.util.List<String> order = new java.util.ArrayList<>(entries.size());
+        for (Entry e : entries) order.add(entryKey(e));
+        return order;
     }
 
     private int effectiveAmount(int vaultNumber, PvBundlePayload.Slot s) {
@@ -498,6 +530,13 @@ public final class PvTerminalScreen extends Screen {
         double mx = click.x();
         double my = click.y();
 
+        // First shift-click of a hold: freeze the order from BEFORE this click's
+        // extract (render's edge-detect may not have run yet if the click landed
+        // in the same frame as the keypress) so even the first pull doesn't move.
+        if (isShiftDown() && frozenOrder == null) {
+            frozenOrder = captureOrder();
+        }
+
         boolean holdingCursor = !cursorStack().isEmpty();
         int invSlot = invSlotUnderCursor(mx, my);
         int entryIdx = entryUnderCursor(mx, my);
@@ -506,6 +545,7 @@ public final class PvTerminalScreen extends Screen {
         if (button == 0 && overSortButton(mx, my)) {
             defocusSearch();
             FeatureToggles.cyclePvTerminalSortMode();
+            frozenOrder = null; // a manual sort change always re-sorts, even if Shift is down
             recomputeEntries();
             scrollRowOffset = 0;
             return true;
@@ -787,6 +827,18 @@ public final class PvTerminalScreen extends Screen {
         super.render(ctx, mouseX, mouseY, delta);
         hoverTooltip = null;
         long now = System.currentTimeMillis();
+
+        // Freeze tile order while Shift is held so repeated shift-click extracts
+        // don't reshuffle the grid under the cursor; restore the active sort the
+        // moment Shift is released.
+        boolean shiftNow = isShiftDown();
+        if (shiftNow && !prevShiftDown) {
+            if (frozenOrder == null) frozenOrder = captureOrder();
+        } else if (!shiftNow && prevShiftDown) {
+            frozenOrder = null;
+            recomputeEntries();
+        }
+        prevShiftDown = shiftNow;
 
         int gx = gridX();
         int gy = gridY();
