@@ -81,6 +81,14 @@ public final class FeatureToggles {
      *  has any effect when {@link #pvTerminal} is on. */
     private static volatile boolean pvTerminalAutoFocusSearch = true;
 
+    /** PV terminal sort order for the aggregated item grid: 0 = Quantity (most
+     *  first), 1 = Alphabetical (A→Z), 2 = Category (by item type). Cycled with
+     *  the in-terminal sort button; persisted so the chosen order survives
+     *  restarts. Default Quantity. */
+    private static volatile int pvTerminalSortMode = 0;
+    /** Number of PV terminal sort modes (keep in sync with PvTerminalScreen). */
+    public static final int PV_TERMINAL_SORT_MODES = 3;
+
     /** Intercept {@code /loottables} (and its {@code /loot} alias) and open the mod's searchable loot browser instead of the server chest GUI. Off = vanilla server menu. */
     private static volatile boolean lootBrowser = true;
 
@@ -153,6 +161,7 @@ public final class FeatureToggles {
             pvOverview = parseBool(props.getProperty("pvOverview"), pvOverview);
             pvTerminal = parseBool(props.getProperty("pvTerminal"), pvTerminal);
             pvTerminalAutoFocusSearch = parseBool(props.getProperty("pvTerminalAutoFocusSearch"), pvTerminalAutoFocusSearch);
+            pvTerminalSortMode = clampSortMode(parseInt(props.getProperty("pvTerminalSortMode"), pvTerminalSortMode));
             lootBrowser = parseBool(props.getProperty("lootBrowser"), lootBrowser);
             riftTexturePack = parseBool(props.getProperty("riftTexturePack"), riftTexturePack);
             evenSpacingSnap = parseBool(props.getProperty("evenSpacingSnap"), evenSpacingSnap);
@@ -188,6 +197,7 @@ public final class FeatureToggles {
         props.setProperty("pvOverview", Boolean.toString(pvOverview));
         props.setProperty("pvTerminal", Boolean.toString(pvTerminal));
         props.setProperty("pvTerminalAutoFocusSearch", Boolean.toString(pvTerminalAutoFocusSearch));
+        props.setProperty("pvTerminalSortMode", Integer.toString(pvTerminalSortMode));
         props.setProperty("lootBrowser", Boolean.toString(lootBrowser));
         props.setProperty("riftTexturePack", Boolean.toString(riftTexturePack));
         props.setProperty("evenSpacingSnap", Boolean.toString(evenSpacingSnap));
@@ -390,6 +400,26 @@ public final class FeatureToggles {
         save();
     }
 
+    public static int getPvTerminalSortMode() { return pvTerminalSortMode; }
+
+    public static void setPvTerminalSortMode(int mode) {
+        int m = clampSortMode(mode);
+        if (pvTerminalSortMode == m) return;
+        pvTerminalSortMode = m;
+        save();
+    }
+
+    /** Advance to the next sort mode (wraps), persist, and return the new mode. */
+    public static int cyclePvTerminalSortMode() {
+        setPvTerminalSortMode(pvTerminalSortMode + 1);
+        return pvTerminalSortMode;
+    }
+
+    private static int clampSortMode(int mode) {
+        int m = mode % PV_TERMINAL_SORT_MODES;
+        return m < 0 ? m + PV_TERMINAL_SORT_MODES : m;
+    }
+
     public static boolean isLootBrowserEnabled() { return lootBrowser; }
 
     public static void setLootBrowser(boolean value) {
@@ -481,6 +511,15 @@ public final class FeatureToggles {
         if (s.equals("true") || s.equals("yes") || s.equals("on") || s.equals("1")) return true;
         if (s.equals("false") || s.equals("no") || s.equals("off") || s.equals("0")) return false;
         return fallback;
+    }
+
+    private static int parseInt(String s, int fallback) {
+        if (s == null) return fallback;
+        try {
+            return Integer.parseInt(s.trim());
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
     }
 
     private FeatureToggles() {}

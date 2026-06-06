@@ -622,6 +622,29 @@ public final class NetworkHandler {
         }
     }
 
+    /** "Extract this item across all my PVs." For an aggregated terminal tile
+     *  (the same item summed across several PV slots): the server pulls the
+     *  mode-determined amount from every matching slot in one transaction and
+     *  pushes a single fresh bundle. {@code refVault}/{@code refSlot} only name
+     *  which item to match (one of the tile's source slots). */
+    public static void sendPvExtractItem(int refVault, int refSlot, byte mode, byte target) {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        if (refVault < 1 || refVault > Protocol.PV_MAX_VAULTS) return;
+        if (refSlot < 0 || refSlot >= Protocol.PV_MAX_SLOTS) return;
+        try {
+            PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer(8));
+            buf.writeByte(Protocol.PKT_PV_EXTRACT_ITEM);
+            buf.writeByte(refVault & 0xFF);
+            buf.writeShort(refSlot & 0xFFFF);
+            buf.writeByte(mode);
+            buf.writeByte(target);
+            sendBuf(buf);
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send pv extract item failed", t);
+        }
+    }
+
     /** "Place my cursor stack into player-inventory slot N." Server swaps /
      *  merges as appropriate and syncs the cursor + slot back. */
     public static void sendPvCursorPlaceInv(int playerInvSlot) {

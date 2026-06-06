@@ -79,6 +79,11 @@ public final class PvTerminalScreen extends Screen {
     private static final int SCROLLBAR_W = 6;
     private static final int SCROLLBAR_GAP = 4;
 
+    /** Sort-mode button on the right of the search row (cycles Qty / A-Z / Type). */
+    private static final int SORT_BTN_W = 46;
+    private static final int SORT_BTN_H = 18;
+    private static final int SORT_BTN_GAP = 4;
+
 
     private PvBundlePayload bundle;
     private final List<Entry> entries = new ArrayList<>();
@@ -169,7 +174,7 @@ public final class PvTerminalScreen extends Screen {
         int panelX = (this.width - panelW) / 2;
         int panelY = (this.height - panelH) / 2;
 
-        int searchW = panelW - PANEL_PADDING * 2 - SCROLLBAR_W - SCROLLBAR_GAP;
+        int searchW = panelW - PANEL_PADDING * 2 - SCROLLBAR_W - SCROLLBAR_GAP - SORT_BTN_W - SORT_BTN_GAP;
         int searchX = panelX + PANEL_PADDING;
         int searchY = panelY + TITLE_BAR_H + 4;
         this.searchField = new TextFieldWidget(this.textRenderer, searchX, searchY, searchW, 18,
@@ -201,15 +206,74 @@ public final class PvTerminalScreen extends Screen {
         entries.clear();
         if (bundle == null) return;
         String q = normalizedQuery();
+        // Group every matching stackable slot by visible item identity so the
+        // same item shows as ONE tile summed across all its PV slots; each
+        // non-stackable item (gear, pickaxes — maxCount 1) stays its own tile.
+        java.util.Map<String, Acc> groups = new java.util.LinkedHashMap<>();
+        java.util.List<Acc> accs = new java.util.ArrayList<>();
         for (PvBundlePayload.Vault v : bundle.vaults) {
             if (!v.isAccessible()) continue;
             for (PvBundlePayload.Slot s : v.slots) {
                 if (!q.isEmpty() && !slotMatches(s, q)) continue;
                 int displayed = effectiveAmount(v.vaultNumber, s);
                 if (displayed <= 0) continue; // optimistically removed
-                entries.add(new Entry(v.vaultNumber, s, displayed));
+                ItemStack icon = resolveStack(s, 1);
+                if (icon.isEmpty()) continue; // unresolvable material — skip rather than blank tile
+                boolean stackable = icon.getMaxCount() > 1;
+                if (stackable) {
+                    String key = identityKey(s);
+                    Acc a = groups.get(key);
+                    if (a == null) { a = new Acc(s, icon); groups.put(key, a); accs.add(a); }
+                    a.total += displayed;
+                    a.sources.add(new Source(v.vaultNumber, s.slotIndex, displayed));
+                } else {
+                    Acc a = new Acc(s, icon);
+                    a.total += displayed;
+                    a.sources.add(new Source(v.vaultNumber, s.slotIndex, displayed));
+                    accs.add(a);
+                }
             }
         }
+        for (Acc a : accs) {
+            String name = (a.rep.displayName != null && !a.rep.displayName.isEmpty())
+                    ? stripColor(a.rep.displayName)
+                    : (a.icon.isEmpty() ? a.rep.materialKey : a.icon.getName().getString());
+            String category;
+            if (a.icon.isEmpty()) {
+                category = "~";
+            } else {
+                Identifier id = Registries.ITEM.getId(a.icon.getItem());
+                category = id == null ? "~" : id.toString();
+            }
+            entries.add(new Entry(a.rep, a.total, a.sources, a.icon,
+                    name == null ? "" : name, category));
+        }
+        sortEntries();
+    }
+
+    /** Identity for display-merging: same material + name + lore → one tile.
+     *  Mirrors what the server's PvCompactor merges (it uses isSimilar; this is
+     *  the closest the bundle's no-NBT view can get). */
+    private static String identityKey(PvBundlePayload.Slot s) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(s.materialKey == null ? "" : s.materialKey).append(' ');
+        sb.append(s.displayName == null ? "" : s.displayName).append(' ');
+        if (s.lore != null) for (String line : s.lore) sb.append(line).append('\u0001');
+        return sb.toString();
+    }
+
+    /** Sort the aggregated tiles by the persisted sort mode (Quantity / A-Z /
+     *  Category). Quantity is the default; all three cycle via the sort button. */
+    private void sortEntries() {
+        int mode = FeatureToggles.getPvTerminalSortMode();
+        java.util.Comparator<Entry> byName =
+                java.util.Comparator.comparing((Entry e) -> e.sortName, String.CASE_INSENSITIVE_ORDER);
+        java.util.Comparator<Entry> cmp = switch (mode) {
+            case 1 -> byName;
+            case 2 -> java.util.Comparator.comparing((Entry e) -> e.category).thenComparing(byName);
+            default -> java.util.Comparator.comparingInt((Entry e) -> -e.total).thenComparing(byName);
+        };
+        entries.sort(cmp);
     }
 
     private int effectiveAmount(int vaultNumber, PvBundlePayload.Slot s) {
@@ -218,13 +282,37 @@ public final class PvTerminalScreen extends Screen {
         return override != null ? override : s.amount;
     }
 
-    /** Apply an extracted amount locally so the tile updates immediately. */
-    private void applyOptimisticExtract(int vaultNumber, PvBundlePayload.Slot s, int taken) {
-        long key = (((long) vaultNumber) << 16) | (s.slotIndex & 0xFFFFL);
-        int current = optimisticAmounts.getOrDefault(key, s.amount);
-        int next = Math.max(0, current - taken);
-        optimisticAmounts.put(key, next);
+    /** Optimistically remove {@code taken} items from an aggregated tile by
+     *  decrementing its source slots in order, so the tile updates instantly
+     *  before the server's bundle refresh lands. */
+    private void applyOptimisticGroupExtract(Entry e, int taken) {
+        int remaining = taken;
+        for (Source src : e.sources) {
+            if (remaining <= 0) break;
+            long key = (((long) src.vault) << 16) | (src.slotIndex & 0xFFFFL);
+            int current = optimisticAmounts.getOrDefault(key, src.amount);
+            int dec = Math.min(current, remaining);
+            optimisticAmounts.put(key, current - dec);
+            remaining -= dec;
+        }
         recomputeEntries();
+    }
+
+    /** Abbreviate a stack total for the tile overlay, kept to ≤4 chars so it fits
+     *  a slot: 576 → "576", 1234 → "1.2k", 12000 → "12k", 1_200_000 → "1.2M". */
+    private static String abbreviate(int n) {
+        if (n < 1000) return Integer.toString(n);                          // 0..999
+        if (n < 10_000) return trimOneDecimal(n / 1000.0) + "k";          // 1.2k..9.9k
+        if (n < 1_000_000) return (n / 1000) + "k";                       // 10k..999k
+        if (n < 10_000_000) return trimOneDecimal(n / 1_000_000.0) + "M"; // 1.2M..9.9M
+        return (n / 1_000_000) + "M";                                     // 10M+
+    }
+
+    private static String trimOneDecimal(double v) {
+        long whole = (long) v;
+        int dec = (int) Math.floor((v - whole) * 10 + 0.5);
+        if (dec >= 10) { whole += 1; dec = 0; }
+        return dec == 0 ? Long.toString(whole) : (whole + "." + dec);
     }
 
     /** Whether the player may currently take/put. Driven by the bundle's
@@ -296,6 +384,64 @@ public final class PvTerminalScreen extends Screen {
         return (this.height - panelHeight()) / 2 + TITLE_BAR_H + SEARCH_BAR_H + PANEL_PADDING;
     }
 
+    /** Left X of the sort button — right-aligned with the grid's right edge,
+     *  above the scrollbar gap, on the search row. */
+    private int sortBtnX() {
+        int panelX = (this.width - panelWidth()) / 2;
+        return panelX + panelWidth() - PANEL_PADDING - SCROLLBAR_W - SCROLLBAR_GAP - SORT_BTN_W;
+    }
+
+    private int sortBtnY() {
+        int panelY = (this.height - panelHeight()) / 2;
+        return panelY + TITLE_BAR_H + 4;
+    }
+
+    private boolean overSortButton(double mx, double my) {
+        int bx = sortBtnX();
+        int by = sortBtnY();
+        return mx >= bx && mx < bx + SORT_BTN_W && my >= by && my < by + SORT_BTN_H;
+    }
+
+    private static String sortLabel(int mode) {
+        return switch (mode) {
+            case 1 -> "A-Z";
+            case 2 -> "Type";
+            default -> "Qty";
+        };
+    }
+
+    private static String sortLabelFull(int mode) {
+        return switch (mode) {
+            case 1 -> "Alphabetical (A-Z)";
+            case 2 -> "Category (by type)";
+            default -> "Quantity (most first)";
+        };
+    }
+
+    /** Draw the sort button + set its hover tooltip. Drawn each frame in render(). */
+    private void renderSortButton(DrawContext ctx, int mouseX, int mouseY) {
+        int bx = sortBtnX();
+        int by = sortBtnY();
+        boolean hover = overSortButton(mouseX, mouseY);
+        ctx.fill(bx, by, bx + SORT_BTN_W, by + SORT_BTN_H, hover ? 0xFF3A3A3A : 0xFF222222);
+        ctx.fill(bx, by, bx + SORT_BTN_W, by + 1, 0xFF555555);
+        ctx.fill(bx, by + SORT_BTN_H - 1, bx + SORT_BTN_W, by + SORT_BTN_H, 0xFF555555);
+        ctx.fill(bx, by, bx + 1, by + SORT_BTN_H, 0xFF555555);
+        ctx.fill(bx + SORT_BTN_W - 1, by, bx + SORT_BTN_W, by + SORT_BTN_H, 0xFF555555);
+        int mode = FeatureToggles.getPvTerminalSortMode();
+        String label = "§e" + sortLabel(mode);
+        int tw = this.textRenderer.getWidth(label);
+        ctx.drawText(this.textRenderer, Text.literal(label),
+                bx + (SORT_BTN_W - tw) / 2,
+                by + (SORT_BTN_H - this.textRenderer.fontHeight) / 2 + 1,
+                0xFFFFFFFF, true);
+        if (hover) {
+            hoverTooltip = java.util.List.of(
+                    Text.literal("§7Sort: §f" + sortLabelFull(mode)),
+                    Text.literal("§8Click to change"));
+        }
+    }
+
     /** Top-left X of the player-inventory grid (main inv row 1). Centered
      *  under the terminal grid. */
     private int invX() {
@@ -356,6 +502,15 @@ public final class PvTerminalScreen extends Screen {
         int invSlot = invSlotUnderCursor(mx, my);
         int entryIdx = entryUnderCursor(mx, my);
 
+        // ── Sort button (cycles Quantity → A-Z → Category) ──
+        if (button == 0 && overSortButton(mx, my)) {
+            defocusSearch();
+            FeatureToggles.cyclePvTerminalSortMode();
+            recomputeEntries();
+            scrollRowOffset = 0;
+            return true;
+        }
+
         // ── Inventory slot clicks (vanilla-like) ──
         if (invSlot >= 0) {
             defocusSearch();
@@ -400,7 +555,6 @@ public final class PvTerminalScreen extends Screen {
                 return true;
             }
             Entry e = entries.get(entryIdx);
-            int available = e.displayedAmount;
             // View-only outside a safe zone: block all extract modes (the
             // holding-cursor return-to-inventory path above is harmless and
             // stays). Server rejects + re-syncs too, but blocking here avoids
@@ -409,25 +563,28 @@ public final class PvTerminalScreen extends Screen {
                 flashBlocked();
                 return true;
             }
+            // Every tile may aggregate the same item across several PV slots; the
+            // cross-PV extract packet pulls the requested amount across all of
+            // them in one transaction. The reference slot only names which item.
+            Source ref = e.sources.get(0);
+            int maxStack = Math.max(1, e.icon.getMaxCount());
             if (button == 1) {
-                // Right-click → half onto cursor.
-                int take = Math.max(1, (available + 1) / 2);
-                applyOptimisticExtract(e.vaultNumber, e.slot, take);
-                predictPickupToCursor(e.slot, take);
-                NetworkHandler.sendPvExtract(e.vaultNumber, e.slot.slotIndex,
+                // Right-click → half of the total onto the cursor (one stack max).
+                int take = Math.min(maxStack, Math.max(1, (e.total + 1) / 2));
+                applyOptimisticGroupExtract(e, take);
+                predictPickupToCursor(e.rep, take);
+                NetworkHandler.sendPvExtractItem(ref.vault, ref.slotIndex,
                         Protocol.PV_EXTRACT_HALF, Protocol.PV_TARGET_CURSOR);
             } else if (button == 0 && isShiftDown()) {
-                // Shift+left → whole stack straight into the inventory (bulk).
-                // Inventory placement is hard to predict precisely, so only the
-                // tile decrement is optimistic; the server fills the inventory.
-                applyOptimisticExtract(e.vaultNumber, e.slot, available);
-                NetworkHandler.sendPvExtract(e.vaultNumber, e.slot.slotIndex,
+                // Shift+left → the whole item, across every PV, into the inventory.
+                applyOptimisticGroupExtract(e, e.total);
+                NetworkHandler.sendPvExtractItem(ref.vault, ref.slotIndex,
                         Protocol.PV_EXTRACT_ALL, Protocol.PV_TARGET_INV);
             } else if (button == 0) {
-                // Left-click → one onto cursor.
-                applyOptimisticExtract(e.vaultNumber, e.slot, 1);
-                predictPickupToCursor(e.slot, 1);
-                NetworkHandler.sendPvExtract(e.vaultNumber, e.slot.slotIndex,
+                // Left-click → one onto the cursor.
+                applyOptimisticGroupExtract(e, 1);
+                predictPickupToCursor(e.rep, 1);
+                NetworkHandler.sendPvExtractItem(ref.vault, ref.slotIndex,
                         Protocol.PV_EXTRACT_ONE, Protocol.PV_TARGET_CURSOR);
             } else {
                 return super.mouseClicked(click, doubleClick);
@@ -655,30 +812,31 @@ public final class PvTerminalScreen extends Screen {
             int sx = gx + col * SLOT_PX;
             int sy = gy + row * SLOT_PX;
 
-            ItemStack stack = resolveStack(e.slot, e.displayedAmount);
+            ItemStack stack = e.icon;
             if (stack.isEmpty()) continue;
 
             int io = (SLOT_PX - 16) / 2; // centre the 16px icon in the 22px vault cell
             ctx.drawItem(stack, sx + io, sy + io);
-            if (e.displayedAmount > 1) {
-                ctx.drawStackOverlay(this.textRenderer, stack, sx + io, sy + io);
+            // Custom count overlay: the aggregated total, abbreviated, so merged
+            // tiles read "576" / "12k" instead of a single stack's count.
+            if (e.total > 1) {
+                drawCountOverlay(ctx, e.total, sx + io, sy + io);
             }
 
-            // Post-op flash for the vault this entry came from
-            Long flashAt = recentVaultFlash.get(e.vaultNumber);
-            if (flashAt != null) {
-                long elapsed = now - flashAt;
-                if (elapsed < FLASH_MS) {
-                    float t = 1f - (elapsed / (float) FLASH_MS);
-                    int alpha = (int) (Math.max(0, Math.min(1, t)) * 100);
-                    int color = (alpha << 24) | 0xFFCC33;
-                    ctx.fill(sx + 1, sy + 1, sx + SLOT_PX - 1, sy + SLOT_PX - 1, color);
-                } else {
-                    recentVaultFlash.remove(e.vaultNumber);
-                }
+            // Post-op flash if any of this tile's source vaults just changed.
+            Long flashAt = null;
+            for (Source src : e.sources) {
+                Long f = recentVaultFlash.get(src.vault);
+                if (f != null) { flashAt = f; break; }
+            }
+            if (flashAt != null && now - flashAt < FLASH_MS) {
+                float t = 1f - ((now - flashAt) / (float) FLASH_MS);
+                int alpha = (int) (Math.max(0, Math.min(1, t)) * 100);
+                int color = (alpha << 24) | 0xFFCC33;
+                ctx.fill(sx + 1, sy + 1, sx + SLOT_PX - 1, sy + SLOT_PX - 1, color);
             }
 
-            // Hover highlight + tooltip (vanilla item name + bundled lore + PV hint)
+            // Hover highlight + tooltip (item name + bundled lore + aggregate info)
             if (mouseX >= sx && mouseX < sx + SLOT_PX && mouseY >= sy && mouseY < sy + SLOT_PX) {
                 ctx.fill(sx + 1, sy + 1, sx + SLOT_PX - 1, sy + SLOT_PX - 1, 0x66FFFFFF);
                 hoverTooltip = buildItemTooltip(e, stack);
@@ -720,6 +878,9 @@ public final class PvTerminalScreen extends Screen {
             ctx.drawText(this.textRenderer, Text.literal(msg), bx, by, 0xFFFF6666, true);
         }
 
+        // Sort-mode button (search row, right side).
+        renderSortButton(ctx, mouseX, mouseY);
+
         // Player inventory strip (3 main rows + hotbar)
         renderPlayerInventory(ctx, mouseX, mouseY);
 
@@ -742,19 +903,54 @@ public final class PvTerminalScreen extends Screen {
     }
 
     /** Build a vanilla-style multi-line tooltip from a terminal tile: bundled
-     *  display-name as the title, then each lore line, then a footer with
-     *  count + source PV. */
+     *  display-name as the title, then each lore line, then an aggregate footer
+     *  (total + stack breakdown + which PVs it spans). */
     private List<Text> buildItemTooltip(Entry e, ItemStack stack) {
         List<Text> lines = new ArrayList<>();
-        String name = (e.slot.displayName != null && !e.slot.displayName.isEmpty())
-                ? e.slot.displayName
+        String name = (e.rep.displayName != null && !e.rep.displayName.isEmpty())
+                ? e.rep.displayName
                 : stack.getName().getString();
         lines.add(Text.literal(name));
-        if (e.slot.lore != null) {
-            for (String loreLine : e.slot.lore) lines.add(Text.literal(loreLine));
+        if (e.rep.lore != null) {
+            for (String loreLine : e.rep.lore) lines.add(Text.literal(loreLine));
         }
-        lines.add(Text.literal("§8x" + e.displayedAmount + "  §7· §8PV " + e.vaultNumber));
+        int max = Math.max(1, stack.getMaxCount());
+        if (e.total > max) {
+            int full = e.total / max;
+            int rem = e.total % max;
+            String breakdown = rem > 0 ? (full + "x" + max + " + " + rem) : (full + "x" + max);
+            lines.add(Text.literal("§7" + e.total + " total §8(" + breakdown + ")"));
+        } else {
+            lines.add(Text.literal("§8x" + e.total));
+        }
+        lines.add(Text.literal("§8" + sourcesLabel(e)));
         return lines;
+    }
+
+    /** "PV 1, 3, 5" — the distinct vaults this tile's stacks live in (capped). */
+    private static String sourcesLabel(Entry e) {
+        java.util.TreeSet<Integer> pvs = new java.util.TreeSet<>();
+        for (Source s : e.sources) pvs.add(s.vault);
+        StringBuilder sb = new StringBuilder(pvs.size() == 1 ? "PV " : "PVs ");
+        int i = 0;
+        for (int pv : pvs) {
+            if (i >= 6) { sb.append("…"); break; }
+            if (i > 0) sb.append(", ");
+            sb.append(pv);
+            i++;
+        }
+        return sb.toString();
+    }
+
+    /** Draw the abbreviated aggregated total at the bottom-right of a 16px icon
+     *  at (iconX, iconY), right-aligned with a drop shadow — mirrors the vanilla
+     *  count position but supports totals far beyond one stack. */
+    private void drawCountOverlay(DrawContext ctx, int total, int iconX, int iconY) {
+        String label = abbreviate(total);
+        int w = this.textRenderer.getWidth(label);
+        int tx = iconX + 16 - w;
+        int ty = iconY + 16 - this.textRenderer.fontHeight + 1;
+        ctx.drawText(this.textRenderer, Text.literal(label), tx, ty, 0xFFFFFFFF, true);
     }
 
     private void renderPlayerInventory(DrawContext ctx, int mouseX, int mouseY) {
@@ -849,18 +1045,52 @@ public final class PvTerminalScreen extends Screen {
         return false;
     }
 
-    /** A single visible tile: the source vault + slot stub from the bundle.
-     *  {@code displayedAmount} can differ from {@code slot.amount} during a
-     *  pending optimistic-extract before the server bundle refreshes. */
-    private static final class Entry {
-        final int vaultNumber;
-        final PvBundlePayload.Slot slot;
-        final int displayedAmount;
+    /** One source stack feeding an aggregated tile: where it lives + how much. */
+    private static final class Source {
+        final int vault;
+        final int slotIndex;
+        final int amount;
 
-        Entry(int vaultNumber, PvBundlePayload.Slot slot, int displayedAmount) {
-            this.vaultNumber = vaultNumber;
-            this.slot = slot;
-            this.displayedAmount = displayedAmount;
+        Source(int vault, int slotIndex, int amount) {
+            this.vault = vault;
+            this.slotIndex = slotIndex;
+            this.amount = amount;
+        }
+    }
+
+    /** Mutable accumulator used while grouping bundle slots into tiles. */
+    private static final class Acc {
+        final PvBundlePayload.Slot rep;        // representative slot (icon / name / lore)
+        final ItemStack icon;                  // resolved once (count 1) for render + sort
+        int total = 0;                         // summed displayed amount across sources
+        final java.util.List<Source> sources = new java.util.ArrayList<>();
+
+        Acc(PvBundlePayload.Slot rep, ItemStack icon) {
+            this.rep = rep;
+            this.icon = icon;
+        }
+    }
+
+    /** A single visible tile: one item, aggregated across every PV slot that
+     *  holds it. {@code total} is the summed amount (may exceed a vanilla stack);
+     *  {@code sources} are the backing slots, ascending, used to drive extraction
+     *  and the optimistic decrement. */
+    private static final class Entry {
+        final PvBundlePayload.Slot rep;
+        final int total;
+        final java.util.List<Source> sources;
+        final ItemStack icon;       // pre-resolved icon stack (count 1)
+        final String sortName;      // display name for A-Z / tiebreak sort
+        final String category;      // registry id for category sort
+
+        Entry(PvBundlePayload.Slot rep, int total, java.util.List<Source> sources,
+              ItemStack icon, String sortName, String category) {
+            this.rep = rep;
+            this.total = total;
+            this.sources = sources;
+            this.icon = icon;
+            this.sortName = sortName;
+            this.category = category;
         }
     }
 }

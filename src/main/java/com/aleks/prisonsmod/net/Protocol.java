@@ -652,6 +652,28 @@ public final class Protocol {
     public static final byte PV_TARGET_INV    = 1;
 
     /**
+     * Player clicked a tile in the PV terminal that aggregates the same item
+     * across several PV slots into a single tile. Unlike {@link #PKT_PV_EXTRACT_REQ}
+     * (one slot), the server pulls the mode-determined amount across <b>every</b>
+     * matching slot in all the owner's PVs in one atomic transaction, then pushes
+     * a single fresh {@link #PKT_PV_BUNDLE} — so grabbing a merged stack is one
+     * packet + one bundle, not N. The reference {@code (vault, slot)} only names
+     * which item to match; identity is never trusted from the client.
+     *
+     * <p>Wire format after the type byte:
+     * <pre>
+     *   byte   refVault    (1..PV_MAX_VAULTS)
+     *   short  refSlot     (0..PV_MAX_SLOTS-1)
+     *   byte   amountMode  (PV_EXTRACT_*)
+     *   byte   target      (PV_TARGET_*)
+     * </pre>
+     *
+     * <p>Reuses C2S byte 114 (one of the freed PV affinity ids); free on both
+     * the master and season2 schemes — keep it that way on merge.
+     */
+    public static final byte PKT_PV_EXTRACT_ITEM = (byte) 114;
+
+    /**
      * Place the player's cursor stack into a specific player-inventory slot
      * (ME-terminal style: pick up from a tile, click a slot to drop). Server
      * swaps if the target slot is occupied by a different item, merges if same.
