@@ -9,7 +9,7 @@ import java.util.Set;
 /**
  * Per-widget settings for {@link StatsHud}. Two layers:
  * <ul>
- *   <li>Section toggles (world / kills / drops) — show or hide whole blocks</li>
+ *   <li>Section toggles (world / hunter / mining / kills / drops) — show or hide whole blocks</li>
  *   <li>Per-mob whitelist for the kills section — empty = show everything,
  *       otherwise hide anything not in the set</li>
  * </ul>
@@ -32,9 +32,10 @@ public final class StatsHudSettingsScreen extends WidgetSettingsScreen {
         for (String section : StatsHud.ALL_SECTIONS) {
             String label = switch (section) {
                 case "world"  -> "Show world name";
+                case "hunter" -> "Show Hunter XP (XP/h + session total)";
                 case "mining" -> "Show mining (XP/h, Energy/h, $/h)";
                 case "kills"  -> "Show kills section";
-                case "drops"  -> "Show drops section";
+                case "drops"  -> "Show drops section (by rarity)";
                 default       -> "Show " + section;
             };
             addToggle(label,
@@ -51,11 +52,6 @@ public final class StatsHudSettingsScreen extends WidgetSettingsScreen {
                         }
                     });
         }
-
-        addSection("Drops");
-        addToggle("Show lootbox subtypes",
-                stats::splitLootboxSubtypes,
-                v -> HudSettings.setBoolean(stats.id(), StatsHud.KEY_SPLIT_LOOTBOX_SUBTYPES, v));
 
         addSection("Visible kills");
         // Per-mob visibility — empty set means "show every kind".

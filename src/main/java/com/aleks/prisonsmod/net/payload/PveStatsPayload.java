@@ -11,9 +11,16 @@ import java.util.Map;
  *
  * <p>Wire format: {@code varint+string worldName, byte killCount,
  * (varint+string kind, varint count) * killCount, byte dropCount,
- * (varint+string kind, varint count) * dropCount}.
+ * (varint+string kind, varint count) * dropCount, varint hunterXpPerHour,
+ * varint sessionHunterXp}.
+ *
+ * <p>The two trailing hunter varints were appended after the original
+ * kill/drop format shipped. They are read only when the buffer still has
+ * bytes, so an older server that doesn't send them decodes as 0 instead of
+ * throwing.
  */
-public record PveStatsPayload(String worldName, Map<String, Integer> kills, Map<String, Integer> drops, long receivedMs) {
+public record PveStatsPayload(String worldName, Map<String, Integer> kills, Map<String, Integer> drops,
+                              long hunterXpPerHour, long sessionHunterXp, long receivedMs) {
 
     public static PveStatsPayload decode(PacketByteBuf buf) {
         String world = buf.readString(64);
@@ -21,7 +28,14 @@ public record PveStatsPayload(String worldName, Map<String, Integer> kills, Map<
 
         Map<String, Integer> kills = decodeMap(buf);
         Map<String, Integer> drops = decodeMap(buf);
-        return new PveStatsPayload(world, kills, drops, System.currentTimeMillis());
+
+        // Additive trailing fields — guard each read so an older server (no
+        // hunter fields) yields 0 rather than over-reading the buffer.
+        long hunterXpPerHour = buf.isReadable() ? Math.max(0L, buf.readVarInt()) : 0L;
+        long sessionHunterXp = buf.isReadable() ? Math.max(0L, buf.readVarInt()) : 0L;
+
+        return new PveStatsPayload(world, kills, drops, hunterXpPerHour, sessionHunterXp,
+                System.currentTimeMillis());
     }
 
     private static Map<String, Integer> decodeMap(PacketByteBuf buf) {

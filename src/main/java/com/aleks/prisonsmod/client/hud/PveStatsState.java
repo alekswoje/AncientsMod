@@ -14,6 +14,8 @@ public final class PveStatsState {
     private static volatile String worldName = "";
     private static volatile Map<String, Integer> kills = new LinkedHashMap<>();
     private static volatile Map<String, Integer> drops = new LinkedHashMap<>();
+    private static volatile long hunterXpPerHour = 0L;
+    private static volatile long sessionHunterXp = 0L;
     private static volatile long receivedMs = 0L;
 
     private PveStatsState() {}
@@ -22,6 +24,8 @@ public final class PveStatsState {
         worldName = payload.worldName() == null ? "" : payload.worldName();
         kills = new LinkedHashMap<>(payload.kills());
         drops = new LinkedHashMap<>(payload.drops());
+        hunterXpPerHour = Math.max(0L, payload.hunterXpPerHour());
+        sessionHunterXp = Math.max(0L, payload.sessionHunterXp());
         receivedMs = payload.receivedMs();
     }
 
@@ -39,5 +43,15 @@ public final class PveStatsState {
 
     public static Map<String, Integer> drops() {
         return isStale() ? new LinkedHashMap<>() : drops;
+    }
+
+    /** Rolling projection of Hunter XP earned per hour (0 when idle or stale). */
+    public static long hunterXpPerHour() {
+        return isStale() ? 0L : hunterXpPerHour;
+    }
+
+    /** Total Hunter XP earned this session (0 when stale). */
+    public static long sessionHunterXp() {
+        return isStale() ? 0L : sessionHunterXp;
     }
 }
