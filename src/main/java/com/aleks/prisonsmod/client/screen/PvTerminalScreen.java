@@ -41,8 +41,8 @@ import java.util.Locale;
  * <ul>
  *   <li>L-click tile → extract 1 ({@link Protocol#PV_EXTRACT_ONE}).</li>
  *   <li>R-click tile → extract half ({@link Protocol#PV_EXTRACT_HALF}).</li>
- *   <li>Shift+L-click tile → extract one full stack into the inventory
- *       ({@link Protocol#PV_EXTRACT_STACK}); repeat to pull more.</li>
+ *   <li>Shift+L-click tile → extract the tile's first source stack into the
+ *       inventory ({@link Protocol#PV_EXTRACT_ALL}); repeat to pull more.</li>
  *   <li>L-press hotbar slot, drag onto grid, release → deposit that hotbar
  *       slot via {@link NetworkHandler#sendPvShiftClick(int)} (server fills the
  *       first vault with space).</li>
@@ -264,8 +264,8 @@ public final class PvTerminalScreen extends Screen {
      *  the closest the bundle's no-NBT view can get). */
     private static String identityKey(PvBundlePayload.Slot s) {
         StringBuilder sb = new StringBuilder();
-        sb.append(s.materialKey == null ? "" : s.materialKey).append(' ');
-        sb.append(s.displayName == null ? "" : s.displayName).append(' ');
+        sb.append(s.materialKey == null ? "" : s.materialKey).append('\u0001');
+        sb.append(s.displayName == null ? "" : s.displayName).append('\u0001');
         if (s.lore != null) for (String line : s.lore) sb.append(line).append('\u0001');
         return sb.toString();
     }
@@ -588,44 +588,47 @@ public final class PvTerminalScreen extends Screen {
         if (entryIdx >= 0) {
             defocusSearch();
             if (holdingCursor) {
-                // Holding a stack → click a tile to stash it back into a PV.
-                // Predict the cursor clearing immediately.
+                // Holding a stack → click a tile to stash it back into the PV.
+                // Predict the cursor clearing; the server deposits it back into a
+                // vault (or your inventory if you're not in a safe zone).
                 setClientCursor(ItemStack.EMPTY);
                 NetworkHandler.sendPvCursorReturn();
                 return true;
             }
             Entry e = entries.get(entryIdx);
             // View-only outside a safe zone: block all extract modes (the
-            // holding-cursor return-to-inventory path above is harmless and
-            // stays). Server rejects + re-syncs too, but blocking here avoids
-            // the optimistic tile flicker.
+            // holding-cursor return path above is harmless and stays). Server
+            // rejects + re-syncs too, but blocking here avoids the tile flicker.
             if (!canModify()) {
                 flashBlocked();
                 return true;
             }
-            // Every tile may aggregate the same item across several PV slots; the
-            // cross-PV extract packet pulls the requested amount across all of
-            // them in one transaction. The reference slot only names which item.
+            // A tile may aggregate the same item across several PV slots, but each
+            // click pulls from ONE source stack (the first), so the optimistic
+            // amount is exact (we know that stack's size) and there's no overshoot
+            // when the server's view differs (e.g. unique-id boosters). Shift-click
+            // takes one stack; repeating walks through the tile's source stacks.
             Source ref = e.sources.get(0);
+            int srcAmt = ref.amount;
             int maxStack = Math.max(1, e.icon.getMaxCount());
             if (button == 1) {
-                // Right-click → half of the total onto the cursor (one stack max).
-                int take = Math.min(maxStack, Math.max(1, (e.total + 1) / 2));
+                // Right-click → half of that source stack onto the cursor.
+                int take = Math.min(maxStack, Math.max(1, (srcAmt + 1) / 2));
                 applyOptimisticGroupExtract(e, take);
                 predictPickupToCursor(e.rep, take);
-                NetworkHandler.sendPvExtractItem(ref.vault, ref.slotIndex,
+                NetworkHandler.sendPvExtract(ref.vault, ref.slotIndex,
                         Protocol.PV_EXTRACT_HALF, Protocol.PV_TARGET_CURSOR);
             } else if (button == 0 && isShiftDown()) {
-                // Shift+left → one full stack into the inventory (repeat to pull more).
-                int take = Math.min(maxStack, e.total);
-                applyOptimisticGroupExtract(e, take);
-                NetworkHandler.sendPvExtractItem(ref.vault, ref.slotIndex,
-                        Protocol.PV_EXTRACT_STACK, Protocol.PV_TARGET_INV);
+                // Shift+left → that whole source stack into the inventory
+                // (repeat to pull the item's next stack).
+                applyOptimisticGroupExtract(e, srcAmt);
+                NetworkHandler.sendPvExtract(ref.vault, ref.slotIndex,
+                        Protocol.PV_EXTRACT_ALL, Protocol.PV_TARGET_INV);
             } else if (button == 0) {
                 // Left-click → one onto the cursor.
                 applyOptimisticGroupExtract(e, 1);
                 predictPickupToCursor(e.rep, 1);
-                NetworkHandler.sendPvExtractItem(ref.vault, ref.slotIndex,
+                NetworkHandler.sendPvExtract(ref.vault, ref.slotIndex,
                         Protocol.PV_EXTRACT_ONE, Protocol.PV_TARGET_CURSOR);
             } else {
                 return super.mouseClicked(click, doubleClick);
