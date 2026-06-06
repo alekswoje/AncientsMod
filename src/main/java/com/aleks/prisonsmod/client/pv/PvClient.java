@@ -13,6 +13,7 @@ import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
+import net.minecraft.network.PacketByteBuf;
 import net.minecraft.text.Text;
 
 import java.util.Locale;
@@ -150,6 +151,64 @@ public final class PvClient {
             state = State.OPEN;
             MinecraftClient.getInstance().setScreen(openScreenFor(payload));
         });
+    }
+
+    // ── Chunk reassembly for oversized bundles (single in-flight; in-order TCP) ──
+    // Bundles that fit one packet still arrive whole via PKT_PV_BUNDLE → onBundle.
+    // Heavy vaults exceed a single packet and arrive split across PKT_PV_BUNDLE_CHUNK;
+    // we reassemble by version, then decode the SAME body a single packet carries and
+    // hand it to onBundle so the screen-open path is identical.
+    private static int asmVersion = -1;
+    private static int asmCount = 0;
+    private static int asmReceived = 0;
+    private static int asmBytes = 0;
+    private static byte[][] asmChunks = null;
+
+    /** Called from {@link NetworkHandler} for each inbound PV-bundle chunk. */
+    public static void onBundleChunk(int version, int index, int count, byte[] chunk) {
+        if (count < 1 || count > Protocol.PV_BUNDLE_MAX_CHUNKS) return;
+        if (index < 0 || index >= count) return;
+        if (chunk == null) return;
+
+        if (version != asmVersion || count != asmCount) {
+            asmVersion = version;
+            asmCount = count;
+            asmReceived = 0;
+            asmBytes = 0;
+            asmChunks = new byte[count][];
+        }
+        if (asmChunks[index] != null) return; // duplicate chunk
+        asmChunks[index] = chunk;
+        asmReceived++;
+        asmBytes += chunk.length;
+        if (asmBytes > Protocol.MAX_PV_BUNDLE_TOTAL_BYTES) {
+            resetAssembly();
+            return;
+        }
+        if (asmReceived < asmCount) return;
+
+        byte[] full = new byte[asmBytes];
+        int off = 0;
+        for (byte[] c : asmChunks) {
+            System.arraycopy(c, 0, full, off, c.length);
+            off += c.length;
+        }
+        resetAssembly();
+
+        try {
+            PacketByteBuf buf = new PacketByteBuf(io.netty.buffer.Unpooled.wrappedBuffer(full));
+            onBundle(PvBundlePayload.decode(buf));
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("[PV] chunked bundle decode failed", t);
+        }
+    }
+
+    private static void resetAssembly() {
+        asmVersion = -1;
+        asmCount = 0;
+        asmReceived = 0;
+        asmBytes = 0;
+        asmChunks = null;
     }
 
     /** Returns the right /pv landing screen based on the user's settings:

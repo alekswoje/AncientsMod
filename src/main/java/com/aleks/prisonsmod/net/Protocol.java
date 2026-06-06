@@ -278,6 +278,20 @@ public final class Protocol {
     public static final int PV_OPEN_TERMINAL_MAX_NAME_CHARS = 16;
 
     /**
+     * S2C — one chunk of a PV bundle too large to fit a single {@link #PKT_PV_BUNDLE}
+     * packet. Same scheme as {@link #PKT_LOOT_SNAPSHOT_CHUNK}: the server splits the body
+     * (everything a single PKT_PV_BUNDLE carries after its type byte) into ordered chunks;
+     * the mod reassembles by {@code version} and decodes the reassembled body with the same
+     * {@link com.aleks.prisonsmod.net.payload.PvBundlePayload} decoder. The server only
+     * chunks for clients that advertise {@link #PROTOCOL_MINOR} ≥ 1 in their handshake, so
+     * an older jar that doesn't handle this id keeps getting single packets (no break).
+     * Wire per chunk: {@code int version; varint chunkIndex; varint chunkCount; varint len; byte[len] body}.
+     * Bounded by {@link #MAX_PV_BUNDLE_CHUNK_BYTES} per packet, {@link #MAX_PV_BUNDLE_TOTAL_BYTES} total.
+     * Byte 37 is free on both the master and season2 schemes — keep it that way on merge.
+     */
+    public static final byte PKT_PV_BUNDLE_CHUNK = 37;
+
+    /**
      * Live mining rates snapshot (XP/h, Energy/h, $/h) for the Stats HUD
      * mining section. Server emits at 1 Hz only while a live mining window is
      * active — when the wire goes quiet, the client section stales out and
@@ -507,8 +521,14 @@ public final class Protocol {
     public static final int MAX_EVENT_ENTRIES = 16;
 
     // --- Packet type ids (C2S) ---
-    /** One-shot handshake sent on login so the server can flag mod presence. Has no effect on gameplay. */
+    /** One-shot handshake sent on login so the server can flag mod presence. Has no effect on gameplay.
+     *  Carries a trailing {@link #PROTOCOL_MINOR} byte that newer servers read for feature gating;
+     *  older servers stop at the type byte and ignore it. */
     public static final byte PKT_HANDSHAKE  = 101;
+    /** Mod protocol MINOR version, sent as the byte after {@link #PKT_HANDSHAKE}. Bumped within the
+     *  same major (channel {@code prisonsmod:v1}) when the client gains the ability to handle a new
+     *  server→client packet additively. Minor 1 = can reassemble {@link #PKT_PV_BUNDLE_CHUNK}. */
+    public static final int PROTOCOL_MINOR = 1;
     /**
      * Client request: "I want to ping this world-space point for my gang."
      * Payload carries only coordinates + a hold-flag. Server authenticates the
@@ -755,10 +775,20 @@ public final class Protocol {
     public static final int MAX_PAYLOAD_BYTES = 256;
     /** Larger cap reserved for {@link #PKT_BUFF_SNAPSHOT}, which carries every layer with a label. */
     public static final int MAX_SNAPSHOT_PAYLOAD_BYTES = 16_384;
-    /** Even larger cap reserved for {@link #PKT_PV_BUNDLE}: 7 vaults × up to
-     *  162 slots × full lore (a maxed pickaxe can be 140+ lines). Must match
-     *  server-side PrisonsModChannel.MAX_PV_BUNDLE_BYTES. */
+    /** Max bytes for a single {@link #PKT_PV_BUNDLE} packet (the legacy one-shot path).
+     *  Also the {@link RawPayload} outer read cap. Bundles larger than this arrive split
+     *  across {@link #PKT_PV_BUNDLE_CHUNK} packets and are reassembled up to
+     *  {@link #MAX_PV_BUNDLE_TOTAL_BYTES}. Must match server-side PrisonsModChannel.MAX_PV_BUNDLE_BYTES. */
     public static final int MAX_PV_BUNDLE_BYTES = 262_144;
+    /** Hard cap on a reassembled chunked PV bundle body — guards against a malicious server
+     *  claiming a huge chunk count to OOM the client. Must match server-side
+     *  PrisonsModChannel.MAX_PV_BUNDLE_TOTAL_BYTES. */
+    public static final int MAX_PV_BUNDLE_TOTAL_BYTES = 1_048_576;
+    /** Max bytes for a single {@link #PKT_PV_BUNDLE_CHUNK} packet (the server sends 24 KiB
+     *  bodies; this read cap leaves header headroom). */
+    public static final int MAX_PV_BUNDLE_CHUNK_BYTES = 32_768;
+    /** Max chunks a single PV bundle may declare (1 MiB / 24 KiB, with headroom). */
+    public static final int PV_BUNDLE_MAX_CHUNKS = 80;
     /** Max bytes for a single {@link #PKT_LOOT_SNAPSHOT_CHUNK} packet. */
     public static final int MAX_LOOT_CHUNK_BYTES = 32_768;
     /** Hard cap on the reassembled loot snapshot body — guards against a
@@ -844,6 +874,9 @@ public final class Protocol {
     /** Loot snapshot is on-demand but multi-chunk; allow a burst for the chunks
      *  of one snapshot to arrive back-to-back without tripping the limiter. */
     public static final int RATE_LOOT_CHUNK_PER_SEC = 80;
+    /** PV bundle chunks (for oversized vaults) arrive as a back-to-back burst, same as
+     *  the loot snapshot — allow the whole bundle's chunks through in one window. */
+    public static final int RATE_PV_CHUNK_PER_SEC = 80;
     /** Powerball is burst-prone: a stacked proc sends a spawn per ball plus a
      *  bounce update per ball-bounce. Generous so legitimate bursts aren't dropped. */
     public static final int RATE_POWERBALL_PER_SEC = 200;

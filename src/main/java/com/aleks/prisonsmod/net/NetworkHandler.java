@@ -233,6 +233,20 @@ public final class NetworkHandler {
                     PvBundlePayload p = PvBundlePayload.decode(buf);
                     PvClient.onBundle(p);
                 }
+                case Protocol.PKT_PV_BUNDLE_CHUNK -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.PV_CHUNK)) return;
+                    int version = buf.readInt();
+                    int chunkIndex = buf.readVarInt();
+                    int chunkCount = buf.readVarInt();
+                    int len = buf.readVarInt();
+                    if (chunkCount < 1 || chunkCount > Protocol.PV_BUNDLE_MAX_CHUNKS) return;
+                    if (chunkIndex < 0 || chunkIndex >= chunkCount) return;
+                    if (len < 0 || len > Protocol.MAX_PV_BUNDLE_CHUNK_BYTES) return;
+                    if (buf.readableBytes() < len) return;
+                    byte[] chunk = new byte[len];
+                    buf.readBytes(chunk);
+                    PvClient.onBundleChunk(version, chunkIndex, chunkCount, chunk);
+                }
                 case Protocol.PKT_SKILLTREE_OPEN -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.SKILLTREE_OPEN)) return;
                     com.aleks.prisonsmod.net.payload.SkillTreeOpenPayload p =
@@ -340,7 +354,9 @@ public final class NetworkHandler {
             return;
         }
         try {
-            ClientPlayNetworking.send(new RawPayload(new byte[] { Protocol.PKT_HANDSHAKE }));
+            // Trailing minor-version byte lets the server gate same-major feature additions
+            // (e.g. chunked PV bundles). Older servers stop at the type byte and ignore it.
+            ClientPlayNetworking.send(new RawPayload(new byte[] { Protocol.PKT_HANDSHAKE, (byte) Protocol.PROTOCOL_MINOR }));
             PrisonsMod.LOGGER.info("sendHandshake: sent");
         } catch (Throwable t) {
             PrisonsMod.LOGGER.warn("send handshake failed", t);
