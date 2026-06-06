@@ -21,6 +21,7 @@
 
 ## UI & Screens
 
+- **In-game item wiki (early test).** Hold **Shift** over a Spectral Trim and its tooltip **pins in place** so you can move your cursor onto it — recognised terms become **underlined and clickable**, each opening a short plain-English explainer. On a stat line both the stacking word (*increased / reduced / more / less*) and the *damage dealt / taken* phrase are clickable separately; *Max HP*, *PvE damage*, and the ability terms *hit* and *vanish* are too. **Esc** or click outside closes the popup. First pass — only the Spectral Trim is wired up so far; toggle under Settings → Tooltips → *Item wiki*.
 - **Tartarus Vision** — brand-new fullscreen skill-tree screen. Right-click the Oracle of Tartarus NPC and pick "Tartarus Vision", or run `/skilltree` from anywhere on the server, to open a Path-of-Exile-style overview of the whole dungeon skill tree. **Drag** to pan, **scroll** to zoom, **left-click** a node to allocate, **right-click** to refund, **bottom-right button** (twice) to respec all. Live points HUD top-left, search bar at the top (auto-defocuses when you click into the tree), a soft amethyst halo on the chain of nodes you'd need to allocate to reach a hovered one, and a brief glow on every node the moment it's allocated or refunded. Falls back to the in-world chisel for vanilla players — chisel allocations push live to any open Vision screen so the two stay in sync.
 
 ## Input & Keybinds
@@ -30,3 +31,5 @@
 ## Updates & Installation
 
 ## Quality of Life
+
+- **Fixed scroll getting stuck after viewing a long tooltip.** Scrollable tooltips no longer keep swallowing your scroll wheel after you stop hovering an oversized item — chat history and other scrollable screens scroll normally again.

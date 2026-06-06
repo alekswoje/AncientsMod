@@ -37,6 +37,8 @@ public final class SettingsScreen extends WidgetSettingsScreen {
                 FeatureToggles::isEnchantCollapseEnabled, FeatureToggles::setEnchantCollapse);
         addToggle("Scrollable tooltips",
                 FeatureToggles::isScrollableTooltipsEnabled, FeatureToggles::setScrollableTooltips);
+        addToggle("Item wiki (Shift to pin tooltip, click terms)",
+                FeatureToggles::isItemWikiEnabled, FeatureToggles::setItemWiki);
 
         addSection("Item Display");
         addToggle("Amount on currency items",
@@ -61,6 +63,8 @@ public final class SettingsScreen extends WidgetSettingsScreen {
                 FeatureToggles::isCooldownsHudEnabled, FeatureToggles::setCooldownsHud);
         addToggle("Show stats HUD",
                 FeatureToggles::isStatsHudEnabled, FeatureToggles::setStatsHud);
+        addToggle("Show outpost HUD",
+                FeatureToggles::isOutpostHudEnabled, FeatureToggles::setOutpostHud);
         addToggle("Show meteorite count on block",
                 FeatureToggles::isMeteoriteHudEnabled, FeatureToggles::setMeteoriteHud);
         addAction("Edit HUD positions...", () -> {

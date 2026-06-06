@@ -34,18 +34,43 @@ public final class TooltipScroll {
     private static final int PADDING_PX = 8;
     private static final int SCROLL_STEP_PX = 12;
 
+    /**
+     * How recently a tooltip must have rendered for the scroll handler to
+     * treat the cursor as "over an oversized tooltip". Tooltips re-render
+     * every frame while hovered, so a live one keeps this fresh continuously;
+     * once the cursor leaves the item (or the screen changes) nothing calls
+     * {@link #captureRender}, the timestamp goes stale within a couple of
+     * frames, and scroll falls back through to the screen (chat history, item
+     * lists, …). Without this gate the last oversized tooltip's state lingered
+     * forever and silently ate scroll in chat and other screens.
+     */
+    private static final long FRESH_WINDOW_MS = 150;
+
     private static int offset = 0;
     private static int lastTooltipHeight = 0;
     private static int lastScreenHeight = 0;
+    private static long lastRenderMillis = 0L;
 
     public static void captureRender(int screenHeight, int tooltipHeight) {
         lastScreenHeight = screenHeight;
         lastTooltipHeight = tooltipHeight;
+        lastRenderMillis = System.currentTimeMillis();
         if (!isOversized()) offset = 0;
     }
 
     public static boolean isOversized() {
         return lastTooltipHeight > lastScreenHeight && lastScreenHeight > 0;
+    }
+
+    /**
+     * True only while an oversized tooltip is actually on screen — oversized
+     * AND rendered within the last {@link #FRESH_WINDOW_MS}. The scroll
+     * handler gates on this (not bare {@link #isOversized()}) so it stops
+     * swallowing scroll the instant the tooltip is gone.
+     */
+    public static boolean isActivelyOversized() {
+        return isOversized()
+            && (System.currentTimeMillis() - lastRenderMillis) <= FRESH_WINDOW_MS;
     }
 
     public static void scroll(double verticalAmount) {
@@ -79,7 +104,7 @@ public final class TooltipScroll {
                 (s, mouseX, mouseY, horizontalAmount, verticalAmount) -> {
                     if (!ServerAllowlist.isAllowed()) return true;
                     if (!FeatureToggles.isScrollableTooltipsEnabled()) return true;
-                    if (!isOversized()) return true;
+                    if (!isActivelyOversized()) return true;
                     scroll(verticalAmount);
                     return false;
                 }

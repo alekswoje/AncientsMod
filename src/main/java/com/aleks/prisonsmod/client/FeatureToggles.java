@@ -34,6 +34,10 @@ public final class FeatureToggles {
     /** Scroll oversized tooltips with the mouse wheel. Off = vanilla bottom-pin (top spills off-screen). */
     private static volatile boolean scrollableTooltips = true;
 
+    /** In-mod item wiki: hold Shift over a wired item (Spectral Trim for now) to pin its tooltip and
+     *  click underlined terms for a plain-English explainer. On by default. */
+    private static volatile boolean itemWiki = true;
+
     /** While holding a pickaxe, fade nearby player-shaped entities (players + NPCs) so they don't obscure the block you're mining. */
     private static volatile boolean peacefulMining = true;
 
@@ -141,6 +145,7 @@ public final class FeatureToggles {
             minePredict = parseBool(props.getProperty("minePredict"), minePredict);
             enchantCollapse = parseBool(props.getProperty("enchantCollapse"), enchantCollapse);
             scrollableTooltips = parseBool(props.getProperty("scrollableTooltips"), scrollableTooltips);
+            itemWiki = parseBool(props.getProperty("itemWiki"), itemWiki);
             peacefulMining = parseBool(props.getProperty("peacefulMining"), peacefulMining);
             peacefulPvp = parseBool(props.getProperty("peacefulPvp"), peacefulPvp);
             boosterHud = parseBool(props.getProperty("boosterHud"), boosterHud);
@@ -177,6 +182,7 @@ public final class FeatureToggles {
         props.setProperty("minePredict", Boolean.toString(minePredict));
         props.setProperty("enchantCollapse", Boolean.toString(enchantCollapse));
         props.setProperty("scrollableTooltips", Boolean.toString(scrollableTooltips));
+        props.setProperty("itemWiki", Boolean.toString(itemWiki));
         props.setProperty("peacefulMining", Boolean.toString(peacefulMining));
         props.setProperty("peacefulPvp", Boolean.toString(peacefulPvp));
         props.setProperty("boosterHud", Boolean.toString(boosterHud));
@@ -252,6 +258,14 @@ public final class FeatureToggles {
     public static void setScrollableTooltips(boolean value) {
         if (scrollableTooltips == value) return;
         scrollableTooltips = value;
+        save();
+    }
+
+    public static boolean isItemWikiEnabled() { return itemWiki; }
+
+    public static void setItemWiki(boolean value) {
+        if (itemWiki == value) return;
+        itemWiki = value;
         save();
     }
 

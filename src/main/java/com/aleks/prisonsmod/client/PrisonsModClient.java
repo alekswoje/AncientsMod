@@ -63,6 +63,7 @@ public final class PrisonsModClient implements ClientModInitializer {
         NetworkHandler.register();
         TooltipCollapse.register();
         TooltipScroll.register();
+        com.aleks.prisonsmod.client.wiki.InteractiveItemTooltip.register();
         GangPingInput.register();
         GangPingRenderer.register();
         ClientCommands.register();
@@ -138,6 +139,7 @@ public final class PrisonsModClient implements ClientModInitializer {
             SuggestClient.reset();
             com.aleks.prisonsmod.client.Fullbright.clear();
             com.aleks.prisonsmod.client.skilltree.SkillTreeClient.reset();
+            com.aleks.prisonsmod.client.wiki.InteractiveItemTooltip.reset();
             lastWorldKey = null;
         });
 

@@ -14,6 +14,7 @@
     "client.HandledScreenItemLockMixin",
     "client.HandledScreenLockKeyMixin",
     "client.HandledScreenSlotOverlayMixin",
+    "client.HandledScreenTooltipSuppressMixin",
     "client.HoveredTooltipPositionerMixin",
     "client.LivingEntityRendererMixin",
     "client.SimpleOptionGammaMixin"
