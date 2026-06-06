@@ -10,16 +10,9 @@
 
 ## HUDs
 
-- The **Stats HUD** now groups your Hunt drops by **rarity** (Common → Mythic, rarest first) instead of one row per item, and adds a live **Hunter XP/h** rate plus your session Hunter XP total.
-- The **Stats HUD** mining section now shows a live **Blocks/h** rate, counted the same prestige-weighted way as your pickaxe block progress (Calcite ×2, Ancient Debris ×1.5, Emerald ×1.25).
-- Added a **Show outpost HUD** toggle to Settings → HUDs, so the Outpost widget can be turned on/off like the other HUDs.
-
 ## Rendering & Visuals
 
 ## UI & Screens
-
-- The **PV Terminal now merges identical items into one tile** showing the combined total (e.g. `576`, `12k`) instead of a separate tile per stack — no more scrolling past nine stacks of the same item. Hover shows the full breakdown and which PVs it spans.
-- Added **sorting to the PV Terminal**: a button on the right of the search bar cycles **Quantity / A–Z / Category**, and the grid auto-sorts (Quantity by default). Your choice is remembered between sessions.
 
 ## Input & Keybinds
 
