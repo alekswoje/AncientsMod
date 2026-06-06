@@ -645,6 +645,10 @@ public final class Protocol {
     public static final byte PV_EXTRACT_HALF = 1;
     /** Extract the entire stack. */
     public static final byte PV_EXTRACT_ALL  = 2;
+    /** Extract a single full stack (maxStackSize). Used by Shift+L on an
+     *  aggregated {@link #PKT_PV_EXTRACT_ITEM} tile so each shift-click pulls one
+     *  stack into the inventory, not the whole merged item. */
+    public static final byte PV_EXTRACT_STACK = 3;
 
     /** Pull onto the player's cursor (ME-terminal pickup). */
     public static final byte PV_TARGET_CURSOR = 0;
@@ -804,8 +808,12 @@ public final class Protocol {
     public static final int RATE_BUGREPORT_PER_SEC = 5;
     /** Suggest inbound packets are user-driven; a handful per second is plenty. */
     public static final int RATE_SUGGEST_PER_SEC = 5;
-    /** PV bundle is on-demand only (one packet per /pv intercept) — cap low. */
-    public static final int RATE_PV_BUNDLE_PER_SEC = 3;
+    /** PV bundle pushes — one per /pv intercept, plus one per terminal
+     *  extract/deposit refresh. Fast clicking can legitimately fire many per
+     *  second; keep this comfortably above human click rate so refresh bundles
+     *  aren't dropped (a dropped bundle leaves the terminal grid looking like
+     *  items vanished until reopen). Still bounded against a misbehaving server. */
+    public static final int RATE_PV_BUNDLE_PER_SEC = 20;
     /** Loot snapshot is on-demand but multi-chunk; allow a burst for the chunks
      *  of one snapshot to arrive back-to-back without tripping the limiter. */
     public static final int RATE_LOOT_CHUNK_PER_SEC = 80;

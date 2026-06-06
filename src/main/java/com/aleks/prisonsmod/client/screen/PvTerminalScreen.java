@@ -41,8 +41,8 @@ import java.util.Locale;
  * <ul>
  *   <li>L-click tile → extract 1 ({@link Protocol#PV_EXTRACT_ONE}).</li>
  *   <li>R-click tile → extract half ({@link Protocol#PV_EXTRACT_HALF}).</li>
- *   <li>Shift+L-click tile → extract entire stack
- *       ({@link Protocol#PV_EXTRACT_ALL}).</li>
+ *   <li>Shift+L-click tile → extract one full stack into the inventory
+ *       ({@link Protocol#PV_EXTRACT_STACK}); repeat to pull more.</li>
  *   <li>L-press hotbar slot, drag onto grid, release → deposit that hotbar
  *       slot via {@link NetworkHandler#sendPvShiftClick(int)} (server fills the
  *       first vault with space).</li>
@@ -576,10 +576,11 @@ public final class PvTerminalScreen extends Screen {
                 NetworkHandler.sendPvExtractItem(ref.vault, ref.slotIndex,
                         Protocol.PV_EXTRACT_HALF, Protocol.PV_TARGET_CURSOR);
             } else if (button == 0 && isShiftDown()) {
-                // Shift+left → the whole item, across every PV, into the inventory.
-                applyOptimisticGroupExtract(e, e.total);
+                // Shift+left → one full stack into the inventory (repeat to pull more).
+                int take = Math.min(maxStack, e.total);
+                applyOptimisticGroupExtract(e, take);
                 NetworkHandler.sendPvExtractItem(ref.vault, ref.slotIndex,
-                        Protocol.PV_EXTRACT_ALL, Protocol.PV_TARGET_INV);
+                        Protocol.PV_EXTRACT_STACK, Protocol.PV_TARGET_INV);
             } else if (button == 0) {
                 // Left-click → one onto the cursor.
                 applyOptimisticGroupExtract(e, 1);
