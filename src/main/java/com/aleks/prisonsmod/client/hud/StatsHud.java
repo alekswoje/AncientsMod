@@ -318,13 +318,17 @@ public final class StatsHud extends HudElement {
         // means the player isn't doing anything that produces that resource
         // (e.g. mining contraband ore yields XP but no money), so the row
         // would just clutter the widget.
-        List<MiningRow> out = new ArrayList<>(3);
+        List<MiningRow> out = new ArrayList<>(4);
         long xp = MiningStatsState.xpPerHour();
         long energy = MiningStatsState.energyPerHour();
         long money = MiningStatsState.moneyPerHour();
+        long blocks = MiningStatsState.blocksPerHour();
         if (xp > 0)     out.add(new MiningRow("XP/h",      formatCompact(xp),    0xFF8AE08A));
         if (energy > 0) out.add(new MiningRow("Energy/h",  formatCompact(energy),0xFF8AC2FF));
         if (money > 0)  out.add(new MiningRow("$/h",       "$" + formatCompact(money), 0xFFE6B05A));
+        // Prestige-weighted blocks/h (emerald 1.25, calcite 2, debris 1.5) — reads
+        // as progress-toward-prestige per hour, not a raw block tally.
+        if (blocks > 0) out.add(new MiningRow("Blocks/h",  formatCompact(blocks), 0xFFC8C0B0));
         return out;
     }
 

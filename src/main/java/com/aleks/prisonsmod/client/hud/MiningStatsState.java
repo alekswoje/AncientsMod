@@ -20,6 +20,7 @@ public final class MiningStatsState {
     private static volatile long xpPerHour = 0L;
     private static volatile long energyPerHour = 0L;
     private static volatile long moneyPerHour = 0L;
+    private static volatile long blocksPerHour = 0L;
     private static volatile long receivedMs = 0L;
 
     private MiningStatsState() {}
@@ -28,6 +29,7 @@ public final class MiningStatsState {
         xpPerHour     = payload.xpPerHour();
         energyPerHour = payload.energyPerHour();
         moneyPerHour  = payload.moneyPerHour();
+        blocksPerHour = payload.blocksPerHour();
         receivedMs    = payload.receivedMs();
     }
 
@@ -38,4 +40,6 @@ public final class MiningStatsState {
     public static long xpPerHour()     { return isLive() ? xpPerHour     : 0L; }
     public static long energyPerHour() { return isLive() ? energyPerHour : 0L; }
     public static long moneyPerHour()  { return isLive() ? moneyPerHour  : 0L; }
+    /** Prestige-weighted blocks mined per hour (0 when idle/stale). */
+    public static long blocksPerHour() { return isLive() ? blocksPerHour : 0L; }
 }

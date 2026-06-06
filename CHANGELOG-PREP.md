@@ -11,6 +11,8 @@
 ## HUDs
 
 - The **Stats HUD** now groups your Hunt drops by **rarity** (Common → Mythic, rarest first) instead of one row per item, and adds a live **Hunter XP/h** rate plus your session Hunter XP total.
+- The **Stats HUD** mining section now shows a live **Blocks/h** rate, counted the same prestige-weighted way as your pickaxe block progress (Calcite ×2, Ancient Debris ×1.5, Emerald ×1.25).
+- Added a **Show outpost HUD** toggle to Settings → HUDs, so the Outpost widget can be turned on/off like the other HUDs.
 
 ## Rendering & Visuals
 
