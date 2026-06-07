@@ -718,6 +718,22 @@ public final class NetworkHandler {
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
+    /**
+     * Report this client's local timezone to the server so it renders all
+     * player-facing clock times in the player's own zone. Sent once on join after
+     * the handshake. The server validates the IANA id and ignores anything it can't
+     * parse, falling back to its default display zone.
+     */
+    public static void sendClientTimezone() {
+        String zoneId;
+        try {
+            zoneId = java.time.ZoneId.systemDefault().getId();
+        } catch (Throwable t) {
+            return; // no resolvable zone → leave the server on its default
+        }
+        sendString(Protocol.PKT_CLIENT_TIMEZONE, clamp(zoneId, Protocol.CLIENT_TIMEZONE_MAX_CHARS));
+    }
+
     private static void sendString(byte typeId, String s) {
         if (!ServerAllowlist.isAllowed()) return;
         if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;

@@ -22,6 +22,8 @@
 
 ## Networking & Server Integration
 
+- **Server times now show in your local timezone.** On join, the mod tells the server your computer's timezone, so every clock time the server displays you — event schedules, daily resets, season-pass & gang-top payouts, your cell's raid-protection window, and your auction/history timestamps — renders in **your** zone (daylight-saving included) instead of Pacific.
+
 ## Updates & Installation
 
 ## Quality of Life
