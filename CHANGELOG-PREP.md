@@ -16,6 +16,8 @@
 
 ## UI & Screens
 
+- **Fixed the `/loot` browser showing stale data after switching servers** — the loot catalog now resets on every server connect, so the discovery view always reflects the server you're actually on instead of carrying over the previous server's snapshot.
+
 ## Input & Keybinds
 
 ## Networking & Server Integration

@@ -168,6 +168,23 @@ public final class LootClient {
         NetworkHandler.sendLootClose();
     }
 
+    /**
+     * Drops all cached snapshot + assembly state and returns to IDLE. Called on
+     * every server (re)connect (see {@code PrisonsModClient} JOIN/DISCONNECT) so a
+     * backend switch never renders the previous server's loot catalog. This matters
+     * most across clusters whose loot packets are renumbered (e.g. season2 vs
+     * master): there a fresh snapshot never arrives to overwrite a stale cache, so
+     * without this the fast path in {@link #onCommand} would show the old server's
+     * data forever instead of falling back to the server's own loot GUI.
+     */
+    public static void reset() {
+        state = State.IDLE;
+        intentSentAtMs = 0L;
+        passingThroughFallback = false;
+        latest = null;
+        resetAssembly();
+    }
+
     public static void tick() {
         if (state != State.REQUESTING) return;
         if (System.currentTimeMillis() - intentSentAtMs < INTENT_TIMEOUT_MS) return;
