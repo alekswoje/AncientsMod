@@ -30,12 +30,21 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * keeps Fabric from trying to load it. Old jar stays in place — Windows
  * file-locks it so we cannot replace it from inside the running JVM.
  *
- * <p><b>Phase 2 (on JVM shutdown):</b> a small installer script next to
- * the pending file is spawned as an external process. It waits for the
- * old jar's file lock to release (i.e. for the JVM to fully exit), deletes
- * the old {@code prisonsmod-*.jar}, renames {@code .pending → .jar}, then
- * deletes itself. The script is written once; the shutdown hook only
- * spawns it when a pending file actually exists.
+ * <p><b>Phase 2 (external watcher):</b> a small installer script next to the
+ * pending file is launched as a detached external process. It polls until the
+ * running jar's file lock releases (i.e. this JVM exits), then deletes the old
+ * {@code prisonsmod-*.jar}, renames {@code .pending → .jar}, and deletes itself.
+ *
+ * <p><b>Why the watcher is spawned while the game is still alive</b> (at
+ * download time, and re-armed on init if a pending jar survived): JVM shutdown
+ * hooks only run on a <em>graceful</em> exit. Wrapped launchers like Lunar
+ * Client and Feather force-kill the game process when you quit to the launcher,
+ * so a shutdown hook never fires — which is why the old "spawn on shutdown"
+ * design silently failed there (the jar downloaded but never swapped in). An
+ * independent OS process started before the kill survives it and completes the
+ * swap once the lock frees. The shutdown hook is kept only as a fast-path
+ * fallback for graceful exits, and is skipped when a live watcher is already
+ * armed.
  */
 public final class UpdateInstaller {
 
@@ -44,9 +53,12 @@ public final class UpdateInstaller {
     private static final long MIN_JAR_BYTES = 4_096;
 
     private static final AtomicBoolean downloadInFlight = new AtomicBoolean(false);
+    /** True once the external watcher process has been launched this JVM (download-time or re-arm). */
+    private static final AtomicBoolean watcherSpawned = new AtomicBoolean(false);
     private static volatile boolean initialised = false;
 
-    /** Call once on client init. Registers the shutdown hook and clears any stale pending files. */
+    /** Call once on client init. Registers the shutdown hook, clears stale pending files, and
+     *  re-arms the watcher if a previous session staged an update that never got applied. */
     public static void init() {
         if (initialised) return;
         initialised = true;
@@ -54,6 +66,15 @@ public final class UpdateInstaller {
             cleanStalePending();
         } catch (Exception e) {
             PrisonsMod.LOGGER.debug("PrisonsMod: pending-file cleanup skipped: {}", e.toString());
+        }
+        // If a newer pending jar survived from a previous session, the swap never
+        // completed (e.g. the launcher force-killed the JVM, so neither the shutdown
+        // hook nor a prior watcher finished). Re-arm the watcher now so it can apply
+        // the update when THIS session exits, however it exits.
+        try {
+            if (hasNewerPending()) spawnWatcher();
+        } catch (Exception e) {
+            PrisonsMod.LOGGER.debug("PrisonsMod: watcher re-arm skipped: {}", e.toString());
         }
         Runtime.getRuntime().addShutdownHook(new Thread(UpdateInstaller::runInstallerOnShutdown,
                 "PrisonsMod-UpdateInstaller-Shutdown"));
@@ -119,10 +140,12 @@ public final class UpdateInstaller {
             try {
                 clearOtherPendings(info.version());
                 Path staged = downloadToPending(info);
-                writeInstallerScript();
+                // Arm the watcher NOW, while the game is still running, so the swap
+                // survives the JVM being force-killed by a wrapped launcher.
+                spawnWatcher();
                 long kb = Files.size(staged) / 1024;
                 mc.execute(() -> chat(mc,
-                        "v" + info.version() + " downloaded (" + kb + " KB). Close and reopen Minecraft to apply.",
+                        "v" + info.version() + " downloaded (" + kb + " KB). Fully close and reopen Minecraft to apply.",
                         Formatting.GREEN));
             } catch (Exception e) {
                 PrisonsMod.LOGGER.warn("PrisonsMod update download failed", e);
@@ -215,16 +238,54 @@ public final class UpdateInstaller {
         return fileName.substring(prefix.length(), fileName.length() - suffix.length());
     }
 
-    // ── Shutdown-time spawn ─────────────────────────────────────────────────
+    // ── Watcher spawn ───────────────────────────────────────────────────────
+
+    /**
+     * Writes the installer script and launches the detached external watcher
+     * process — at most once per JVM (CAS-guarded). Unlike the shutdown hook,
+     * this is meant to be called while the game is still alive, so the watcher
+     * survives the JVM being force-killed (e.g. Lunar/Feather "quit to
+     * launcher"), which is exactly when shutdown hooks do NOT run. The watcher
+     * polls until the running jar's lock releases (this JVM exits), then swaps
+     * {@code .pending → .jar}.
+     */
+    private static void spawnWatcher() {
+        if (!watcherSpawned.compareAndSet(false, true)) return;
+        try {
+            Path script = writeInstallerScript();
+            spawnInstaller(script);
+            PrisonsMod.LOGGER.info("PrisonsMod: update watcher armed — pending update applies when the game exits");
+        } catch (Exception e) {
+            watcherSpawned.set(false);  // allow the shutdown hook to retry as a fallback
+            PrisonsMod.LOGGER.debug("PrisonsMod: update watcher spawn failed: {}", e.toString());
+        }
+    }
+
+    // ── Shutdown-time spawn (fast-path fallback for graceful exits) ──────────
 
     private static void runInstallerOnShutdown() {
         try {
+            if (watcherSpawned.get()) return;   // a live watcher is already handling the swap
             if (!hasPendingFiles()) return;
             Path script = writeInstallerScript();
             spawnInstaller(script);
         } catch (Exception e) {
             PrisonsMod.LOGGER.debug("PrisonsMod: shutdown installer spawn failed: {}", e.toString());
         }
+    }
+
+    /** True if a staged {@code .pending} jar with a version newer than the installed one exists. */
+    private static boolean hasNewerPending() {
+        Path dir = modsDir();
+        if (!Files.isDirectory(dir)) return false;
+        String current = installedVersion();
+        try (DirectoryStream<Path> ds = Files.newDirectoryStream(dir, "prisonsmod-*.jar.pending")) {
+            for (Path p : ds) {
+                String v = versionFromPending(p.getFileName().toString());
+                if (v != null && UpdateChecker.isNewer(v, current)) return true;
+            }
+        } catch (IOException ignored) {}
+        return false;
     }
 
     private static boolean hasPendingFiles() {
@@ -276,39 +337,40 @@ public final class UpdateInstaller {
         return script;
     }
 
-    // Waits for the old jar's lock to release (JVM exit), deletes any existing
-    // prisonsmod-*.jar except the freshly-installed target, renames .pending →
-    // .jar, then self-deletes. Resilient to multiple pending files (caller is
-    // expected to keep only one, but we don't crash if there are more).
+    // Polls until the running jar's lock releases (this JVM exits), then for each
+    // pending jar deletes the old prisonsmod-*.jar and renames .pending -> .jar,
+    // and finally self-deletes. Spawned while the game is still alive, so the wait
+    // is bounded generously (6h) to outlast a play session; the mod re-arms this
+    // watcher on its next launch if the deadline lapsed first. CRITICAL: the
+    // pending jar is moved into place ONLY after the locked old jar is confirmed
+    // gone — otherwise a deadline-while-locked path could leave BOTH jars on disk
+    // and crash Fabric on a duplicate mod id.
     private static final String POWERSHELL_INSTALLER =
             "$ErrorActionPreference = 'Continue'\n" +
             "$dir = $PSScriptRoot\n" +
-            "$pending = @(Get-ChildItem -LiteralPath $dir -Filter 'prisonsmod-*.jar.pending' -ErrorAction SilentlyContinue)\n" +
-            "if (-not $pending -or $pending.Count -eq 0) {\n" +
-            "    Remove-Item -LiteralPath $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue\n" +
-            "    exit 0\n" +
+            "$deadline = (Get-Date).AddSeconds(21600)\n" +
+            "function Test-Unlocked($path) {\n" +
+            "    try { $fs = [System.IO.File]::Open($path, 'Open', 'ReadWrite', 'None'); $fs.Close(); return $true }\n" +
+            "    catch { return $false }\n" +
             "}\n" +
-            "$deadline = (Get-Date).AddSeconds(120)\n" +
-            "foreach ($p in $pending) {\n" +
-            "    $target = $p.FullName.Substring(0, $p.FullName.Length - '.pending'.Length)\n" +
-            "    $olds = @(Get-ChildItem -LiteralPath $dir -Filter 'prisonsmod-*.jar' -ErrorAction SilentlyContinue |\n" +
-            "             Where-Object { $_.FullName -ne $target })\n" +
-            "    foreach ($o in $olds) {\n" +
-            "        while ((Get-Date) -lt $deadline) {\n" +
-            "            try {\n" +
-            "                $fs = [System.IO.File]::Open($o.FullName, 'Open', 'ReadWrite', 'None')\n" +
-            "                $fs.Close()\n" +
-            "                break\n" +
-            "            } catch {\n" +
-            "                Start-Sleep -Milliseconds 500\n" +
-            "            }\n" +
-            "        }\n" +
-            "        Remove-Item -LiteralPath $o.FullName -Force -ErrorAction SilentlyContinue\n" +
+            "while ($true) {\n" +
+            "    $pending = @(Get-ChildItem -LiteralPath $dir -Filter 'prisonsmod-*.jar.pending' -ErrorAction SilentlyContinue)\n" +
+            "    if (-not $pending -or $pending.Count -eq 0) { break }\n" +
+            "    $allDone = $true\n" +
+            "    foreach ($p in $pending) {\n" +
+            "        $target = $p.FullName.Substring(0, $p.FullName.Length - '.pending'.Length)\n" +
+            "        $olds = @(Get-ChildItem -LiteralPath $dir -Filter 'prisonsmod-*.jar' -ErrorAction SilentlyContinue |\n" +
+            "                 Where-Object { $_.FullName -ne $target })\n" +
+            "        $locked = $false\n" +
+            "        foreach ($o in $olds) { if (-not (Test-Unlocked $o.FullName)) { $locked = $true; break } }\n" +
+            "        if ($locked) { $allDone = $false; continue }\n" +
+            "        foreach ($o in $olds) { Remove-Item -LiteralPath $o.FullName -Force -ErrorAction SilentlyContinue }\n" +
+            "        if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Force -ErrorAction SilentlyContinue }\n" +
+            "        Move-Item -LiteralPath $p.FullName -Destination $target -Force -ErrorAction SilentlyContinue\n" +
             "    }\n" +
-            "    if (Test-Path -LiteralPath $target) {\n" +
-            "        Remove-Item -LiteralPath $target -Force -ErrorAction SilentlyContinue\n" +
-            "    }\n" +
-            "    Move-Item -LiteralPath $p.FullName -Destination $target -Force -ErrorAction SilentlyContinue\n" +
+            "    if ($allDone) { break }\n" +
+            "    if ((Get-Date) -ge $deadline) { break }\n" +
+            "    Start-Sleep -Milliseconds 750\n" +
             "}\n" +
             "Remove-Item -LiteralPath $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue\n";
 
