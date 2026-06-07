@@ -770,6 +770,16 @@ public final class Protocol {
      *  both the master and season2 server schemes. */
     public static final byte PKT_POWERBALL_STATE = (byte) 133;
 
+    /** C2S — report the client's local (OS-default) timezone so the server can render
+     *  all player-facing clock times (event schedules, daily resets, payout/expiry
+     *  timestamps, the raid-protection window) in this player's own zone. Sent once
+     *  right after the handshake on join. Wire: varint+string IANA zone id (e.g.
+     *  {@code "America/New_York"}, capped at {@link #CLIENT_TIMEZONE_MAX_CHARS}). Byte 135
+     *  is free on both the master and season2 server schemes — keep it that way on merge. */
+    public static final byte PKT_CLIENT_TIMEZONE = (byte) 135;
+    /** Max chars for the IANA zone id carried by {@link #PKT_CLIENT_TIMEZONE}. */
+    public static final int CLIENT_TIMEZONE_MAX_CHARS = 64;
+
     // --- Hard size caps (wire-level) ---
     /** Maximum bytes for any single cosmetic S2C payload. Larger packets are dropped. */
     public static final int MAX_PAYLOAD_BYTES = 256;

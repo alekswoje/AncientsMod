@@ -100,6 +100,10 @@ public final class PrisonsModClient implements ClientModInitializer {
                 client.send(() -> {
                     PrisonsMod.LOGGER.info("PrisonsMod: scheduling handshake send");
                     NetworkHandler.sendHandshake();
+                    // Report our local timezone so the server renders all player-facing
+                    // clock times (event schedules, daily resets, payout/expiry stamps,
+                    // raid-protection window) in this client's own zone.
+                    NetworkHandler.sendClientTimezone();
                     // Tell the server whether the booster HUD widget is on so it
                     // can default the action-bar booster line off when we're
                     // already rendering the same info.
