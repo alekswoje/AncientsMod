@@ -12,17 +12,11 @@
 
 ## Rendering & Visuals
 
-- **Fixed the Ancient Energy amount showing twice** on the item icon — the energy value no longer overlaps itself in the top-right corner. (The gear level/prestige overlay was wrongly reading the energy amount as a "level" and drawing it on top of the currency overlay.)
-
 ## UI & Screens
-
-- **Fixed the `/loot` browser showing stale data after switching servers** — the loot catalog now resets on every server connect, so the discovery view always reflects the server you're actually on instead of carrying over the previous server's snapshot.
 
 ## Input & Keybinds
 
 ## Networking & Server Integration
-
-- **Server times now show in your local timezone.** On join, the mod tells the server your computer's timezone, so every clock time the server displays you — event schedules, daily resets, season-pass & gang-top payouts, your cell's raid-protection window, and your auction/history timestamps — renders in **your** zone (daylight-saving included) instead of Pacific.
 
 ## Updates & Installation
 
