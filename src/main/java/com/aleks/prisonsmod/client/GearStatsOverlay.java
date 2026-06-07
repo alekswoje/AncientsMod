@@ -37,11 +37,17 @@ public final class GearStatsOverlay {
         NbtComponent custom = stack.get(DataComponentTypes.CUSTOM_DATA);
         if (custom == null || custom.isEmpty()) return; // PrisonsCore custom items only
 
+        // Currency items (e.g. "630 Ancient Energy", "$1,000,000.00 Money Note")
+        // carry a *leading* amount in their name and are already annotated by
+        // CurrencyAmountOverlay in the same top-right corner. Don't also treat
+        // that amount as a gear "level" — that double-draws the number.
+        if (CurrencyAmountOverlay.compact(stack) != null) return;
+
         Text name = stack.getName();
         if (name == null) return;
         String[] tokens = name.getString().trim().split("\\s+");
 
-        int level = lastPureInt(tokens);
+        int level = levelToken(tokens);
         int prestige = prestigeToken(tokens);
         if (level <= 0 && prestige <= 0) return;
 
@@ -68,18 +74,23 @@ public final class GearStatsOverlay {
         }
     }
 
-    /** Last whitespace token that is a pure integer (the level — skips the trailing "P<n>"). */
-    private static int lastPureInt(String[] tokens) {
-        for (int i = tokens.length - 1; i >= 0; i--) {
-            if (PURE_INT.matcher(tokens[i]).matches()) {
-                try {
-                    return Integer.parseInt(tokens[i]);
-                } catch (NumberFormatException e) {
-                    return 0;
-                }
-            }
+    /**
+     * The gear level — the <b>final</b> name token, or the token just before a
+     * trailing {@code P<n>} prestige marker. Gear is named {@code "<base> <level>"}
+     * (pickaxes {@code "<base> <level> P<prestige>"}), so the level lives at the end.
+     * Returns 0 when the name doesn't end in a level, which deliberately ignores
+     * items whose only integer is a <i>leading</i> token (e.g. "630 Ancient Energy").
+     */
+    private static int levelToken(String[] tokens) {
+        if (tokens.length == 0) return 0;
+        int idx = tokens.length - 1;
+        if (PRESTIGE_TOKEN.matcher(tokens[idx]).matches() && idx > 0) idx--; // skip trailing "P<n>"
+        if (!PURE_INT.matcher(tokens[idx]).matches()) return 0;
+        try {
+            return Integer.parseInt(tokens[idx]);
+        } catch (NumberFormatException e) {
+            return 0;
         }
-        return 0;
     }
 
     /** The "P<n>" token's number, else 0. */

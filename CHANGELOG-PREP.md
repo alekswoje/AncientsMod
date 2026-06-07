@@ -12,6 +12,8 @@
 
 ## Rendering & Visuals
 
+- **Fixed the Ancient Energy amount showing twice** on the item icon — the energy value no longer overlaps itself in the top-right corner. (The gear level/prestige overlay was wrongly reading the energy amount as a "level" and drawing it on top of the currency overlay.)
+
 ## UI & Screens
 
 ## Input & Keybinds
