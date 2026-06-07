@@ -86,6 +86,11 @@ public final class PrisonsModClient implements ClientModInitializer {
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             ServerAllowlist.onJoin(client.getCurrentServerEntry());
             AutoRejoinManager.onJoin(client.getCurrentServerEntry());
+            // Drop any loot catalog cached from a previous backend before the
+            // player can reopen /loot here. Without this, hopping to a server
+            // whose loot packets are renumbered (season2 vs master) renders the
+            // prior server's stale snapshot, since the fresh one never arrives.
+            com.aleks.prisonsmod.client.loot.LootClient.reset();
             if (ServerAllowlist.isAllowed()) {
                 PrisonsMod.LOGGER.info("PrisonsMod active on this server");
                 UpdateChecker.checkAsync(client);
@@ -140,6 +145,7 @@ public final class PrisonsModClient implements ClientModInitializer {
             com.aleks.prisonsmod.client.Fullbright.clear();
             com.aleks.prisonsmod.client.skilltree.SkillTreeClient.reset();
             com.aleks.prisonsmod.client.wiki.InteractiveItemTooltip.reset();
+            com.aleks.prisonsmod.client.loot.LootClient.reset();
             lastWorldKey = null;
         });
 
