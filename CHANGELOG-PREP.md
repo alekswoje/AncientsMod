@@ -20,6 +20,4 @@
 
 ## Updates & Installation
 
-- **Auto-update now works on Lunar Client and Feather Client.** The update applied reliably on the vanilla launcher but silently failed on these clients (the download succeeded, but the new version never took effect on restart) — it now installs correctly however you close the game. *Note: you'll need to update one more time the old way to pick up this fix; after that, auto-update works on its own.*
-
 ## Quality of Life
