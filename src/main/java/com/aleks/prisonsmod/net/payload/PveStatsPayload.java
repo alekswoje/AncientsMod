@@ -11,8 +11,8 @@ import java.util.Map;
  *
  * <p>Wire format: {@code varint+string worldName, byte killCount,
  * (varint+string kind, varint count) * killCount, byte dropCount,
- * (varint+string kind, varint count) * dropCount, varint hunterXpPerHour,
- * varint sessionHunterXp}.
+ * (varint+string kind, varint count) * dropCount, varlong hunterXpPerHour,
+ * varlong sessionHunterXp}.
  *
  * <p>The two trailing hunter varints were appended after the original
  * kill/drop format shipped. They are read only when the buffer still has
@@ -31,8 +31,8 @@ public record PveStatsPayload(String worldName, Map<String, Integer> kills, Map<
 
         // Additive trailing fields — guard each read so an older server (no
         // hunter fields) yields 0 rather than over-reading the buffer.
-        long hunterXpPerHour = buf.isReadable() ? Math.max(0L, buf.readVarInt()) : 0L;
-        long sessionHunterXp = buf.isReadable() ? Math.max(0L, buf.readVarInt()) : 0L;
+        long hunterXpPerHour = buf.isReadable() ? Math.max(0L, buf.readVarLong()) : 0L;
+        long sessionHunterXp = buf.isReadable() ? Math.max(0L, buf.readVarLong()) : 0L;
 
         return new PveStatsPayload(world, kills, drops, hunterXpPerHour, sessionHunterXp,
                 System.currentTimeMillis());

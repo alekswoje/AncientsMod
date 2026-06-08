@@ -10,6 +10,8 @@
 
 ## HUDs
 
+- **Stats HUD** rates (XP/h, Energy/h, $/h, Hunter XP) no longer cap at 2.1B — they now show the real value however high it climbs.
+
 ## Rendering & Visuals
 
 ## UI & Screens
