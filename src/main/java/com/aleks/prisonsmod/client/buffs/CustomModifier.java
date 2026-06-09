@@ -55,8 +55,8 @@ public final class CustomModifier {
                 if (a == Math.floor(a)) yield String.format(Locale.US, "%.0f%% %s", a, word);
                 yield String.format(Locale.US, "%.1f%% %s", a, word);
             }
-            default -> { // FLAT_BONUS
-                if (value == Math.floor(value)) yield String.format(Locale.US, "+%d", (int) value);
+            default -> { // FLAT_BONUS — %.0f (not an int cast, which overflows on big values)
+                if (value == Math.floor(value) && Math.abs(value) < 1e15) yield String.format(Locale.US, "+%.0f", value);
                 yield String.format(Locale.US, "+%.1f", value);
             }
         };

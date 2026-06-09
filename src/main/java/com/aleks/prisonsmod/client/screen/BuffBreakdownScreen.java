@@ -110,6 +110,8 @@ public final class BuffBreakdownScreen extends Screen {
     private boolean sliderActive;
     private int sliderTrackX, sliderTrackY, sliderTrackW;
     private double sliderMin, sliderMax;
+    /** Slider bounds, frozen while dragging so the range can't chase the value. */
+    private double sliderRangeMin, sliderRangeMax;
     private int[] resetHit  = null; // {x,y,x2,y2}
     private int[] pillHit   = null;
     private int[] deleteHit = null;
@@ -682,9 +684,15 @@ public final class BuffBreakdownScreen extends Screen {
                 r.enabled ? DELTA_UP : DELTA_DOWN, true);
         pillHit = new int[]{pillX, btnY - 1, pillX + pillW, btnY + 10};
 
-        // Line 2: slider + value readout.
-        double[] range = rangeFor(r.kind, r.liveValue, r.value);
-        double min = range[0], max = range[1];
+        // Line 2: slider + value readout. Freeze the range while dragging — if we
+        // recomputed it from the live value every frame, dragging the knob to the
+        // edge would keep doubling the max and the value would run away.
+        if (!draggingSlider) {
+            double[] range = rangeFor(r.kind, r.liveValue, r.value);
+            sliderRangeMin = range[0];
+            sliderRangeMax = range[1];
+        }
+        double min = sliderRangeMin, max = sliderRangeMax;
         String readout = (r.custom && r.kind == BuffSnapshotPayload.KIND_MULTIPLICATIVE)
                 ? formatMorePercent(r.value) : formatKindValue(r.kind, r.value);
         int readoutW = textRenderer.getWidth(readout);
