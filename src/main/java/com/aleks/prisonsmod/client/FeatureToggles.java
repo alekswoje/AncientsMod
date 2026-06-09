@@ -124,14 +124,10 @@ public final class FeatureToggles {
      *  Parsed from the synced lore — no server change needed. */
     private static volatile boolean dustPercentOverlay = true;
 
-    /** Render Powerball fireballs client-side (a flame stream following the
-     *  server-authoritative bounce path) instead of the server's per-ball
-     *  ItemDisplay. On = the server stops streaming per-tick entity-move packets
-     *  for your balls — the bandwidth win that stops low-connection players from
-     *  lagging while mining. Drawn with particles, so it honours your particle
-     *  video setting; on "Minimal" particles turn this off to get the
-     *  server-rendered ball back. */
-    private static volatile boolean powerballRender = true;
+    // Client-side Powerball rendering is always on (no user toggle): the mod draws
+    // the ball as a true item-model fire charge that matches the server 1:1, and the
+    // server suppresses its per-tick ItemDisplay packet flood in return.
+    // See PowerballRenderer + NetworkHandler.sendPowerballState.
 
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -177,7 +173,6 @@ public final class FeatureToggles {
             gearStatsOverlay = parseBool(props.getProperty("gearStatsOverlay"), gearStatsOverlay);
             boosterInfoOverlay = parseBool(props.getProperty("boosterInfoOverlay"), boosterInfoOverlay);
             dustPercentOverlay = parseBool(props.getProperty("dustPercentOverlay"), dustPercentOverlay);
-            powerballRender = parseBool(props.getProperty("powerballRender"), powerballRender);
         } catch (IOException e) {
             PrisonsMod.LOGGER.warn("failed to load {}: {}", FILE_NAME, e.getMessage());
         }
@@ -214,7 +209,6 @@ public final class FeatureToggles {
         props.setProperty("gearStatsOverlay", Boolean.toString(gearStatsOverlay));
         props.setProperty("boosterInfoOverlay", Boolean.toString(boosterInfoOverlay));
         props.setProperty("dustPercentOverlay", Boolean.toString(dustPercentOverlay));
-        props.setProperty("powerballRender", Boolean.toString(powerballRender));
         try {
             Files.createDirectories(configPath().getParent());
             try (var out = Files.newOutputStream(configPath())) {
@@ -513,18 +507,8 @@ public final class FeatureToggles {
         save();
     }
 
-    public static boolean isPowerballRenderEnabled() { return powerballRender; }
-
-    public static void setPowerballRender(boolean value) {
-        if (powerballRender == value) return;
-        powerballRender = value;
-        save();
-        // Tell the server to flip between sending PKT_POWERBALL hints (on) and
-        // rendering the server-side ItemDisplay itself (off). No-op when not connected.
-        com.aleks.prisonsmod.net.NetworkHandler.sendPowerballState(value);
-        // Drop any in-flight client balls when turning off so they don't linger.
-        if (!value) com.aleks.prisonsmod.render.PowerballRenderer.reset();
-    }
+    /** Always on — client-side Powerball rendering is no longer a user toggle. */
+    public static boolean isPowerballRenderEnabled() { return true; }
 
     private static boolean parseBool(String s, boolean fallback) {
         if (s == null) return fallback;

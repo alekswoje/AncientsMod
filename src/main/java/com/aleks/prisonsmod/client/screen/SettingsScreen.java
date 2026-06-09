@@ -29,8 +29,6 @@ public final class SettingsScreen extends WidgetSettingsScreen {
                 FeatureToggles::isMinePredictEnabled, FeatureToggles::setMinePredict);
         addToggle("Peaceful mining",
                 FeatureToggles::isPeacefulMiningEnabled, FeatureToggles::setPeacefulMining);
-        addToggle("Client powerball render",
-                FeatureToggles::isPowerballRenderEnabled, FeatureToggles::setPowerballRender);
 
         addSection("Tooltips");
         addToggle("Collapse enchants on gear",

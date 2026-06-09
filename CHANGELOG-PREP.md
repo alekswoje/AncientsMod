@@ -12,6 +12,8 @@
 
 ## Rendering & Visuals
 
+- **Powerball fireballs now render as a true glowing fire-charge** (with enchant glint), matching the server's ball 1:1, instead of the thin particle stream. It's always on now and no longer tied to your particle video setting, so the separate toggle for it has been removed.
+
 ## UI & Screens
 
 ## Input & Keybinds
