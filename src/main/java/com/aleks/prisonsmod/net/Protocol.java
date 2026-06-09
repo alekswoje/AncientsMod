@@ -770,7 +770,12 @@ public final class Protocol {
     public static final int PV_MAX_VAULTS = 64;
     public static final int PV_MAX_SLOTS = 162; // 6 rows × 9 cols × multiple rows of extras
     public static final int PV_MAX_MATERIAL_KEY_CHARS = 48;
-    public static final int PV_MAX_DISPLAY_NAME_CHARS = 64;
+    /** Must stay in lockstep with PrisonsCore PrisonsModChannel.PV_MAX_DISPLAY_NAME_CHARS.
+     *  Raised from 64 so colour/hex-coded names survive without truncation — a single
+     *  hex colour is a 14-char §x§r§r§g§g§b§b run, so coloured names need the headroom.
+     *  If this is lower than what the server sends, readString throws and the whole PV
+     *  bundle is dropped (the terminal goes blank), so the two move together. */
+    public static final int PV_MAX_DISPLAY_NAME_CHARS = 1024;
     public static final int PV_MAX_AFFINITY_CSV_CHARS = 256;
     /** Max lore lines accepted per PV slot. A maxed pickaxe can reach ~140 lines
      *  (103 enchants + prestige + energy + ore tracking). A server that sends MORE

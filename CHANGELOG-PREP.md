@@ -14,6 +14,9 @@
 
 ## UI & Screens
 
+- **The PV terminal now renders item names with their true colours** — hex and gradient names that used to show up black or garbled now display correctly, and heavily-coloured names are no longer cut short.
+- **`/pickbuffs` is now a theorycrafting sandbox.** Click any buff layer to open a **slider** and dial its value up or down, then watch your final XP / energy / money / shard / combat numbers update live. A new **Custom Modifiers** tab lets you add your own "what-if" modifiers — *increased %* (joins the shared additive pool), *more ×* (its own multiplier), or *flat +* — aimed at a single channel or a whole group (All Mining / All Combat / Everything), so you can plan a gear or buff setup before chasing it. Your custom modifiers and slider tweaks are saved between sessions.
+
 ## Input & Keybinds
 
 ## Networking & Server Integration
