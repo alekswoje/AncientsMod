@@ -211,7 +211,7 @@ public final class BuffBreakdownScreen extends Screen {
     private Text kindBtnText() {
         return Text.literal(switch (kindIndex) {
             case 0 -> "increased %";
-            case 1 -> "more ×";
+            case 1 -> "more %";
             default -> "flat +";
         });
     }
@@ -227,7 +227,14 @@ public final class BuffBreakdownScreen extends Screen {
             return;
         }
         byte kind = (byte) kindIndex; // index lines up with the KIND_ byte
-        double value = (kind == BuffSnapshotPayload.KIND_ADDITIVE) ? parsed / 100.0 : parsed;
+        // increased %: fraction for the additive pool (25 -> 0.25).
+        // more %: a multiplier factor (25 -> ×1.25), stacks multiplicatively.
+        // flat +: literal amount.
+        double value = switch (kind) {
+            case BuffSnapshotPayload.KIND_ADDITIVE -> parsed / 100.0;
+            case BuffSnapshotPayload.KIND_MULTIPLICATIVE -> 1.0 + parsed / 100.0;
+            default -> parsed;
+        };
         BuffTarget target = targetOptions.isEmpty() ? BuffTarget.everything() : targetOptions.get(targetIndex);
         String name = nameField == null ? "" : nameField.getText().trim();
         BuffSandboxStore.addCustom(name, target, kind, value);
@@ -272,6 +279,10 @@ public final class BuffBreakdownScreen extends Screen {
         boolean defaultEnabled;
         boolean toggleable;
         boolean sliderable;
+        /** A custom flat modifier on a pure-multiplier channel: it doesn't change
+         *  the multiplier, it adds per-ore — so it's excluded from the header math
+         *  and shown with a "per-ore" note. */
+        boolean perOreOnly;
         String selKey = "";
     }
 
@@ -304,10 +315,28 @@ public final class BuffBreakdownScreen extends Screen {
             r.selKey = "L|" + ch.id + "|" + l.label;
             rows.add(r);
         }
+        boolean hasBase = channelHasBase(ch.id);
         for (CustomModifier m : BuffSandboxStore.customsTargeting(ch.id)) {
-            rows.add(customRow(m));
+            Row r = customRow(m);
+            // On a pure-multiplier channel (mining), a flat modifier applies
+            // per-ore, not to the multiplier — flag it so the header math skips
+            // it and the row reads "custom · per-ore".
+            if (!hasBase && m.kind == BuffSnapshotPayload.KIND_FLAT_BONUS) {
+                r.perOreOnly = true;
+                r.detail = "custom · per-ore";
+            }
+            rows.add(r);
         }
         return rows;
+    }
+
+    private boolean channelHasBase(byte id) {
+        BuffSnapshotPayload.Channel c = snapshot == null ? null : snapshot.channels.get(id);
+        if (c == null) return false;
+        for (BuffSnapshotPayload.Layer l : c.layers) {
+            if (l.kind == BuffSnapshotPayload.KIND_BASE) return true;
+        }
+        return false;
     }
 
     private List<Row> buildCustomRows() {
@@ -334,16 +363,49 @@ public final class BuffBreakdownScreen extends Screen {
         return r;
     }
 
-    /** Recompute a channel's sandbox result from the current row state. */
+    /**
+     * Recompute a channel's sandbox multiplier/value from the current rows.
+     * Per-ore-only flat modifiers are excluded — they don't move the channel
+     * multiplier (they're applied to each ore's base in the yields tab).
+     */
     private BuffStacker.Result computeRows(List<Row> rows) {
         List<BuffSnapshotPayload.Layer> eff = new ArrayList<>(rows.size());
         BitSet active = new BitSet(rows.size());
-        for (int i = 0; i < rows.size(); i++) {
-            Row r = rows.get(i);
+        for (Row r : rows) {
+            if (r.perOreOnly) continue;
             eff.add(new BuffSnapshotPayload.Layer(r.label, r.detail, r.category, r.kind, r.state, r.value));
-            if (r.enabled) active.set(i);
+            if (r.enabled) active.set(eff.size() - 1);
         }
         return BuffStacker.compute(eff, active::get);
+    }
+
+    // ── Per-ore sandbox helpers ────────────────────────────────────────────────
+
+    /** Sandbox/server ratio for a channel — how much the sandbox scaled it. */
+    private double channelRatio(byte id) {
+        BuffSnapshotPayload.Channel c = snapshot == null ? null : snapshot.channels.get(id);
+        if (c == null || c.serverFinalValue == 0.0) return 1.0;
+        return computeRows(buildChannelRows(c)).finalValue / c.serverFinalValue;
+    }
+
+    /** Sum of enabled custom flat modifiers that apply per-ore to this channel. */
+    private double channelPerOreFlat(byte id) {
+        if (channelHasBase(id)) return 0.0; // absolute channels fold flat into the header instead
+        double sum = 0.0;
+        for (CustomModifier m : BuffSandboxStore.customsTargeting(id)) {
+            if (m.enabled && m.kind == BuffSnapshotPayload.KIND_FLAT_BONUS) sum += m.value;
+        }
+        return sum;
+    }
+
+    /** (base + flat) × sandboxMultiplier, expressed via the server per-ore value. */
+    private static double sandboxPerOre(double base, double serverPerOre, double flat, double ratio) {
+        double scaled = serverPerOre * ratio;
+        if (flat != 0.0) {
+            if (base > 0.0) scaled *= (base + flat) / base;
+            else scaled += flat * ratio;
+        }
+        return scaled;
     }
 
     private @Nullable Row resolveSelectedRow() {
@@ -580,6 +642,9 @@ public final class BuffBreakdownScreen extends Screen {
             double displayed = r.value * sandbox.additivePool * sandbox.multiplicativeProduct * sandbox.luckyProcMult;
             return String.format(Locale.US, "%.2f", displayed);
         }
+        // Custom "more" modifiers read as "X% more"; server multiplicative layers
+        // (boosters, fate cards) keep their native ×.
+        if (r.custom && r.kind == BuffSnapshotPayload.KIND_MULTIPLICATIVE) return formatMorePercent(r.value);
         return formatKindValue(r.kind, r.value);
     }
 
@@ -620,7 +685,8 @@ public final class BuffBreakdownScreen extends Screen {
         // Line 2: slider + value readout.
         double[] range = rangeFor(r.kind, r.liveValue, r.value);
         double min = range[0], max = range[1];
-        String readout = formatKindValue(r.kind, r.value);
+        String readout = (r.custom && r.kind == BuffSnapshotPayload.KIND_MULTIPLICATIVE)
+                ? formatMorePercent(r.value) : formatKindValue(r.kind, r.value);
         int readoutW = textRenderer.getWidth(readout);
         int readoutX = innerRight - readoutW;
         int trackX = innerX;
@@ -676,7 +742,7 @@ public final class BuffBreakdownScreen extends Screen {
 
         // Builder hints (the widgets themselves render in super.render()).
         if (valueField != null) {
-            String unit = switch (kindIndex) { case 0 -> "%"; case 1 -> "×"; default -> "+"; };
+            String unit = switch (kindIndex) { case 0 -> "%"; case 1 -> "%"; default -> "+"; };
             ctx.drawText(textRenderer, Text.literal(unit),
                     valueField.getX() + valueField.getWidth() + 4, valueField.getY() + 5, DIM_COLOR, true);
             ctx.drawText(textRenderer, Text.literal("Add modifier:").formatted(Formatting.GRAY),
@@ -719,6 +785,13 @@ public final class BuffBreakdownScreen extends Screen {
         drawRightAligned(ctx, "Shard%", shardRight - 4,  bodyY, DIM_COLOR);
         ctx.fill(x + 2, bodyY + textRenderer.fontHeight + 2, x + w - 2, bodyY + textRenderer.fontHeight + 3, HEADER_RULE);
 
+        // Per-channel sandbox scaling: ratio = sandbox/server multiplier change,
+        // flat = custom flat modifiers applied to each ore's base.
+        double rXp = channelRatio(BuffSnapshotPayload.CH_MINING_XP),     fXp = channelPerOreFlat(BuffSnapshotPayload.CH_MINING_XP);
+        double rEn = channelRatio(BuffSnapshotPayload.CH_MINING_ENERGY), fEn = channelPerOreFlat(BuffSnapshotPayload.CH_MINING_ENERGY);
+        double rMo = channelRatio(BuffSnapshotPayload.CH_MINING_MONEY),  fMo = channelPerOreFlat(BuffSnapshotPayload.CH_MINING_MONEY);
+        double rSh = channelRatio(BuffSnapshotPayload.CH_MINING_SHARDS), fSh = channelPerOreFlat(BuffSnapshotPayload.CH_MINING_SHARDS);
+
         int rowsStartY = bodyY + textRenderer.fontHeight + 5;
         ctx.enableScissor(x + 2, rowsStartY, x + w - 2, bodyY + bodyH);
         int rowY = rowsStartY - (int) scrollOffset;
@@ -735,10 +808,10 @@ public final class BuffBreakdownScreen extends Screen {
                 ctx.drawText(textRenderer, Text.literal(tri), oreX, textY, DIM_COLOR, false);
                 int nameX = oreX + textRenderer.getWidth(tri);
                 ctx.drawText(textRenderer, Text.literal(o.displayName), nameX, textY, LABEL_COLOR, true);
-                drawTransformCell(ctx, formatYieldXp(o.baseXp), formatYieldXp(o.xpPerOre), xpRight - 4, textY);
-                drawTransformCell(ctx, formatYieldEnergy(o.baseEnergy), formatYieldEnergy(o.energyPerOre), energyRight - 4, textY);
-                drawTransformCell(ctx, formatYieldMoney(o.baseMoney), formatYieldMoney(o.moneyPerOre), moneyRight - 4, textY);
-                drawTransformCell(ctx, formatYieldShard(o.baseShard), formatYieldShard(o.shardChancePerOre), shardRight - 4, textY);
+                drawTransformCell(ctx, formatYieldXp(o.baseXp), formatYieldXp(sandboxPerOre(o.baseXp, o.xpPerOre, fXp, rXp)), xpRight - 4, textY);
+                drawTransformCell(ctx, formatYieldEnergy(o.baseEnergy), formatYieldEnergy(sandboxPerOre(o.baseEnergy, o.energyPerOre, fEn, rEn)), energyRight - 4, textY);
+                drawTransformCell(ctx, formatYieldMoney(o.baseMoney), formatYieldMoney(sandboxPerOre(o.baseMoney, o.moneyPerOre, fMo, rMo)), moneyRight - 4, textY);
+                drawTransformCell(ctx, formatYieldShard(o.baseShard), formatYieldShard(sandboxPerOre(o.baseShard, o.shardChancePerOre, fSh, rSh)), shardRight - 4, textY);
             }
             rowY += ROW_H;
             if (expanded) rowY += renderOreBreakdownRows(ctx, x, rowY, w, o);
@@ -748,35 +821,48 @@ public final class BuffBreakdownScreen extends Screen {
     }
 
     private int renderOreBreakdownRows(DrawContext ctx, int x, int startY, int w, BuffSnapshotPayload.OreYield ore) {
-        int rowH = 11, lineY = startY, indent = PADDING + 14;
-        renderBreakdownLine(ctx, "XP",     ore.baseXp,     ore.xpPerOre,           BuffSnapshotPayload.CH_MINING_XP,     x + indent, lineY, w - indent - PADDING); lineY += rowH;
-        renderBreakdownLine(ctx, "Energy", ore.baseEnergy, ore.energyPerOre,       BuffSnapshotPayload.CH_MINING_ENERGY, x + indent, lineY, w - indent - PADDING); lineY += rowH;
-        renderBreakdownLine(ctx, "Money",  ore.baseMoney,  ore.moneyPerOre,        BuffSnapshotPayload.CH_MINING_MONEY,  x + indent, lineY, w - indent - PADDING); lineY += rowH;
-        renderBreakdownLine(ctx, "Shard",  ore.baseShard,  ore.shardChancePerOre,  BuffSnapshotPayload.CH_MINING_SHARDS, x + indent, lineY, w - indent - PADDING); lineY += rowH;
+        int rowH = 11, lineY = startY, indent = PADDING + 14, lineW = w - indent - PADDING;
+        renderBreakdownLine(ctx, "XP",     ore.baseXp,     ore.xpPerOre,          BuffSnapshotPayload.CH_MINING_XP,     x + indent, lineY, lineW); lineY += rowH;
+        renderBreakdownLine(ctx, "Energy", ore.baseEnergy, ore.energyPerOre,      BuffSnapshotPayload.CH_MINING_ENERGY, x + indent, lineY, lineW); lineY += rowH;
+        renderBreakdownLine(ctx, "Money",  ore.baseMoney,  ore.moneyPerOre,       BuffSnapshotPayload.CH_MINING_MONEY,  x + indent, lineY, lineW); lineY += rowH;
+        renderBreakdownLine(ctx, "Shard",  ore.baseShard,  ore.shardChancePerOre, BuffSnapshotPayload.CH_MINING_SHARDS, x + indent, lineY, lineW); lineY += rowH;
         ctx.fill(x + indent, lineY, x + w - PADDING, lineY + 1, HEADER_RULE);
         lineY += 3;
         return lineY - startY;
     }
 
-    private void renderBreakdownLine(DrawContext ctx, String label, double base, double result,
+    /** Sandbox-aware per-ore math: {@code (base [+ flat]) × enabled-multipliers = result}. */
+    private void renderBreakdownLine(DrawContext ctx, String label, double base, double serverPerOre,
                                      byte channelId, int x, int y, int maxWidth) {
-        BuffSnapshotPayload.Channel ch = snapshot.channels.get(channelId);
+        double flat = channelPerOreFlat(channelId);
+        double ratio = channelRatio(channelId);
+        double result = sandboxPerOre(base, serverPerOre, flat, ratio);
+
         StringBuilder sb = new StringBuilder();
-        sb.append(formatNum(base));
+        if (flat != 0.0) sb.append('(').append(formatNum(base)).append(" + ").append(formatNum(flat)).append(')');
+        else sb.append(formatNum(base));
+
+        BuffSnapshotPayload.Channel ch = snapshot.channels.get(channelId);
         if (ch != null) {
-            for (BuffSnapshotPayload.Layer layer : ch.layers) {
-                if (layer.state != BuffSnapshotPayload.STATE_ACTIVE) continue;
-                if (layer.kind == BuffSnapshotPayload.KIND_BASE) continue;
-                String shortLabel = shortLayerLabel(layer.label);
-                if (layer.kind == BuffSnapshotPayload.KIND_ADDITIVE) {
-                    if (Math.abs(layer.value) < 0.0001) continue;
-                    sb.append("  × ").append(formatSignedPct(layer.value)).append(' ').append(shortLabel);
-                } else if (layer.kind == BuffSnapshotPayload.KIND_MULTIPLICATIVE) {
-                    if (Math.abs(layer.value - 1.0) < 0.0001) continue;
-                    sb.append("  × ").append(formatXShort(layer.value)).append(' ').append(shortLabel);
-                } else if (layer.kind == BuffSnapshotPayload.KIND_FLAT_BONUS) {
-                    if (Math.abs(layer.value) < 0.0001) continue;
-                    sb.append("  + ").append(formatNum(layer.value)).append(' ').append(shortLabel);
+            for (Row r : buildChannelRows(ch)) {
+                if (!r.enabled || r.perOreOnly) continue;
+                if (r.kind == BuffSnapshotPayload.KIND_BASE
+                        || r.kind == BuffSnapshotPayload.KIND_PROC_DAMAGE
+                        || r.kind == BuffSnapshotPayload.KIND_LUCKY_PROC) continue;
+                String shortLabel = shortLayerLabel(stripGlyph(r.label));
+                if (r.kind == BuffSnapshotPayload.KIND_ADDITIVE) {
+                    if (Math.abs(r.value) < 0.0001) continue;
+                    sb.append("  × ").append(formatSignedPct(r.value)).append(' ').append(shortLabel);
+                } else if (r.kind == BuffSnapshotPayload.KIND_MULTIPLICATIVE) {
+                    if (r.custom) {
+                        sb.append("  × (").append(formatMorePercent(r.value)).append(") ").append(shortLabel);
+                    } else {
+                        if (Math.abs(r.value - 1.0) < 0.0001) continue;
+                        sb.append("  × ").append(formatXShort(r.value)).append(' ').append(shortLabel);
+                    }
+                } else if (r.kind == BuffSnapshotPayload.KIND_FLAT_BONUS) {
+                    if (Math.abs(r.value) < 0.0001) continue;
+                    sb.append("  + ").append(formatNum(r.value)).append(' ').append(shortLabel);
                 }
             }
         }
@@ -1012,6 +1098,16 @@ public final class BuffBreakdownScreen extends Screen {
             case BuffSnapshotPayload.KIND_BASE -> v == 0.0 ? "—" : String.format(Locale.US, "%.2f", v);
             default -> formatX(v); // MULTIPLICATIVE / LUCKY_PROC
         };
+    }
+
+    /** A custom "more" modifier's × factor rendered as "X% more / less". */
+    private static String formatMorePercent(double factor) {
+        double pct = (factor - 1.0) * 100.0;
+        double a = Math.abs(pct);
+        if (a < 0.05) return "0% more";
+        String word = pct < 0 ? "less" : "more";
+        if (a == Math.floor(a)) return String.format(Locale.US, "%.0f%% %s", a, word);
+        return String.format(Locale.US, "%.1f%% %s", a, word);
     }
 
     private static String shortLayerLabel(String label) {

@@ -47,8 +47,13 @@ public final class CustomModifier {
                 yield String.format(Locale.US, "%+.1f%%", pct);
             }
             case BuffSnapshotPayload.KIND_MULTIPLICATIVE -> {
-                if (value == Math.floor(value)) yield String.format(Locale.US, "×%d", (int) value);
-                yield String.format(Locale.US, "×%.2f", value);
+                // Multiplicative is worded as "X% more / less" (a ×1.25 is "25% more"),
+                // not a bare × — that keeps it distinct from the booster x.xx additive bucket.
+                double pct = (value - 1.0) * 100.0;
+                String word = pct < -0.0001 ? "less" : "more";
+                double a = Math.abs(pct);
+                if (a == Math.floor(a)) yield String.format(Locale.US, "%.0f%% %s", a, word);
+                yield String.format(Locale.US, "%.1f%% %s", a, word);
             }
             default -> { // FLAT_BONUS
                 if (value == Math.floor(value)) yield String.format(Locale.US, "+%d", (int) value);
@@ -65,7 +70,7 @@ public final class CustomModifier {
     public String kindName() {
         return switch (kind) {
             case BuffSnapshotPayload.KIND_ADDITIVE -> "increased %";
-            case BuffSnapshotPayload.KIND_MULTIPLICATIVE -> "more ×";
+            case BuffSnapshotPayload.KIND_MULTIPLICATIVE -> "more %";
             default -> "flat +";
         };
     }
