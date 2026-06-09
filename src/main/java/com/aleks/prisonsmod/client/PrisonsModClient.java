@@ -64,6 +64,7 @@ public final class PrisonsModClient implements ClientModInitializer {
         NetworkHandler.register();
         TooltipCollapse.register();
         TooltipScroll.register();
+        PickaxeBlocksTooltip.register();
         GangPingInput.register();
         GangPingRenderer.register();
         ClientCommands.register();

@@ -34,6 +34,11 @@ public final class FeatureToggles {
     /** Scroll oversized tooltips with the mouse wheel. Off = vanilla bottom-pin (top spills off-screen). */
     private static volatile boolean scrollableTooltips = true;
 
+    /** Render the per-ore-type "Blocks Mined" breakdown on pickaxe tooltips, client-side, from the
+     *  pickaxe's ore-mined data. The server keeps a compact tooltip (no ore lines) for performance,
+     *  so this is how the full breakdown is shown. Only active on compact-lore pickaxes. On by default. */
+    private static volatile boolean pickaxeBlocks = true;
+
     /** While holding a pickaxe, fade nearby player-shaped entities (players + NPCs) so they don't obscure the block you're mining. */
     private static volatile boolean peacefulMining = true;
 
@@ -146,6 +151,7 @@ public final class FeatureToggles {
             minePredict = parseBool(props.getProperty("minePredict"), minePredict);
             enchantCollapse = parseBool(props.getProperty("enchantCollapse"), enchantCollapse);
             scrollableTooltips = parseBool(props.getProperty("scrollableTooltips"), scrollableTooltips);
+            pickaxeBlocks = parseBool(props.getProperty("pickaxeBlocks"), pickaxeBlocks);
             peacefulMining = parseBool(props.getProperty("peacefulMining"), peacefulMining);
             peacefulPvp = parseBool(props.getProperty("peacefulPvp"), peacefulPvp);
             boosterHud = parseBool(props.getProperty("boosterHud"), boosterHud);
@@ -182,6 +188,7 @@ public final class FeatureToggles {
         props.setProperty("minePredict", Boolean.toString(minePredict));
         props.setProperty("enchantCollapse", Boolean.toString(enchantCollapse));
         props.setProperty("scrollableTooltips", Boolean.toString(scrollableTooltips));
+        props.setProperty("pickaxeBlocks", Boolean.toString(pickaxeBlocks));
         props.setProperty("peacefulMining", Boolean.toString(peacefulMining));
         props.setProperty("peacefulPvp", Boolean.toString(peacefulPvp));
         props.setProperty("boosterHud", Boolean.toString(boosterHud));
@@ -243,6 +250,20 @@ public final class FeatureToggles {
     public static void setEnchantCollapse(boolean value) {
         if (enchantCollapse == value) return;
         enchantCollapse = value;
+        save();
+    }
+
+    public static boolean isPickaxeBlocksEnabled() { return pickaxeBlocks; }
+
+    public static boolean togglePickaxeBlocks() {
+        pickaxeBlocks = !pickaxeBlocks;
+        save();
+        return pickaxeBlocks;
+    }
+
+    public static void setPickaxeBlocks(boolean value) {
+        if (pickaxeBlocks == value) return;
+        pickaxeBlocks = value;
         save();
     }
 

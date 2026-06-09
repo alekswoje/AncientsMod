@@ -12,6 +12,8 @@
 
 ## Rendering & Visuals
 
+- Pickaxe tooltips now render the per-ore-type **Blocks Mined** breakdown client-side, with a new **Block breakdown on pickaxes** toggle (Settings → Tooltips). Keeps the full breakdown visible while the server tooltip stays lightweight.
+
 ## UI & Screens
 
 ## Input & Keybinds
