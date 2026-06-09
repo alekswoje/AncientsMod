@@ -57,6 +57,7 @@ public final class PrisonsModClient implements ClientModInitializer {
         FeatureToggles.load();
         HudPositions.load();
         HudSettings.load();
+        com.aleks.prisonsmod.client.buffs.BuffSandboxStore.load();
         ItemLocks.load();
         KeyBinds.register();
         RiftTexturePackManager.register();
