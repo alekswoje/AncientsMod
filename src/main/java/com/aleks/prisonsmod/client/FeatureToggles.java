@@ -22,11 +22,13 @@ public final class FeatureToggles {
 
     // ── Toggles (defaults below) ─────────────────────────────────────────────
 
-    /** Client-side break-crack prediction. Off by default: on this server the plugin
-     *  already sends its own crack the same tick mining starts, so prediction adds no
-     *  head-start and just renders a second, overlapping crack (the doubled/choppy look).
-     *  On = opt-in A/B comparison; leave off for the smooth single-source server crack. */
-    private static volatile boolean minePredict = false;
+    /** Swing-time mine prediction. On by default: the crack starts the instant you
+     *  swing (no round trip), the block ghost-swaps to its replacement when the
+     *  predicted timer ends, and the break flash plays locally. The server is told
+     *  via PKT_MINE_PREDICT_STATE and suppresses its own crack stream + break
+     *  effects for this client (no doubled crack), so high-ping mining feels like
+     *  low-ping. Off = legacy server-driven crack + effects. */
+    private static volatile boolean minePredict = true;
 
     /** Collapse marked enchant tooltip lines behind Shift. Off by default — full enchant list always visible. */
     private static volatile boolean enchantCollapse = false;
@@ -222,8 +224,7 @@ public final class FeatureToggles {
     public static boolean isMinePredictEnabled() { return minePredict; }
 
     public static boolean toggleMinePredict() {
-        minePredict = !minePredict;
-        save();
+        setMinePredict(!minePredict);
         return minePredict;
     }
 
@@ -231,6 +232,9 @@ public final class FeatureToggles {
         if (minePredict == value) return;
         minePredict = value;
         save();
+        // Tell the server so it flips its side (speed-table stream, crack/effect
+        // suppression, completion grace) together with us. No-op when not connected.
+        com.aleks.prisonsmod.net.NetworkHandler.sendMinePredictState(value);
     }
 
     public static boolean isEnchantCollapseEnabled() { return enchantCollapse; }

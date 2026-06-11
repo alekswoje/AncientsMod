@@ -25,7 +25,7 @@ public final class SettingsScreen extends WidgetSettingsScreen {
     @Override
     protected void addRows() {
         addSection("Mining");
-        addToggle("Mine-crack prediction",
+        addToggle("Low-ping mine prediction",
                 FeatureToggles::isMinePredictEnabled, FeatureToggles::setMinePredict);
         addToggle("Peaceful mining",
                 FeatureToggles::isPeacefulMiningEnabled, FeatureToggles::setPeacefulMining);

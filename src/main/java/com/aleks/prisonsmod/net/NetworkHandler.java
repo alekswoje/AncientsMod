@@ -117,6 +117,12 @@ public final class NetworkHandler {
                     MineCancelPayload p = MineCancelPayload.decode(buf);
                     MinePredictRenderer.onMineCancel(p.pos());
                 }
+                case Protocol.PKT_MINE_SPEEDS -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.MINE_SPEEDS)) return;
+                    com.aleks.prisonsmod.net.payload.MineSpeedsPayload p =
+                            com.aleks.prisonsmod.net.payload.MineSpeedsPayload.decode(buf);
+                    MinePredictRenderer.onSpeedTable(p);
+                }
                 case Protocol.PKT_GANG_PING -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.GANG_PING)) return;
                     GangPingPayload p = GangPingPayload.decode(buf);
@@ -408,6 +414,25 @@ public final class NetworkHandler {
      * Buff-screen refresh request. Single-byte payload — server identifies the
      * sender from the channel connection. Server enforces a 1Hz rate limit.
      */
+    /**
+     * Report whether the mod runs swing-time mine prediction. When on, the
+     * server streams {@link Protocol#PKT_MINE_SPEEDS}, suppresses its own
+     * crack-stage stream + break particle/sound/fragment for this player's own
+     * breaks, and grants a ping-bounded completion grace on early retarget.
+     * Sent after the handshake on join and on every toggle change.
+     */
+    public static void sendMinePredictState(boolean on) {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            ClientPlayNetworking.send(new RawPayload(new byte[] {
+                    Protocol.PKT_MINE_PREDICT_STATE, (byte) (on ? 1 : 0)
+            }));
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send mine predict state failed", t);
+        }
+    }
+
     public static void sendBuffRefreshRequest() {
         if (!ServerAllowlist.isAllowed()) return;
         if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;

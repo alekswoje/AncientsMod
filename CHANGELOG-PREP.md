@@ -11,6 +11,7 @@
 ## HUDs
 
 ## Rendering & Visuals
+- **Low-ping mine prediction (on by default).** Mining now feels like 25 ping even at 300: the crack animation starts the instant you swing, the block visually breaks the moment its timer ends (ore turns to stone locally, confirmed by the server right after), and break particles + sound play instantly on your client. The server stays fully authoritative — toggle it in Settings → Mining if you prefer the old server-driven visuals.
 
 ## UI & Screens
 

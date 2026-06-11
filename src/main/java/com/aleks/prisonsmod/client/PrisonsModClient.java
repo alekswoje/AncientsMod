@@ -116,6 +116,9 @@ public final class PrisonsModClient implements ClientModInitializer {
                     // Tell the server whether we render Powerball client-side so it
                     // can suppress its per-ball ItemDisplay + per-tick packet stream.
                     NetworkHandler.sendPowerballState(FeatureToggles.isPowerballRenderEnabled());
+                    // Tell the server whether we run swing-time mine prediction so it
+                    // streams the speed table and suppresses its own crack/effects.
+                    NetworkHandler.sendMinePredictState(FeatureToggles.isMinePredictEnabled());
                 });
             }
         });
