@@ -301,7 +301,11 @@ public final class MinePredictRenderer {
         if (state.isAir()) return;
         Block block = state.getBlock();
         OreSpeed tableRow = SPEED_TABLE.get(block);
-        Integer duration = tableRow != null ? tableRow.durationMs() : LEARNED_DURATION.get(block);
+        // Keep BOTH branches boxed: mixing a primitive (durationMs()) with an
+        // Integer (map.get) in a ternary makes Java unbox the Integer branch to
+        // find a common type, NPE-ing on a null map hit BEFORE the null guard
+        // below can run. Resolve each branch explicitly instead.
+        Integer duration = tableRow != null ? Integer.valueOf(tableRow.durationMs()) : LEARNED_DURATION.get(block);
         if (duration == null) return;
 
         Entry entry = newEntry(world, targeted, duration, block, false);
