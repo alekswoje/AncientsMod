@@ -378,6 +378,27 @@ public final class Protocol {
     public static final int MINING_BLOCK_MAX_ID_CHARS = 48;
 
     /**
+     * Manual mining-session snapshot (running totals + elapsed clock) for the
+     * Stats HUD "session" section, driven by the player's {@code /miningtrack
+     * start|stop|reset}. Unlike {@link #PKT_MINING_STATS} / {@link #PKT_MINING_BLOCKS},
+     * the server emits this at 1 Hz for as long as a session <i>exists</i>
+     * (running OR stopped) — so the frozen totals stay on screen after a stop —
+     * and goes quiet only on reset/quit, at which point the section stales out.
+     *
+     * <p>Wire after the type byte: {@code byte state (1=running, 2=stopped);
+     * varlong elapsedMs; varlong totalXp; varlong totalEnergy; varlong totalMoney;
+     * varlong totalBlocks}.
+     *
+     * <p>Byte 38 is free on BOTH the master/dev scheme (tops at 37) and the
+     * season2 scheme, so it needs no renumber when merging dev→season2 — same
+     * anchor strategy as {@link #PKT_MINING_BLOCKS}. Keep it that way.
+     */
+    public static final byte PKT_MINING_SESSION = 38;
+
+    public static final byte MINING_SESSION_STATE_RUNNING = 1;
+    public static final byte MINING_SESSION_STATE_STOPPED = 2;
+
+    /**
      * Server → client: the set of custom item textures this player has turned
      * off in {@code /toggles → Custom Textures}. The mod ignores those (item,
      * CMD) pairs at model-resolution time so the items render vanilla.
@@ -815,6 +836,8 @@ public final class Protocol {
     public static final int RATE_MINING_STATS_PER_SEC = 5;
     /** Mining block-counts heartbeat — same shape as mining stats. */
     public static final int RATE_MINING_BLOCKS_PER_SEC = 5;
+    /** Mining-session heartbeat — same 1 Hz shape as mining stats. */
+    public static final int RATE_MINING_SESSION_PER_SEC = 5;
     /** Per-block-break + right-click. A meteorite is 200–300 blocks; cap at theoretical max mining cadence. */
     public static final int RATE_METEORITE_HUD_PER_SEC = 40;
     /** Buff snapshot is on-demand (only on /pickbuffs or refresh-button). */

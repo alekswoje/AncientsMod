@@ -178,6 +178,12 @@ public final class NetworkHandler {
                             com.aleks.prisonsmod.net.payload.MiningBlocksPayload.decode(buf);
                     com.aleks.prisonsmod.client.hud.MiningBlocksState.update(p);
                 }
+                case Protocol.PKT_MINING_SESSION -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.MINING_SESSION)) return;
+                    com.aleks.prisonsmod.net.payload.MiningSessionPayload p =
+                            com.aleks.prisonsmod.net.payload.MiningSessionPayload.decode(buf);
+                    com.aleks.prisonsmod.client.hud.MiningSessionState.update(p);
+                }
                 case Protocol.PKT_BUFF_SNAPSHOT -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.BUFF_SNAPSHOT)) {
                         PrisonsMod.LOGGER.info("BUFF_SNAPSHOT rate-limited");

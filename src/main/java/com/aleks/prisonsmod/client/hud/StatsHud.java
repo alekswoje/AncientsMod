@@ -37,6 +37,12 @@ public final class StatsHud extends HudElement {
     /** Setting key: when true the blocks section shows this-session counts; when
      *  false it shows lifetime totals on the held pickaxe (prestige-style). */
     public static final String KEY_BLOCKS_SESSION = "blocks_session";
+    /** Setting key: show the session-average per-hour rate (total ÷ elapsed) next
+     *  to each mining-session total. Default on. */
+    public static final String KEY_SESSION_SHOW_AVG = "session_show_avg";
+    /** Setting key: also show the live rolling per-hour rate (the same figure the
+     *  "mining" section shows) on each mining-session row. Default off. */
+    public static final String KEY_SESSION_SHOW_LIVE = "session_show_live";
 
     /**
      * Drop rarity tiers, rarest → most common. The server tallies each drop
@@ -46,11 +52,17 @@ public final class StatsHud extends HudElement {
     private static final List<String> RARITY_ORDER =
             List.of("mythic", "legendary", "epic", "rare", "uncommon", "common");
 
-    public static final List<String> ALL_SECTIONS = List.of("world", "hunter", "mining", "blocks", "kills", "drops");
-    /** Blocks is opt-in, so it is NOT in the default set — existing users don't
-     *  suddenly get a new section until they enable it in settings. */
+    public static final List<String> ALL_SECTIONS = List.of("world", "hunter", "mining", "session", "blocks", "kills", "drops");
+    /** Blocks and session are opt-in, so they are NOT in the default set —
+     *  existing users don't suddenly get a new section until they enable it. */
     public static final Set<String> DEFAULT_SECTIONS =
             new LinkedHashSet<>(List.of("world", "hunter", "mining", "kills", "drops"));
+
+    /** Mining-session row accent colours, matched to the live mining section. */
+    private static final int SESSION_ACCENT_XP     = 0xFF8AE08A;
+    private static final int SESSION_ACCENT_ENERGY = 0xFF8AC2FF;
+    private static final int SESSION_ACCENT_MONEY  = 0xFFE6B05A;
+    private static final int SESSION_ACCENT_BLOCKS = 0xFFC8C0B0;
 
     /** Ores offered as toggles in the blocks-section settings (display order). */
     public static final List<String> CANDIDATE_BLOCKS = List.of(
@@ -93,8 +105,10 @@ public final class StatsHud extends HudElement {
         Set<String> sections = enabledSections();
         boolean miningLive = sections.contains("mining") && MiningStatsState.isLive();
         boolean blocksLive = sections.contains("blocks") && MiningBlocksState.isLive() && !blockRows().isEmpty();
+        boolean sessionLive = sections.contains("session") && MiningSessionState.isLive();
         return miningLive
             || blocksLive
+            || sessionLive
             || !PveStatsState.kills().isEmpty()
             || !PveStatsState.drops().isEmpty()
             || PveStatsState.sessionHunterXp() > 0
@@ -141,6 +155,16 @@ public final class StatsHud extends HudElement {
         return HudSettings.getBoolean(id(), KEY_BLOCKS_SESSION, false);
     }
 
+    /** True = show the session-average /h rate beside each mining-session total. */
+    public boolean sessionShowAvg() {
+        return HudSettings.getBoolean(id(), KEY_SESSION_SHOW_AVG, true);
+    }
+
+    /** True = also show the live rolling /h rate on each mining-session row. */
+    public boolean sessionShowLive() {
+        return HudSettings.getBoolean(id(), KEY_SESSION_SHOW_LIVE, false);
+    }
+
     @Override
     public int width() {
         TextRenderer fr = textRenderer();
@@ -162,6 +186,13 @@ public final class StatsHud extends HudElement {
         }
         if (sections.contains("mining") && MiningStatsState.isLive()) {
             for (MiningRow r : miningRows()) {
+                int w = fr.getWidth(r.label) + colGap + fr.getWidth(r.value);
+                if (w > widest) widest = w;
+            }
+        }
+        if (sections.contains("session") && MiningSessionState.isLive()) {
+            widest = Math.max(widest, fr.getWidth(sessionHeader()));
+            for (MiningRow r : sessionRows()) {
                 int w = fr.getWidth(r.label) + colGap + fr.getWidth(r.value);
                 if (w > widest) widest = w;
             }
@@ -195,6 +226,10 @@ public final class StatsHud extends HudElement {
         if (sections.contains("world") && !PveStatsState.worldName().isEmpty()) rows += 1;
         if (sections.contains("hunter")) rows += hunterRows().size();
         if (sections.contains("mining") && MiningStatsState.isLive()) rows += miningRows().size();
+        if (sections.contains("session") && MiningSessionState.isLive()) {
+            int sr = sessionRows().size();
+            if (sr > 0) rows += 1 + sr; // sub-header + metric rows
+        }
         if (sections.contains("blocks") && MiningBlocksState.isLive()) {
             int br = blockRows().size();
             if (br > 0) rows += 1 + br; // sub-header + ore rows
@@ -252,6 +287,24 @@ public final class StatsHud extends HudElement {
                 ctx.drawText(fr, Text.literal(r.label), textX, textY,
                         (r.accent & 0x00FFFFFF) | 0xFF000000, true);
                 rowY += rowH;
+            }
+        }
+
+        if (sections.contains("session") && MiningSessionState.isLive()) {
+            List<MiningRow> sr = sessionRows();
+            if (!sr.isEmpty()) {
+                ctx.drawText(fr, Text.literal(sessionHeader()), padX + stripW + stripGap, rowY + 2, SUBHEADER, true);
+                rowY += rowH;
+                for (MiningRow r : sr) {
+                    ctx.fill(padX, rowY, padX + stripW, rowY + rowH - 2, r.accent);
+                    int textX = padX + stripW + stripGap;
+                    int textY = rowY + 2;
+                    int valW = fr.getWidth(r.value);
+                    ctx.drawText(fr, Text.literal(r.value), w - padX - valW, textY, VALUE_COLOR, true);
+                    ctx.drawText(fr, Text.literal(r.label), textX, textY,
+                            (r.accent & 0x00FFFFFF) | 0xFF000000, true);
+                    rowY += rowH;
+                }
             }
         }
 
@@ -330,6 +383,57 @@ public final class StatsHud extends HudElement {
         // as progress-toward-prestige per hour, not a raw block tally.
         if (blocks > 0) out.add(new MiningRow("Blocks/h",  formatCompact(blocks), 0xFFC8C0B0));
         return out;
+    }
+
+    /** "Session (running) · 12m 30s" / "Session (paused) · 12m 30s". */
+    private String sessionHeader() {
+        String state = MiningSessionState.isRunning() ? "running" : "paused";
+        return "Session (" + state + ") · " + formatDuration(MiningSessionState.elapsedMs());
+    }
+
+    /**
+     * Mining-session rows: one per metric with a non-zero total. The value column
+     * shows the running total, then optionally the session-average per-hour rate
+     * ({@code total ÷ elapsed}) and/or the live rolling rate — each gated by its
+     * own settings toggle, defaulting to "average on, live off".
+     */
+    private List<MiningRow> sessionRows() {
+        List<MiningRow> out = new ArrayList<>(4);
+        if (!MiningSessionState.isLive()) return out;
+        boolean showAvg = sessionShowAvg();
+        boolean showLive = sessionShowLive();
+        addSessionRow(out, "XP",     MiningSessionState.totalXp(),     MiningStatsState.xpPerHour(),     showAvg, showLive, SESSION_ACCENT_XP,     false);
+        addSessionRow(out, "Energy", MiningSessionState.totalEnergy(), MiningStatsState.energyPerHour(), showAvg, showLive, SESSION_ACCENT_ENERGY, false);
+        addSessionRow(out, "$",      MiningSessionState.totalMoney(),  MiningStatsState.moneyPerHour(),  showAvg, showLive, SESSION_ACCENT_MONEY,  true);
+        addSessionRow(out, "Blocks", MiningSessionState.totalBlocks(), MiningStatsState.blocksPerHour(), showAvg, showLive, SESSION_ACCENT_BLOCKS, false);
+        return out;
+    }
+
+    private void addSessionRow(List<MiningRow> out, String label, long total, long liveRate,
+                               boolean showAvg, boolean showLive, int accent, boolean money) {
+        if (total <= 0) return;
+        String p = money ? "$" : "";
+        StringBuilder val = new StringBuilder(p).append(formatCompact(total));
+        if (showAvg) {
+            val.append("  ").append(p).append(formatCompact(MiningSessionState.perHour(total))).append("/h");
+        }
+        if (showLive && liveRate > 0) {
+            // Distinguish the live rolling figure from the session average with a
+            // trailing marker so the two /h numbers don't read as one.
+            val.append("  ").append(p).append(formatCompact(liveRate)).append("/h·live");
+        }
+        out.add(new MiningRow(label, val.toString(), accent));
+    }
+
+    /** "1h 02m", "12m 30s", "45s" — mirrors the /miningtrack chat formatter. */
+    private static String formatDuration(long ms) {
+        long totalSec = Math.max(0L, ms) / 1000L;
+        long h = totalSec / 3600L;
+        long m = (totalSec % 3600L) / 60L;
+        long s = totalSec % 60L;
+        if (h > 0) return h + "h " + String.format(Locale.US, "%02dm", m);
+        if (m > 0) return m + "m " + String.format(Locale.US, "%02ds", s);
+        return s + "s";
     }
 
     private String blocksHeader() {

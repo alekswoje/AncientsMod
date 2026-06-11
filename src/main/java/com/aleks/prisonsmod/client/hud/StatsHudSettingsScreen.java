@@ -34,6 +34,7 @@ public final class StatsHudSettingsScreen extends WidgetSettingsScreen {
                 case "world"  -> "Show world name";
                 case "hunter" -> "Show Hunter XP (XP/h + session total)";
                 case "mining" -> "Show mining (XP/h, Energy/h, $/h)";
+                case "session" -> "Show mining session (/miningtrack totals)";
                 case "blocks" -> "Show blocks (per-ore counts)";
                 case "kills"  -> "Show kills section";
                 case "drops"  -> "Show drops section (by rarity)";
@@ -53,6 +54,14 @@ public final class StatsHudSettingsScreen extends WidgetSettingsScreen {
                         }
                     });
         }
+
+        addSection("Mining session");
+        addToggle("Show session-average rate (/h)",
+                stats::sessionShowAvg,
+                v -> HudSettings.setBoolean(stats.id(), StatsHud.KEY_SESSION_SHOW_AVG, v));
+        addToggle("Also show live rolling rate (/h·live)",
+                stats::sessionShowLive,
+                v -> HudSettings.setBoolean(stats.id(), StatsHud.KEY_SESSION_SHOW_LIVE, v));
 
         addSection("Blocks");
         addToggle("Count mode: session (off = lifetime total on pickaxe)",

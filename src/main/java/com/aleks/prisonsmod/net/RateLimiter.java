@@ -32,6 +32,7 @@ public final class RateLimiter {
         PVE_STATS(Protocol.RATE_PVE_STATS_PER_SEC),
         MINING_STATS(Protocol.RATE_MINING_STATS_PER_SEC),
         MINING_BLOCKS(Protocol.RATE_MINING_BLOCKS_PER_SEC),
+        MINING_SESSION(Protocol.RATE_MINING_SESSION_PER_SEC),
         BUGREPORT(Protocol.RATE_BUGREPORT_PER_SEC),
         SUGGEST(Protocol.RATE_SUGGEST_PER_SEC),
         PV_BUNDLE(Protocol.RATE_PV_BUNDLE_PER_SEC),
