@@ -123,6 +123,10 @@ public final class NetworkHandler {
                             com.aleks.prisonsmod.net.payload.MineSpeedsPayload.decode(buf);
                     MinePredictRenderer.onSpeedTable(p);
                 }
+                case Protocol.PKT_CLICKLOCK_STATE -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.CLICKLOCK_STATE)) return;
+                    MinePredictRenderer.onClickLockState(buf.readByte() != 0);
+                }
                 case Protocol.PKT_GANG_PING -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.GANG_PING)) return;
                     GangPingPayload p = GangPingPayload.decode(buf);

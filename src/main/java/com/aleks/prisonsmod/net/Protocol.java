@@ -425,6 +425,18 @@ public final class Protocol {
     public static final int RATE_MINE_SPEEDS_PER_SEC = 5;
 
     /**
+     * S2C — the player's ClickLock on/off state (single state byte: 1=on, 0=off).
+     * ClickLock is server-driven (the server raycasts + mines without the attack
+     * key held), so while it's on the prediction engine keeps its server-paced
+     * crack alive on crosshair-targeting alone instead of the attack key. Sent on
+     * toggle, join restore, and predict-enable. Byte 40 is free on both the
+     * master and season2 server schemes — keep it that way on merge.
+     */
+    public static final byte PKT_CLICKLOCK_STATE = 40;
+    /** ClickLock state is a low-frequency keepalive — a handful per second is the ceiling. */
+    public static final int RATE_CLICKLOCK_STATE_PER_SEC = 5;
+
+    /**
      * Server → client: the set of custom item textures this player has turned
      * off in {@code /toggles → Custom Textures}. The mod ignores those (item,
      * CMD) pairs at model-resolution time so the items render vanilla.

@@ -83,6 +83,11 @@ public final class MinePredictRenderer {
     /** Last time the server sent PKT_MINE_START — arms swing-time prediction. */
     private static long lastMineStartMs = 0L;
 
+    /** ClickLock state (server-driven mining without the attack key held). While
+     *  on, the cancel gate keeps server-paced predictions alive on crosshair
+     *  targeting alone — see {@link #tick()}. */
+    private static boolean clickLockActive = false;
+
     private static final Map<BlockPos, Entry> ACTIVE = new HashMap<>();
 
     private static final class Entry {
@@ -170,6 +175,12 @@ public final class MinePredictRenderer {
             return;
         }
         newEntry(world, pos, payload.durationMs(), state.getBlock(), true);
+    }
+
+    /** Server-origin ClickLock state. While on, the engine drives server-paced
+     *  cracks (from PKT_MINE_START) without requiring the attack key held. */
+    public static void onClickLockState(boolean on) {
+        clickLockActive = on;
     }
 
     /** Server-origin cancel — the player released before completion. */
@@ -265,9 +276,13 @@ public final class MinePredictRenderer {
 
             // Self-cancel: player released attack or moved the crosshair off the
             // block. No grace window — an earlier 40ms grace leaked the first
-            // crack stage on single taps.
+            // crack stage on single taps. Under ClickLock the server mines
+            // without the attack key held, so keep the entry alive on
+            // crosshair-targeting alone; PKT_MINE_CANCEL / the crosshair leaving
+            // the block still end it.
+            boolean miningHeld = attacking || clickLockActive;
             boolean stillTargeting = pos.equals(targeted);
-            if (!attacking || !stillTargeting) {
+            if (!miningHeld || !stillTargeting) {
                 clearCrack(pos, entry);
                 it.remove();
                 continue;
@@ -457,6 +472,7 @@ public final class MinePredictRenderer {
         LEARNED_REPLACEMENT.clear();
         POS_BLACKLIST.clear();
         lastMineStartMs = 0L;
+        clickLockActive = false;
         PrisonsMod.LOGGER.debug("MinePredictRenderer reset");
     }
 
