@@ -10,8 +10,6 @@
 
 ## HUDs
 
-- **New Mining Session section in the Stats HUD.** Pair it with `/miningtrack start` to watch your session's XP, Energy, Money, and blocks pile up live, with the session-average per-hour rate beside each total (and an optional live rolling rate). Enable it under Stats HUD → Sections → "Show mining session".
-
 ## Rendering & Visuals
 
 ## UI & Screens
