@@ -32,7 +32,7 @@ import java.util.Optional;
 /**
  * The in-mod wiki's interactive-tooltip layer.
  *
- * <p>While you hold <b>Shift</b> over a wired-up item (currently the Spectral
+ * <p>While you hold <b>Alt</b> over a wired-up item (any armor trim), its
  * Trim), its tooltip <i>pins</i> in place so you can move the cursor off the
  * item and onto the tooltip itself — vanilla tooltips normally follow the mouse
  * and vanish the instant you leave the slot. Recognised terms (the "more" /
@@ -43,7 +43,7 @@ import java.util.Optional;
  * <h2>How the pin works</h2>
  * <ol>
  *   <li>{@link ItemTooltipCallback} fires while vanilla builds the hovered
- *       item's tooltip. If it's a wired item and Shift is down, we snapshot the
+ *       item's tooltip. If it's a wired item and Alt is down, we snapshot the
  *       lines + resolved {@link WikiLink}s and flag {@code hoveredThisFrame}.</li>
  *   <li>In {@link ScreenEvents#afterRender} we <i>latch</i> the pin: freeze the
  *       snapshot and compute a fixed anchor near the cursor.</li>
@@ -52,7 +52,7 @@ import java.util.Optional;
  *       authentic vanilla chrome ({@link DrawContext#drawTooltipImmediately})
  *       plus our underline/hover overlays — so the cursor can roam over other
  *       slots without spawning competing tooltips.</li>
- *   <li>Releasing Shift unpins. Click geometry is ours, so the underline and
+ *   <li>Releasing Alt unpins. Click geometry is ours, so the underline and
  *       hit-box always match the glyphs (style-aware width, bold-safe).</li>
  * </ol>
  *
@@ -79,12 +79,17 @@ public final class InteractiveItemTooltip {
     private static List<Text> pendingLines = null;
     private static List<WikiLink> pendingLinks = null;
 
-    // ── Pinned state (Shift held over a wired item) ──────────────────────────
+    // ── Pinned state (Alt held over a wired item) ──────────────────────────
     private static boolean pinned = false;
     private static List<Text> pinnedLines = null;
     private static List<WikiLink> pinnedLinks = null;
     private static int anchorX, anchorY;
     private static final List<SpanBox> spanBoxes = new ArrayList<>();
+    // Vertical scroll for a pinned tooltip taller than the screen — Alt held, scroll wheel pans it.
+    private static int pinnedScroll = 0;
+    private static int pinnedRenderY = 0;
+    private static boolean pinnedOversized = false;
+    private static final int SCROLL_STEP_PX = 12;
 
     // ── Wiki popup state ─────────────────────────────────────────────────────
     private static String openEntryId = null;
@@ -99,11 +104,11 @@ public final class InteractiveItemTooltip {
     private record Run(String text, Style style) {}
 
     public static void register() {
-        // Snapshot a wired item's tooltip while Shift is held, before we pin.
+        // Snapshot a wired item's tooltip while Alt is held, before we pin.
         ItemTooltipCallback.EVENT.register((stack, context, type, lines) -> {
             if (!ServerAllowlist.isAllowed()) return;
             if (!FeatureToggles.isItemWikiEnabled()) return;
-            if (!isShiftDown()) return;
+            if (!isAltDown()) return;
             if (stack == null || stack.isEmpty()) return;
             List<WikiLink> links = WikiLinkResolver.resolve(lines);
             if (links.isEmpty()) return;
@@ -119,6 +124,7 @@ public final class InteractiveItemTooltip {
             ScreenEvents.afterRender(screen).register(InteractiveItemTooltip::onAfterRender);
             ScreenMouseEvents.allowMouseClick(screen).register(InteractiveItemTooltip::onAllowMouseClick);
             ScreenKeyboardEvents.allowKeyPress(screen).register(InteractiveItemTooltip::onAllowKeyPress);
+            ScreenMouseEvents.allowMouseScroll(screen).register(InteractiveItemTooltip::onAllowMouseScroll);
         });
     }
 
@@ -136,6 +142,8 @@ public final class InteractiveItemTooltip {
         pendingLines = null;
         pendingLinks = null;
         hoveredThisFrame = false;
+        pinnedScroll = 0;
+        pinnedOversized = false;
     }
 
     // ── Render ───────────────────────────────────────────────────────────────
@@ -147,41 +155,61 @@ public final class InteractiveItemTooltip {
             hoveredThisFrame = false;
             return;
         }
-        boolean shift = isShiftDown();
+        boolean alt = isAltDown();
 
-        // Latch the pin the first frame Shift is held over a freshly-snapshotted item.
-        if (!pinned && openEntryId == null && shift && hoveredThisFrame
+        // Latch the pin the first frame Alt is held over a freshly-snapshotted item.
+        if (!pinned && openEntryId == null && alt && hoveredThisFrame
                 && pendingLines != null && pendingLinks != null && !pendingLinks.isEmpty()) {
             pinned = true;
             pinnedLines = pendingLines;
             pinnedLinks = pendingLinks;
             computeAnchor(mouseX, mouseY, screen);
+            pinnedScroll = 0;
         }
 
-        // Releasing Shift unpins (an open popup stays until dismissed).
-        if (pinned && !shift) {
+        // Releasing Alt unpins (an open popup stays until dismissed).
+        if (pinned && !alt) {
             pinned = false;
             pinnedLines = null;
             pinnedLinks = null;
             spanBoxes.clear();
+            pinnedScroll = 0;
+            pinnedOversized = false;
         }
 
         if (openEntryId != null) {
             renderPopup(context, screen);
         } else if (pinned && pinnedLines != null) {
-            renderPinnedTooltip(context, mouseX, mouseY);
+            renderPinnedTooltip(context, mouseX, mouseY, screen.height);
         }
 
         hoveredThisFrame = false;
     }
 
-    private static void renderPinnedTooltip(DrawContext ctx, int mouseX, int mouseY) {
+    private static void renderPinnedTooltip(DrawContext ctx, int mouseX, int mouseY, int screenH) {
         TextRenderer tr = MinecraftClient.getInstance().textRenderer;
 
-        // Authentic vanilla background + text at our frozen anchor.
+        // If the pinned tooltip is taller than the screen, let the wheel pan it between
+        // top-aligned and bottom-aligned; otherwise keep it at its frozen anchor.
+        int h = tooltipHeight(pinnedLines.size());
+        pinnedOversized = h > screenH - 12;
+        int eff = anchorY;
+        if (pinnedOversized) {
+            int top = 6;
+            int bottom = screenH - 6 - h; // negative — top spills above the screen
+            eff = anchorY + pinnedScroll;
+            if (eff > top) eff = top;
+            if (eff < bottom) eff = bottom;
+            pinnedScroll = eff - anchorY; // keep the stored offset clamped
+        } else {
+            pinnedScroll = 0;
+        }
+        pinnedRenderY = eff;
+
+        // Authentic vanilla background + text at our frozen (scrolled) anchor.
         List<TooltipComponent> comps = new ArrayList<>(pinnedLines.size());
         for (Text line : pinnedLines) comps.add(TooltipComponent.of(line.asOrderedText()));
-        ctx.drawTooltipImmediately(tr, comps, anchorX, anchorY, FIXED_POSITIONER, null);
+        ctx.drawTooltipImmediately(tr, comps, anchorX, eff, FIXED_POSITIONER, null);
 
         // Compute hit-boxes and draw underline + hover highlight on top.
         spanBoxes.clear();
@@ -189,7 +217,7 @@ public final class InteractiveItemTooltip {
             int li = link.lineIndex();
             if (li < 0 || li >= pinnedLines.size()) continue;
             Text line = pinnedLines.get(li);
-            int lineY = (li == 0) ? anchorY : anchorY + LINE_H * li + TITLE_GAP;
+            int lineY = (li == 0) ? eff : eff + LINE_H * li + TITLE_GAP;
             int x1 = anchorX + styledWidth(tr, line, link.startCol());
             int x2 = anchorX + styledWidth(tr, line, link.endCol());
             if (x2 <= x1) continue;
@@ -289,6 +317,16 @@ public final class InteractiveItemTooltip {
         return true;
     }
 
+    private static boolean onAllowMouseScroll(Screen screen, double mouseX, double mouseY,
+                                              double horizontalAmount, double verticalAmount) {
+        if (!ServerAllowlist.isAllowed() || !FeatureToggles.isItemWikiEnabled()) return true;
+        // Only steal the wheel for a tall pinned tooltip (no popup open). Otherwise let it pass
+        // so normal scrollable-tooltips and container scrolling keep working.
+        if (!pinned || openEntryId != null || !pinnedOversized) return true;
+        pinnedScroll += (int) Math.round(verticalAmount * SCROLL_STEP_PX);
+        return false; // consume — pan the pinned tooltip instead of the screen
+    }
+
     // ── Geometry helpers ─────────────────────────────────────────────────────
 
     private static void computeAnchor(int mouseX, int mouseY, Screen screen) {
@@ -313,7 +351,7 @@ public final class InteractiveItemTooltip {
         int w = 0;
         for (Text line : pinnedLines) w = Math.max(w, tr.getWidth(line));
         int h = tooltipHeight(pinnedLines.size());
-        return mx >= anchorX - 4 && mx < anchorX + w + 4 && my >= anchorY - 4 && my < anchorY + h + 4;
+        return mx >= anchorX - 4 && mx < anchorX + w + 4 && my >= pinnedRenderY - 4 && my < pinnedRenderY + h + 4;
     }
 
     private static int tooltipHeight(int lineCount) {
@@ -356,13 +394,13 @@ public final class InteractiveItemTooltip {
         ctx.fill(x + w - 1, y, x + w, y + h, color);
     }
 
-    private static boolean isShiftDown() {
+    private static boolean isAltDown() {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client == null) return false;
         Window window = client.getWindow();
         if (window == null) return false;
-        return InputUtil.isKeyPressed(window, GLFW.GLFW_KEY_LEFT_SHIFT)
-                || InputUtil.isKeyPressed(window, GLFW.GLFW_KEY_RIGHT_SHIFT);
+        return InputUtil.isKeyPressed(window, GLFW.GLFW_KEY_LEFT_ALT)
+                || InputUtil.isKeyPressed(window, GLFW.GLFW_KEY_RIGHT_ALT);
     }
 
     private InteractiveItemTooltip() {}

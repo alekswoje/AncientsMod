@@ -35,7 +35,7 @@ public final class SettingsScreen extends WidgetSettingsScreen {
                 FeatureToggles::isEnchantCollapseEnabled, FeatureToggles::setEnchantCollapse);
         addToggle("Scrollable tooltips",
                 FeatureToggles::isScrollableTooltipsEnabled, FeatureToggles::setScrollableTooltips);
-        addToggle("Item wiki (Shift to pin tooltip, click terms)",
+        addToggle("Item wiki (Alt to pin tooltip, click terms)",
                 FeatureToggles::isItemWikiEnabled, FeatureToggles::setItemWiki);
         addToggle("Block breakdown on pickaxes",
                 FeatureToggles::isPickaxeBlocksEnabled, FeatureToggles::setPickaxeBlocks);

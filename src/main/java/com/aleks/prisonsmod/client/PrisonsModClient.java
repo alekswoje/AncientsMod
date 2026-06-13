@@ -64,6 +64,7 @@ public final class PrisonsModClient implements ClientModInitializer {
         NetworkHandler.register();
         TooltipCollapse.register();
         TooltipScroll.register();
+        PickaxeBlocksTooltip.register();
         com.aleks.prisonsmod.client.wiki.InteractiveItemTooltip.register();
         PickaxeBlocksTooltip.register();
         GangPingInput.register();
@@ -83,6 +84,7 @@ public final class PrisonsModClient implements ClientModInitializer {
         HudRegistry.register(OutpostHud.INSTANCE);
         HudRenderer.register();
         MeteoriteLabelRenderer.register();
+        PowerballRenderer.register();
 
         // Server allowlist: flip on/off as the player joins/leaves servers.
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {

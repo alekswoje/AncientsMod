@@ -23,9 +23,9 @@ import java.util.Optional;
  * (AbstractContainerMenu.broadcastChanges / ItemStack.matches). The server now
  * keeps a compact tooltip and only stores the raw ore counts in the pickaxe's
  * {@code minecraft:custom_data} PDC string {@code prisonscore:ore_mined_counts}
- * (format {@code MATERIAL=count,MATERIAL=count}). We read that data — already
- * synced to the client — and draw the breakdown here, so it costs the server
- * nothing while showing the full per-type detail to mod users.
+ * (format {@code MATERIAL=count,MATERIAL=count}). We read that data — which is
+ * already synced to the client — and draw the breakdown here, so it costs the
+ * server nothing while showing the full per-type detail to mod users.
  *
  * <p><b>Marker gate.</b> We render ONLY when the pickaxe also carries the
  * {@code prisonscore:lore_compact} PDC marker the server sets when it builds the

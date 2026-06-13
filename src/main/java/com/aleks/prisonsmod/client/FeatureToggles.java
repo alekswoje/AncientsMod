@@ -34,13 +34,14 @@ public final class FeatureToggles {
     /** Scroll oversized tooltips with the mouse wheel. Off = vanilla bottom-pin (top spills off-screen). */
     private static volatile boolean scrollableTooltips = true;
 
-    /** In-mod item wiki: hold Shift over a wired item (Spectral Trim for now) to pin its tooltip and
+    /** In-mod item wiki: hold Alt over a wired item (any armor trim) to pin its tooltip and
      *  click underlined terms for a plain-English explainer. On by default. */
     private static volatile boolean itemWiki = true;
 
-    /** Render the per-ore-type "Blocks Mined" breakdown on pickaxe tooltips, client-side, from the
-     *  pickaxe's ore-mined data. The server keeps a compact tooltip (no ore lines) for performance,
-     *  so this is how the full breakdown is shown. Only active on compact-lore pickaxes. On by default. */
+    /** Render the per-ore-type "Blocks Mined" breakdown on pickaxe tooltips, client-side,
+     *  from the pickaxe's ore-mined data. The server keeps a compact tooltip (no ore lines)
+     *  for performance, so this is how the full breakdown is shown. Only active on
+     *  compact-lore pickaxes. On by default. */
     private static volatile boolean pickaxeBlocks = true;
 
     /** While holding a pickaxe, fade nearby player-shaped entities (players + NPCs) so they don't obscure the block you're mining. */
