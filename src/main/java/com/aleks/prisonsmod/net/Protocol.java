@@ -398,6 +398,77 @@ public final class Protocol {
     public static final byte MINING_SESSION_STATE_RUNNING = 1;
     public static final byte MINING_SESSION_STATE_STOPPED = 2;
 
+    // ── Cell Vault Terminal (S2C 41-44, C2S 137-144 — wire spec v1) ─────────
+
+    /**
+     * S2C — open the Cell Vault Terminal: an aggregated, searchable grid of ALL
+     * containers in the player's cell (vault + chests + barrels), in the PV
+     * terminal's style. Pushed by the server after it cancels the vanilla
+     * vault-chest open for a modded player — there is NO client-side command or
+     * screen interception for this feature (purely server-push, like the
+     * {@code /pvsee} flow). A {@link #PKT_CELLTERM_BUNDLE} (or its chunked
+     * equivalent) follows immediately and force-opens the screen.
+     *
+     * <p>Wire after the type byte: {@code varint+string cellLabel} (≤
+     * {@link #CELLTERM_MAX_CELL_LABEL_CHARS} chars, legacy colour codes allowed,
+     * client renders it verbatim); {@code byte flags} (bit0 = editable; always
+     * 1 for now).
+     *
+     * <p>Byte 41 is free on ALL THREE schemes (mod master, PrisonsCore dev,
+     * PrisonsCore season2) — keep it that way on merge. The whole id block
+     * (S2C 41-44, C2S 137-144) is gated server-side on the handshake's
+     * {@link #PROTOCOL_MINOR} ≥ 2.
+     */
+    public static final byte PKT_CELLTERM_OPEN = 41;
+
+    /**
+     * S2C — full snapshot of the cell's containers (server-authoritative; the
+     * client discards all optimistic predictions whenever one lands). Wire
+     * after the type byte:
+     * <pre>
+     *   varint containerCount            (≤ {@link #CELLTERM_MAX_CONTAINERS})
+     *   per container:
+     *     varint containerId             (stable within a session; vault is always id 0)
+     *     varint+string label            (≤ {@link #CELLTERM_MAX_CONTAINER_LABEL_CHARS}: "Vault", "Chest 2", "Barrel 1")
+     *     short slotCount                (≤ {@link #CELLTERM_MAX_SLOTS_PER_CONTAINER})
+     *     short nonEmptyCount            (≤ slotCount)
+     *     per non-empty slot: IDENTICAL codec to PV bundle slots
+     *       (short slotIndex; varint+string materialKey; varint+string displayName;
+     *        int amount; byte loreCount; per lore line varint+string)
+     * </pre>
+     * Single-packet cap = {@link #MAX_PV_BUNDLE_BYTES} (shared with the PV
+     * bundle); larger bodies arrive split across
+     * {@link #PKT_CELLTERM_BUNDLE_CHUNK}. Byte 42 is free on all three schemes
+     * — keep it that way on merge.
+     */
+    public static final byte PKT_CELLTERM_BUNDLE = 42;
+
+    /**
+     * S2C — one chunk of an oversized cell-terminal bundle. Same scheme (and
+     * shared size caps) as {@link #PKT_PV_BUNDLE_CHUNK}: {@code int version;
+     * varint chunkIndex; varint chunkCount; varint len; byte[len] body};
+     * reassembled = the body a single {@link #PKT_CELLTERM_BUNDLE} carries
+     * after its type byte. Chunk bodies are 24 KiB, total ≤
+     * {@link #MAX_PV_BUNDLE_TOTAL_BYTES}, ≤ {@link #PV_BUNDLE_MAX_CHUNKS}
+     * chunks. Minor ≥ 2 clients always support chunking (no legacy fallback
+     * needed). Byte 43 is free on all three schemes — keep it that way on merge.
+     */
+    public static final byte PKT_CELLTERM_BUNDLE_CHUNK = 43;
+
+    /**
+     * S2C — server force-closes the cell-terminal screen/session (cell sold,
+     * permissions changed, etc.). Wire after the type byte:
+     * {@code varint+string reason} (≤ {@link #CELLTERM_MAX_CLOSE_REASON_CHARS},
+     * may be empty; the client shows a non-empty reason to the player). The
+     * client must NOT echo a C2S {@link #PKT_CELLTERM_CLOSE_C2S} back. Byte 44
+     * is free on all three schemes — keep it that way on merge.
+     *
+     * <p>(Spec name on both sides is PKT_CELLTERM_CLOSE; this constant carries
+     * no suffix collision only because the C2S one is named
+     * {@link #PKT_CELLTERM_CLOSE_C2S} here.)
+     */
+    public static final byte PKT_CELLTERM_CLOSE = 44;
+
     /**
      * Server → client: the set of custom item textures this player has turned
      * off in {@code /toggles → Custom Textures}. The mod ignores those (item,
@@ -489,8 +560,9 @@ public final class Protocol {
     public static final byte PKT_HANDSHAKE  = 101;
     /** Mod protocol MINOR version, sent as the byte after {@link #PKT_HANDSHAKE}. Bumped within the
      *  same major (channel {@code prisonsmod:v1}) when the client gains the ability to handle a new
-     *  server→client packet additively. Minor 1 = can reassemble {@link #PKT_PV_BUNDLE_CHUNK}. */
-    public static final int PROTOCOL_MINOR = 1;
+     *  server→client packet additively. Minor 1 = can reassemble {@link #PKT_PV_BUNDLE_CHUNK}.
+     *  Minor 2 = client understands the cell-terminal packets (S2C 41-44, C2S 137-144). */
+    public static final int PROTOCOL_MINOR = 2;
     /**
      * Client request: "I want to ping this world-space point for my gang."
      * Payload carries only coordinates + a hold-flag. Server authenticates the
@@ -749,6 +821,73 @@ public final class Protocol {
     /** Max chars for the IANA zone id carried by {@link #PKT_CLIENT_TIMEZONE}. */
     public static final int CLIENT_TIMEZONE_MAX_CHARS = 64;
 
+    // ── Cell Vault Terminal C2S (intent-only; the server resolves the sender
+    //    from the connection — payloads carry indices only, never item identity
+    //    or UUIDs; every mutating op is answered with a fresh PKT_CELLTERM_BUNDLE).
+    //    Bytes 137-144 are free on ALL THREE schemes (mod master, PrisonsCore
+    //    dev, PrisonsCore season2) — keep them that way on merge. ──────────────
+
+    /**
+     * Pull from a specific cell-container slot. Wire after the type byte:
+     * {@code varint containerId; short slot; byte mode; byte target}. Mode and
+     * target bytes share the PV values ({@link #PV_EXTRACT_ONE} /
+     * {@link #PV_EXTRACT_HALF} / {@link #PV_EXTRACT_ALL} /
+     * {@link #PV_EXTRACT_STACK}; {@link #PV_TARGET_CURSOR} /
+     * {@link #PV_TARGET_INV}) with identical semantics.
+     */
+    public static final byte PKT_CELLTERM_EXTRACT = (byte) 137;
+
+    /**
+     * Aggregated ME-style pull: the reference {@code (containerId, slot)} only
+     * names which item to match — the server matches all isSimilar stacks
+     * across ALL session containers, caps by destination space BEFORE mutating,
+     * and drains ascending (containerId, slot) in one tick. Wire:
+     * {@code varint refContainerId; short refSlot; byte mode; byte target}.
+     */
+    public static final byte PKT_CELLTERM_EXTRACT_ITEM = (byte) 138;
+
+    /**
+     * Deposit a player-inventory stack into the cell: vault (container 0)
+     * first, then other containers in containerId order; merge-into-similar
+     * then empty slots. Wire: {@code int playerInvSlot} (0..35, Bukkit
+     * ordering — hotbar 0..8, main inv 9..35).
+     */
+    public static final byte PKT_CELLTERM_DEPOSIT = (byte) 139;
+
+    /**
+     * Vanilla click semantics cursor ↔ player-inv slot (mirror of the PV
+     * terminal's {@link #PKT_PV_CURSOR_PLACE_INV}). Wire:
+     * {@code byte invSlot} (0..35).
+     */
+    public static final byte PKT_CELLTERM_CURSOR_PLACE_INV = (byte) 140;
+
+    /**
+     * Return the cursor stack: cell containers first, then player inventory,
+     * then drop at feet. Sent when the cell-terminal closes (or a tile is
+     * clicked) with a non-empty cursor. No payload.
+     */
+    public static final byte PKT_CELLTERM_CURSOR_RETURN = (byte) 141;
+
+    /**
+     * Client closed the cell-terminal screen — end the server-side session. No
+     * payload. NOT sent when the close was server-initiated via the S2C
+     * {@link #PKT_CELLTERM_CLOSE}. (Spec name on both sides is
+     * PKT_CELLTERM_CLOSE = 142 C2S / 44 S2C; suffixed here to avoid the Java
+     * name collision.)
+     */
+    public static final byte PKT_CELLTERM_CLOSE_C2S = (byte) 142;
+
+    /** Ask for a fresh cell-terminal bundle (server-side ~500ms cooldown class). No payload. */
+    public static final byte PKT_CELLTERM_REFRESH_REQ = (byte) 143;
+
+    /**
+     * Feature-toggle report: {@code byte enabled} (1/0). Sent once after the
+     * handshake on join and on every toggle flip (mirror of the
+     * {@link #PKT_MINING_HUD_STATE} pattern). When a client reported disabled,
+     * the server must NOT intercept vault-chest opens for it.
+     */
+    public static final byte PKT_CELLTERM_STATE = (byte) 144;
+
     // --- Hard size caps (wire-level) ---
     /** Maximum bytes for any single cosmetic S2C payload. Larger packets are dropped. */
     public static final int MAX_PAYLOAD_BYTES = 256;
@@ -805,6 +944,21 @@ public final class Protocol {
     public static final int PV_MAX_LORE_LINES = 200;
     public static final int PV_MAX_LORE_LINE_CHARS = 128;
 
+    // --- Cell terminal bounds ---
+    // Per-slot fields reuse the PV slot caps above (identical codec). Bundle /
+    // chunk byte sizes reuse MAX_PV_BUNDLE_BYTES / MAX_PV_BUNDLE_CHUNK_BYTES /
+    // MAX_PV_BUNDLE_TOTAL_BYTES / PV_BUNDLE_MAX_CHUNKS — same caps by spec.
+    /** Hard cap on containers per {@link #PKT_CELLTERM_BUNDLE}. */
+    public static final int CELLTERM_MAX_CONTAINERS = 64;
+    /** Hard cap on a single cell container's slot count (double chest = 54). */
+    public static final int CELLTERM_MAX_SLOTS_PER_CONTAINER = 54;
+    /** Max chars for a per-container label ("Vault", "Chest 2", "Barrel 1"). */
+    public static final int CELLTERM_MAX_CONTAINER_LABEL_CHARS = 24;
+    /** Max chars for the cell label in {@link #PKT_CELLTERM_OPEN} (e.g. "Cell A-12"). */
+    public static final int CELLTERM_MAX_CELL_LABEL_CHARS = 32;
+    /** Max chars for the S2C {@link #PKT_CELLTERM_CLOSE} reason string. */
+    public static final int CELLTERM_MAX_CLOSE_REASON_CHARS = 64;
+
     // --- Semantic bounds (validated post-decode) ---
     public static final int MAX_POINTS_PER_EVENT = 10_000_000;
     public static final int MAX_RANK = 100_000;
@@ -858,6 +1012,13 @@ public final class Protocol {
     /** PV bundle chunks (for oversized vaults) arrive as a back-to-back burst, same as
      *  the loot snapshot — allow the whole bundle's chunks through in one window. */
     public static final int RATE_PV_CHUNK_PER_SEC = 80;
+    /** Cell-terminal bundle pushes — one per server-side open, plus one per
+     *  extract/deposit refresh. Same human-click-rate reasoning as the PV bundle. */
+    public static final int RATE_CELLTERM_BUNDLE_PER_SEC = 20;
+    /** Cell-terminal bundle chunks arrive as a back-to-back burst — same as PV chunks. */
+    public static final int RATE_CELLTERM_CHUNK_PER_SEC = 80;
+    /** Cell-terminal open / force-close pushes are user-driven (one per chest open). */
+    public static final int RATE_CELLTERM_OPEN_PER_SEC = 5;
     /** Powerball is burst-prone: a stacked proc sends a spawn per ball plus a
      *  bounce update per ball-bounce. Generous so legitimate bursts aren't dropped. */
     public static final int RATE_POWERBALL_PER_SEC = 200;

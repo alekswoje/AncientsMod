@@ -116,6 +116,10 @@ public final class PrisonsModClient implements ClientModInitializer {
                     // Tell the server whether we render Powerball client-side so it
                     // can suppress its per-ball ItemDisplay + per-tick packet stream.
                     NetworkHandler.sendPowerballState(FeatureToggles.isPowerballRenderEnabled());
+                    // Tell the server whether the cell-vault terminal is enabled so
+                    // it knows to intercept vault-chest opens with the custom
+                    // terminal (disabled → the vanilla chest GUI stays).
+                    NetworkHandler.sendCellTermState(FeatureToggles.isCellTerminalEnabled());
                 });
             }
         });
@@ -148,6 +152,7 @@ public final class PrisonsModClient implements ClientModInitializer {
             BugReportClient.reset();
             SuggestClient.reset();
             com.aleks.prisonsmod.client.loot.LootClient.reset();
+            com.aleks.prisonsmod.client.cellterm.CellTermClient.reset();
             lastWorldKey = null;
         });
 

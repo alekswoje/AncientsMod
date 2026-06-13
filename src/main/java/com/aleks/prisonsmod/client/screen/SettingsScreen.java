@@ -84,6 +84,8 @@ public final class SettingsScreen extends WidgetSettingsScreen {
                 FeatureToggles::isPvTerminalEnabled, FeatureToggles::setPvTerminal);
         addToggle("Auto-focus PV terminal search",
                 FeatureToggles::isPvTerminalAutoFocusSearchEnabled, FeatureToggles::setPvTerminalAutoFocusSearch);
+        addToggle("Cell terminal on vault chest",
+                FeatureToggles::isCellTerminalEnabled, FeatureToggles::setCellTerminal);
         addToggle("Loot browser on /loottables",
                 FeatureToggles::isLootBrowserEnabled, FeatureToggles::setLootBrowser);
 

@@ -48,26 +48,7 @@ public final class PvBundlePayload {
             }
             List<Slot> slots = new ArrayList<>(nonEmptyCount);
             for (int i = 0; i < nonEmptyCount; i++) {
-                int slotIndex = buf.readShort() & 0xFFFF;
-                if (slotIndex >= slotCount) {
-                    throw new IllegalArgumentException("pv bundle: slotIndex " + slotIndex + " >= slotCount " + slotCount);
-                }
-                String materialKey = clamp(buf.readString(Protocol.PV_MAX_MATERIAL_KEY_CHARS),
-                        Protocol.PV_MAX_MATERIAL_KEY_CHARS);
-                String displayName = clamp(buf.readString(Protocol.PV_MAX_DISPLAY_NAME_CHARS),
-                        Protocol.PV_MAX_DISPLAY_NAME_CHARS);
-                int amount = buf.readInt();
-                if (amount < 0) amount = 0;
-                int loreCount = buf.readByte() & 0xFF;
-                if (loreCount > Protocol.PV_MAX_LORE_LINES) {
-                    throw new IllegalArgumentException("pv bundle: lore lines " + loreCount + " > max");
-                }
-                java.util.List<String> lore = loreCount > 0 ? new ArrayList<>(loreCount) : java.util.List.of();
-                for (int li = 0; li < loreCount; li++) {
-                    lore.add(clamp(buf.readString(Protocol.PV_MAX_LORE_LINE_CHARS),
-                            Protocol.PV_MAX_LORE_LINE_CHARS));
-                }
-                slots.add(new Slot(slotIndex, materialKey, displayName, amount, lore));
+                slots.add(readSlot(buf, slotCount));
             }
             String affinityCsv = clamp(buf.readString(Protocol.PV_MAX_AFFINITY_CSV_CHARS),
                     Protocol.PV_MAX_AFFINITY_CSV_CHARS);
@@ -81,6 +62,41 @@ public final class PvBundlePayload {
             safe = buf.readByte() != 0;
         }
         return new PvBundlePayload(vaults, safe);
+    }
+
+    /**
+     * Shared per-slot codec: decode one non-empty slot stub ({@code short
+     * slotIndex; varint+string materialKey; varint+string displayName; int
+     * amount; byte loreCount; per lore line varint+string}) with the PV hard
+     * caps applied. Used byte-for-byte identically by both this PV bundle and
+     * {@link CellTermBundlePayload} (the cell-terminal wire spec mandates the
+     * same slot codec). Throws {@link IllegalArgumentException} on any bounds
+     * violation so the caller drops the whole bundle.
+     *
+     * @param slotCount the declared container/vault size — {@code slotIndex}
+     *                  must be strictly below it.
+     */
+    public static Slot readSlot(PacketByteBuf buf, int slotCount) {
+        int slotIndex = buf.readShort() & 0xFFFF;
+        if (slotIndex >= slotCount) {
+            throw new IllegalArgumentException("pv bundle: slotIndex " + slotIndex + " >= slotCount " + slotCount);
+        }
+        String materialKey = clamp(buf.readString(Protocol.PV_MAX_MATERIAL_KEY_CHARS),
+                Protocol.PV_MAX_MATERIAL_KEY_CHARS);
+        String displayName = clamp(buf.readString(Protocol.PV_MAX_DISPLAY_NAME_CHARS),
+                Protocol.PV_MAX_DISPLAY_NAME_CHARS);
+        int amount = buf.readInt();
+        if (amount < 0) amount = 0;
+        int loreCount = buf.readByte() & 0xFF;
+        if (loreCount > Protocol.PV_MAX_LORE_LINES) {
+            throw new IllegalArgumentException("pv bundle: lore lines " + loreCount + " > max");
+        }
+        java.util.List<String> lore = loreCount > 0 ? new ArrayList<>(loreCount) : java.util.List.of();
+        for (int li = 0; li < loreCount; li++) {
+            lore.add(clamp(buf.readString(Protocol.PV_MAX_LORE_LINE_CHARS),
+                    Protocol.PV_MAX_LORE_LINE_CHARS));
+        }
+        return new Slot(slotIndex, materialKey, displayName, amount, lore);
     }
 
     private static String clamp(String s, int max) {

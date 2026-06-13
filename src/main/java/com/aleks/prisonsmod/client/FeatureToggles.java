@@ -91,8 +91,22 @@ public final class FeatureToggles {
      *  the in-terminal sort button; persisted so the chosen order survives
      *  restarts. Default Quantity. */
     private static volatile int pvTerminalSortMode = 0;
-    /** Number of PV terminal sort modes (keep in sync with PvTerminalScreen). */
+    /** Number of terminal sort modes (keep in sync with ItemTerminalScreen).
+     *  Shared by the PV terminal and the cell terminal — same sort button. */
     public static final int PV_TERMINAL_SORT_MODES = 3;
+
+    /** Cell Vault Terminal: when ON (default), the server cancels the vanilla
+     *  chest GUI on the player's cell vault chest and pushes the mod's
+     *  aggregated terminal (all cell containers in one searchable grid)
+     *  instead. The state is reported to the server on join and on every flip
+     *  ({@code PKT_CELLTERM_STATE}); when OFF the server leaves the vanilla
+     *  chest alone. */
+    private static volatile boolean cellTerminal = true;
+
+    /** Cell terminal sort order — same modes as {@link #pvTerminalSortMode}
+     *  (0 = Quantity, 1 = A→Z, 2 = Category) but persisted separately so the
+     *  two terminals can hold different orders. */
+    private static volatile int cellTermSortMode = 0;
 
     /** Intercept {@code /loottables} (and its {@code /loot} alias) and open the mod's searchable loot browser instead of the server chest GUI. Off = vanilla server menu. */
     private static volatile boolean lootBrowser = true;
@@ -164,6 +178,8 @@ public final class FeatureToggles {
             pvTerminal = parseBool(props.getProperty("pvTerminal"), pvTerminal);
             pvTerminalAutoFocusSearch = parseBool(props.getProperty("pvTerminalAutoFocusSearch"), pvTerminalAutoFocusSearch);
             pvTerminalSortMode = clampSortMode(parseInt(props.getProperty("pvTerminalSortMode"), pvTerminalSortMode));
+            cellTerminal = parseBool(props.getProperty("cellTerminal"), cellTerminal);
+            cellTermSortMode = clampSortMode(parseInt(props.getProperty("cellTermSortMode"), cellTermSortMode));
             lootBrowser = parseBool(props.getProperty("lootBrowser"), lootBrowser);
             riftTexturePack = parseBool(props.getProperty("riftTexturePack"), riftTexturePack);
             evenSpacingSnap = parseBool(props.getProperty("evenSpacingSnap"), evenSpacingSnap);
@@ -200,6 +216,8 @@ public final class FeatureToggles {
         props.setProperty("pvTerminal", Boolean.toString(pvTerminal));
         props.setProperty("pvTerminalAutoFocusSearch", Boolean.toString(pvTerminalAutoFocusSearch));
         props.setProperty("pvTerminalSortMode", Integer.toString(pvTerminalSortMode));
+        props.setProperty("cellTerminal", Boolean.toString(cellTerminal));
+        props.setProperty("cellTermSortMode", Integer.toString(cellTermSortMode));
         props.setProperty("lootBrowser", Boolean.toString(lootBrowser));
         props.setProperty("riftTexturePack", Boolean.toString(riftTexturePack));
         props.setProperty("evenSpacingSnap", Boolean.toString(evenSpacingSnap));
@@ -433,6 +451,33 @@ public final class FeatureToggles {
     private static int clampSortMode(int mode) {
         int m = mode % PV_TERMINAL_SORT_MODES;
         return m < 0 ? m + PV_TERMINAL_SORT_MODES : m;
+    }
+
+    public static boolean isCellTerminalEnabled() { return cellTerminal; }
+
+    public static void setCellTerminal(boolean value) {
+        if (cellTerminal == value) return;
+        cellTerminal = value;
+        save();
+        // Re-notify the server so it knows whether to intercept this player's
+        // vault-chest opens with the cell terminal. No-op when not connected.
+        com.aleks.prisonsmod.net.NetworkHandler.sendCellTermState(value);
+    }
+
+    public static int getCellTermSortMode() { return cellTermSortMode; }
+
+    public static void setCellTermSortMode(int mode) {
+        int m = clampSortMode(mode);
+        if (cellTermSortMode == m) return;
+        cellTermSortMode = m;
+        save();
+    }
+
+    /** Advance to the next cell-terminal sort mode (wraps), persist, and
+     *  return the new mode. */
+    public static int cycleCellTermSortMode() {
+        setCellTermSortMode(cellTermSortMode + 1);
+        return cellTermSortMode;
     }
 
     public static boolean isLootBrowserEnabled() { return lootBrowser; }

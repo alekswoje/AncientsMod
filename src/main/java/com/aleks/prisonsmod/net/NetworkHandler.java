@@ -5,6 +5,7 @@ import com.aleks.prisonsmod.client.DuelState;
 import com.aleks.prisonsmod.client.GangRoster;
 import com.aleks.prisonsmod.client.ServerAllowlist;
 import com.aleks.prisonsmod.client.bugreport.BugReportClient;
+import com.aleks.prisonsmod.client.cellterm.CellTermClient;
 import com.aleks.prisonsmod.client.loot.LootClient;
 import com.aleks.prisonsmod.client.pv.PvClient;
 import com.aleks.prisonsmod.client.suggest.SuggestClient;
@@ -38,6 +39,7 @@ import com.aleks.prisonsmod.net.payload.MeteorPingPayload;
 import com.aleks.prisonsmod.net.payload.MiningRushPingPayload;
 import com.aleks.prisonsmod.net.payload.MineCancelPayload;
 import com.aleks.prisonsmod.net.payload.MineStartPayload;
+import com.aleks.prisonsmod.net.payload.CellTermBundlePayload;
 import com.aleks.prisonsmod.net.payload.PointGainPayload;
 import com.aleks.prisonsmod.net.payload.PvBundlePayload;
 import com.aleks.prisonsmod.render.FloatingNumberRenderer;
@@ -256,6 +258,36 @@ public final class NetworkHandler {
                     String tName = buf.readString(Protocol.PV_OPEN_TERMINAL_MAX_NAME_CHARS);
                     boolean editable = buf.readByte() != 0;
                     PvClient.onOpenTerminal(tName, editable);
+                }
+                case Protocol.PKT_CELLTERM_OPEN -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.CELLTERM_OPEN)) return;
+                    String cellLabel = buf.readString(Protocol.CELLTERM_MAX_CELL_LABEL_CHARS);
+                    byte flags = buf.readByte();
+                    CellTermClient.onOpen(cellLabel, (flags & 0x01) != 0);
+                }
+                case Protocol.PKT_CELLTERM_BUNDLE -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.CELLTERM_BUNDLE)) return;
+                    CellTermBundlePayload p = CellTermBundlePayload.decode(buf);
+                    CellTermClient.onBundle(p);
+                }
+                case Protocol.PKT_CELLTERM_BUNDLE_CHUNK -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.CELLTERM_CHUNK)) return;
+                    int version = buf.readInt();
+                    int chunkIndex = buf.readVarInt();
+                    int chunkCount = buf.readVarInt();
+                    int len = buf.readVarInt();
+                    if (chunkCount < 1 || chunkCount > Protocol.PV_BUNDLE_MAX_CHUNKS) return;
+                    if (chunkIndex < 0 || chunkIndex >= chunkCount) return;
+                    if (len < 0 || len > Protocol.MAX_PV_BUNDLE_CHUNK_BYTES) return;
+                    if (buf.readableBytes() < len) return;
+                    byte[] chunk = new byte[len];
+                    buf.readBytes(chunk);
+                    CellTermClient.onBundleChunk(version, chunkIndex, chunkCount, chunk);
+                }
+                case Protocol.PKT_CELLTERM_CLOSE -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.CELLTERM_OPEN)) return;
+                    String reason = buf.readString(Protocol.CELLTERM_MAX_CLOSE_REASON_CHARS);
+                    CellTermClient.onForceClose(reason);
                 }
                 case Protocol.PKT_OUTPOST_STATE -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.OUTPOST_STATE)) return;
@@ -719,6 +751,141 @@ public final class NetworkHandler {
             ClientPlayNetworking.send(new RawPayload(new byte[] { Protocol.PKT_LOOT_CLOSE }));
         } catch (Throwable t) {
             PrisonsMod.LOGGER.debug("send loot close failed", t);
+        }
+    }
+
+    // ── Cell-terminal sends ──────────────────────────────────────────────────
+
+    /** "Extract from this cell container slot." Server pulls the mode-determined
+     *  amount from container N slot M (cursor or inventory target) and pushes a
+     *  fresh {@link Protocol#PKT_CELLTERM_BUNDLE}. Mode/target bytes share the
+     *  PV values ({@link Protocol#PV_EXTRACT_ONE} etc.). */
+    public static void sendCellTermExtract(int containerId, int slotIndex, byte mode, byte target) {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        if (containerId < 0 || containerId > 0xFFFF) return;
+        if (slotIndex < 0 || slotIndex >= Protocol.CELLTERM_MAX_SLOTS_PER_CONTAINER) return;
+        try {
+            PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer(8));
+            buf.writeByte(Protocol.PKT_CELLTERM_EXTRACT);
+            buf.writeVarInt(containerId);
+            buf.writeShort(slotIndex & 0xFFFF);
+            buf.writeByte(mode);
+            buf.writeByte(target);
+            sendBuf(buf);
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send cellterm extract failed", t);
+        }
+    }
+
+    /** "Extract this item across all my cell containers." The reference
+     *  {@code (containerId, slot)} only names which item to match — the server
+     *  matches all isSimilar stacks across the session's containers, caps by
+     *  destination space before mutating, drains ascending (containerId, slot)
+     *  in one tick, then pushes a single fresh bundle. */
+    public static void sendCellTermExtractItem(int refContainerId, int refSlot, byte mode, byte target) {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        if (refContainerId < 0 || refContainerId > 0xFFFF) return;
+        if (refSlot < 0 || refSlot >= Protocol.CELLTERM_MAX_SLOTS_PER_CONTAINER) return;
+        try {
+            PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer(8));
+            buf.writeByte(Protocol.PKT_CELLTERM_EXTRACT_ITEM);
+            buf.writeVarInt(refContainerId);
+            buf.writeShort(refSlot & 0xFFFF);
+            buf.writeByte(mode);
+            buf.writeByte(target);
+            sendBuf(buf);
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send cellterm extract item failed", t);
+        }
+    }
+
+    /** Cell-terminal deposit: push the given player-inventory stack into the
+     *  cell — vault (container 0) first, then other containers in id order;
+     *  merge-into-similar then empty slots. Server replies with a fresh bundle. */
+    public static void sendCellTermDeposit(int playerInvSlot) {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        if (playerInvSlot < 0 || playerInvSlot > 35) return;
+        try {
+            PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer(8));
+            buf.writeByte(Protocol.PKT_CELLTERM_DEPOSIT);
+            buf.writeInt(playerInvSlot);
+            sendBuf(buf);
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send cellterm deposit failed", t);
+        }
+    }
+
+    /** "Place my cursor stack into player-inventory slot N" (cell-terminal
+     *  session). Vanilla click semantics — server swaps / merges and syncs back. */
+    public static void sendCellTermCursorPlaceInv(int playerInvSlot) {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        if (playerInvSlot < 0 || playerInvSlot > 35) return;
+        try {
+            PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer(4));
+            buf.writeByte(Protocol.PKT_CELLTERM_CURSOR_PLACE_INV);
+            buf.writeByte(playerInvSlot & 0xFF);
+            sendBuf(buf);
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send cellterm cursor place failed", t);
+        }
+    }
+
+    /** "Return my cursor stack" — cell containers first, then player inventory,
+     *  then drop at feet. Sent on cell-terminal close so a picked-up stack is
+     *  never left dangling. No payload. */
+    public static void sendCellTermCursorReturn() {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            ClientPlayNetworking.send(new RawPayload(new byte[] { Protocol.PKT_CELLTERM_CURSOR_RETURN }));
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send cellterm cursor return failed", t);
+        }
+    }
+
+    /** "I closed the cell terminal — end my session." No payload. Not sent when
+     *  the close was server-initiated (S2C {@link Protocol#PKT_CELLTERM_CLOSE}). */
+    public static void sendCellTermClose() {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            ClientPlayNetworking.send(new RawPayload(new byte[] { Protocol.PKT_CELLTERM_CLOSE_C2S }));
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send cellterm close failed", t);
+        }
+    }
+
+    /** Ask the server for a fresh cell-terminal bundle (server enforces a
+     *  ~500ms cooldown). No payload. */
+    public static void sendCellTermRefreshRequest() {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            ClientPlayNetworking.send(new RawPayload(new byte[] { Protocol.PKT_CELLTERM_REFRESH_REQ }));
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send cellterm refresh failed", t);
+        }
+    }
+
+    /**
+     * Report the cell-terminal feature-toggle state. When disabled, the server
+     * must NOT intercept vault-chest opens for this client (the vanilla chest
+     * opens instead). Sent once after the handshake on join and on every toggle
+     * flip — mirror of the {@link Protocol#PKT_MINING_HUD_STATE} pattern.
+     */
+    public static void sendCellTermState(boolean on) {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            ClientPlayNetworking.send(new RawPayload(new byte[] {
+                    Protocol.PKT_CELLTERM_STATE, (byte) (on ? 1 : 0)
+            }));
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send cellterm state failed", t);
         }
     }
 
