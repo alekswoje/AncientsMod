@@ -38,6 +38,11 @@ public final class FeatureToggles {
      *  click underlined terms for a plain-English explainer. On by default. */
     private static volatile boolean itemWiki = true;
 
+    /** Render the per-ore-type "Blocks Mined" breakdown on pickaxe tooltips, client-side, from the
+     *  pickaxe's ore-mined data. The server keeps a compact tooltip (no ore lines) for performance,
+     *  so this is how the full breakdown is shown. Only active on compact-lore pickaxes. On by default. */
+    private static volatile boolean pickaxeBlocks = true;
+
     /** While holding a pickaxe, fade nearby player-shaped entities (players + NPCs) so they don't obscure the block you're mining. */
     private static volatile boolean peacefulMining = true;
 
@@ -85,6 +90,28 @@ public final class FeatureToggles {
      *  has any effect when {@link #pvTerminal} is on. */
     private static volatile boolean pvTerminalAutoFocusSearch = true;
 
+    /** PV terminal sort order for the aggregated item grid: 0 = Quantity (most
+     *  first), 1 = Alphabetical (A→Z), 2 = Category (by item type). Cycled with
+     *  the in-terminal sort button; persisted so the chosen order survives
+     *  restarts. Default Quantity. */
+    private static volatile int pvTerminalSortMode = 0;
+    /** Number of terminal sort modes (keep in sync with ItemTerminalScreen).
+     *  Shared by the PV terminal and the cell terminal — same sort button. */
+    public static final int PV_TERMINAL_SORT_MODES = 3;
+
+    /** Cell Vault Terminal: when ON (default), the server cancels the vanilla
+     *  chest GUI on the player's cell vault chest and pushes the mod's
+     *  aggregated terminal (all cell containers in one searchable grid)
+     *  instead. The state is reported to the server on join and on every flip
+     *  ({@code PKT_CELLTERM_STATE}); when OFF the server leaves the vanilla
+     *  chest alone. */
+    private static volatile boolean cellTerminal = true;
+
+    /** Cell terminal sort order — same modes as {@link #pvTerminalSortMode}
+     *  (0 = Quantity, 1 = A→Z, 2 = Category) but persisted separately so the
+     *  two terminals can hold different orders. */
+    private static volatile int cellTermSortMode = 0;
+
     /** Intercept {@code /loottables} (and its {@code /loot} alias) and open the mod's searchable loot browser instead of the server chest GUI. Off = vanilla server menu. */
     private static volatile boolean lootBrowser = true;
 
@@ -118,14 +145,10 @@ public final class FeatureToggles {
      *  Parsed from the synced lore — no server change needed. */
     private static volatile boolean dustPercentOverlay = true;
 
-    /** Render Powerball fireballs client-side (a flame stream following the
-     *  server-authoritative bounce path) instead of the server's per-ball
-     *  ItemDisplay. On = the server stops streaming per-tick entity-move packets
-     *  for your balls — the bandwidth win that stops low-connection players from
-     *  lagging while mining. Drawn with particles, so it honours your particle
-     *  video setting; on "Minimal" particles turn this off to get the
-     *  server-rendered ball back. */
-    private static volatile boolean powerballRender = true;
+    // Client-side Powerball rendering is always on (no user toggle): the mod draws
+    // the ball as a true item-model fire charge that matches the server 1:1, and the
+    // server suppresses its per-tick ItemDisplay packet flood in return.
+    // See PowerballRenderer + NetworkHandler.sendPowerballState.
 
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -146,6 +169,7 @@ public final class FeatureToggles {
             enchantCollapse = parseBool(props.getProperty("enchantCollapse"), enchantCollapse);
             scrollableTooltips = parseBool(props.getProperty("scrollableTooltips"), scrollableTooltips);
             itemWiki = parseBool(props.getProperty("itemWiki"), itemWiki);
+            pickaxeBlocks = parseBool(props.getProperty("pickaxeBlocks"), pickaxeBlocks);
             peacefulMining = parseBool(props.getProperty("peacefulMining"), peacefulMining);
             peacefulPvp = parseBool(props.getProperty("peacefulPvp"), peacefulPvp);
             boosterHud = parseBool(props.getProperty("boosterHud"), boosterHud);
@@ -161,6 +185,9 @@ public final class FeatureToggles {
             pvOverview = parseBool(props.getProperty("pvOverview"), pvOverview);
             pvTerminal = parseBool(props.getProperty("pvTerminal"), pvTerminal);
             pvTerminalAutoFocusSearch = parseBool(props.getProperty("pvTerminalAutoFocusSearch"), pvTerminalAutoFocusSearch);
+            pvTerminalSortMode = clampSortMode(parseInt(props.getProperty("pvTerminalSortMode"), pvTerminalSortMode));
+            cellTerminal = parseBool(props.getProperty("cellTerminal"), cellTerminal);
+            cellTermSortMode = clampSortMode(parseInt(props.getProperty("cellTermSortMode"), cellTermSortMode));
             lootBrowser = parseBool(props.getProperty("lootBrowser"), lootBrowser);
             riftTexturePack = parseBool(props.getProperty("riftTexturePack"), riftTexturePack);
             evenSpacingSnap = parseBool(props.getProperty("evenSpacingSnap"), evenSpacingSnap);
@@ -171,7 +198,6 @@ public final class FeatureToggles {
             gearStatsOverlay = parseBool(props.getProperty("gearStatsOverlay"), gearStatsOverlay);
             boosterInfoOverlay = parseBool(props.getProperty("boosterInfoOverlay"), boosterInfoOverlay);
             dustPercentOverlay = parseBool(props.getProperty("dustPercentOverlay"), dustPercentOverlay);
-            powerballRender = parseBool(props.getProperty("powerballRender"), powerballRender);
         } catch (IOException e) {
             PrisonsMod.LOGGER.warn("failed to load {}: {}", FILE_NAME, e.getMessage());
         }
@@ -183,6 +209,7 @@ public final class FeatureToggles {
         props.setProperty("enchantCollapse", Boolean.toString(enchantCollapse));
         props.setProperty("scrollableTooltips", Boolean.toString(scrollableTooltips));
         props.setProperty("itemWiki", Boolean.toString(itemWiki));
+        props.setProperty("pickaxeBlocks", Boolean.toString(pickaxeBlocks));
         props.setProperty("peacefulMining", Boolean.toString(peacefulMining));
         props.setProperty("peacefulPvp", Boolean.toString(peacefulPvp));
         props.setProperty("boosterHud", Boolean.toString(boosterHud));
@@ -198,6 +225,9 @@ public final class FeatureToggles {
         props.setProperty("pvOverview", Boolean.toString(pvOverview));
         props.setProperty("pvTerminal", Boolean.toString(pvTerminal));
         props.setProperty("pvTerminalAutoFocusSearch", Boolean.toString(pvTerminalAutoFocusSearch));
+        props.setProperty("pvTerminalSortMode", Integer.toString(pvTerminalSortMode));
+        props.setProperty("cellTerminal", Boolean.toString(cellTerminal));
+        props.setProperty("cellTermSortMode", Integer.toString(cellTermSortMode));
         props.setProperty("lootBrowser", Boolean.toString(lootBrowser));
         props.setProperty("riftTexturePack", Boolean.toString(riftTexturePack));
         props.setProperty("evenSpacingSnap", Boolean.toString(evenSpacingSnap));
@@ -208,7 +238,6 @@ public final class FeatureToggles {
         props.setProperty("gearStatsOverlay", Boolean.toString(gearStatsOverlay));
         props.setProperty("boosterInfoOverlay", Boolean.toString(boosterInfoOverlay));
         props.setProperty("dustPercentOverlay", Boolean.toString(dustPercentOverlay));
-        props.setProperty("powerballRender", Boolean.toString(powerballRender));
         try {
             Files.createDirectories(configPath().getParent());
             try (var out = Files.newOutputStream(configPath())) {
@@ -244,6 +273,20 @@ public final class FeatureToggles {
     public static void setEnchantCollapse(boolean value) {
         if (enchantCollapse == value) return;
         enchantCollapse = value;
+        save();
+    }
+
+    public static boolean isPickaxeBlocksEnabled() { return pickaxeBlocks; }
+
+    public static boolean togglePickaxeBlocks() {
+        pickaxeBlocks = !pickaxeBlocks;
+        save();
+        return pickaxeBlocks;
+    }
+
+    public static void setPickaxeBlocks(boolean value) {
+        if (pickaxeBlocks == value) return;
+        pickaxeBlocks = value;
         save();
     }
 
@@ -409,6 +452,53 @@ public final class FeatureToggles {
         save();
     }
 
+    public static int getPvTerminalSortMode() { return pvTerminalSortMode; }
+
+    public static void setPvTerminalSortMode(int mode) {
+        int m = clampSortMode(mode);
+        if (pvTerminalSortMode == m) return;
+        pvTerminalSortMode = m;
+        save();
+    }
+
+    /** Advance to the next sort mode (wraps), persist, and return the new mode. */
+    public static int cyclePvTerminalSortMode() {
+        setPvTerminalSortMode(pvTerminalSortMode + 1);
+        return pvTerminalSortMode;
+    }
+
+    private static int clampSortMode(int mode) {
+        int m = mode % PV_TERMINAL_SORT_MODES;
+        return m < 0 ? m + PV_TERMINAL_SORT_MODES : m;
+    }
+
+    public static boolean isCellTerminalEnabled() { return cellTerminal; }
+
+    public static void setCellTerminal(boolean value) {
+        if (cellTerminal == value) return;
+        cellTerminal = value;
+        save();
+        // Re-notify the server so it knows whether to intercept this player's
+        // vault-chest opens with the cell terminal. No-op when not connected.
+        com.aleks.prisonsmod.net.NetworkHandler.sendCellTermState(value);
+    }
+
+    public static int getCellTermSortMode() { return cellTermSortMode; }
+
+    public static void setCellTermSortMode(int mode) {
+        int m = clampSortMode(mode);
+        if (cellTermSortMode == m) return;
+        cellTermSortMode = m;
+        save();
+    }
+
+    /** Advance to the next cell-terminal sort mode (wraps), persist, and
+     *  return the new mode. */
+    public static int cycleCellTermSortMode() {
+        setCellTermSortMode(cellTermSortMode + 1);
+        return cellTermSortMode;
+    }
+
     public static boolean isLootBrowserEnabled() { return lootBrowser; }
 
     public static void setLootBrowser(boolean value) {
@@ -489,18 +579,8 @@ public final class FeatureToggles {
         save();
     }
 
-    public static boolean isPowerballRenderEnabled() { return powerballRender; }
-
-    public static void setPowerballRender(boolean value) {
-        if (powerballRender == value) return;
-        powerballRender = value;
-        save();
-        // Tell the server to flip between sending PKT_POWERBALL hints (on) and
-        // rendering the server-side ItemDisplay itself (off). No-op when not connected.
-        com.aleks.prisonsmod.net.NetworkHandler.sendPowerballState(value);
-        // Drop any in-flight client balls when turning off so they don't linger.
-        if (!value) com.aleks.prisonsmod.render.PowerballRenderer.reset();
-    }
+    /** Always on — client-side Powerball rendering is no longer a user toggle. */
+    public static boolean isPowerballRenderEnabled() { return true; }
 
     private static boolean parseBool(String s, boolean fallback) {
         if (s == null) return fallback;
@@ -508,6 +588,15 @@ public final class FeatureToggles {
         if (s.equals("true") || s.equals("yes") || s.equals("on") || s.equals("1")) return true;
         if (s.equals("false") || s.equals("no") || s.equals("off") || s.equals("0")) return false;
         return fallback;
+    }
+
+    private static int parseInt(String s, int fallback) {
+        if (s == null) return fallback;
+        try {
+            return Integer.parseInt(s.trim());
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
     }
 
     private FeatureToggles() {}

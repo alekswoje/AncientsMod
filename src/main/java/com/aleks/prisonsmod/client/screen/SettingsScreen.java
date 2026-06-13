@@ -29,8 +29,6 @@ public final class SettingsScreen extends WidgetSettingsScreen {
                 FeatureToggles::isMinePredictEnabled, FeatureToggles::setMinePredict);
         addToggle("Peaceful mining",
                 FeatureToggles::isPeacefulMiningEnabled, FeatureToggles::setPeacefulMining);
-        addToggle("Client powerball render",
-                FeatureToggles::isPowerballRenderEnabled, FeatureToggles::setPowerballRender);
 
         addSection("Tooltips");
         addToggle("Collapse enchants on gear",
@@ -39,6 +37,8 @@ public final class SettingsScreen extends WidgetSettingsScreen {
                 FeatureToggles::isScrollableTooltipsEnabled, FeatureToggles::setScrollableTooltips);
         addToggle("Item wiki (Shift to pin tooltip, click terms)",
                 FeatureToggles::isItemWikiEnabled, FeatureToggles::setItemWiki);
+        addToggle("Block breakdown on pickaxes",
+                FeatureToggles::isPickaxeBlocksEnabled, FeatureToggles::setPickaxeBlocks);
 
         addSection("Item Display");
         addToggle("Amount on currency items",
@@ -74,6 +74,8 @@ public final class SettingsScreen extends WidgetSettingsScreen {
         addSection("World");
         addToggle("Fullbright (max gamma, disabled in server-blacklisted worlds)",
                 FeatureToggles::isFullbrightEnabled, FeatureToggles::setFullbright);
+        addToggle("Mining rush pings",
+                FeatureToggles::isMiningRushPingsEnabled, FeatureToggles::setMiningRushPings);
         addToggle("Rift texture pack (tints stone + ores white)",
                 FeatureToggles::isRiftTexturePackEnabled, FeatureToggles::setRiftTexturePack);
 
@@ -86,6 +88,8 @@ public final class SettingsScreen extends WidgetSettingsScreen {
                 FeatureToggles::isPvTerminalEnabled, FeatureToggles::setPvTerminal);
         addToggle("Auto-focus PV terminal search",
                 FeatureToggles::isPvTerminalAutoFocusSearchEnabled, FeatureToggles::setPvTerminalAutoFocusSearch);
+        addToggle("Cell terminal on vault chest",
+                FeatureToggles::isCellTerminalEnabled, FeatureToggles::setCellTerminal);
         addToggle("Loot browser on /loottables",
                 FeatureToggles::isLootBrowserEnabled, FeatureToggles::setLootBrowser);
 

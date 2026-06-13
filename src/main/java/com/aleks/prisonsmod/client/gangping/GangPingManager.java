@@ -1,7 +1,9 @@
 package com.aleks.prisonsmod.client.gangping;
 
+import com.aleks.prisonsmod.client.FeatureToggles;
 import com.aleks.prisonsmod.net.payload.GangPingPayload;
 import com.aleks.prisonsmod.net.payload.MeteorPingPayload;
+import com.aleks.prisonsmod.net.payload.MiningRushPingPayload;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.sound.SoundEvents;
 
@@ -65,6 +67,42 @@ public final class GangPingManager {
                 System.currentTimeMillis(),
                 payload.lifetimeMs()));
         if (!refresh) playPingSound();
+    }
+
+    /**
+     * Handle an incoming mining-rush ping. Identical render path to meteor
+     * pings — only keying and the gating toggle differ. Gated at intake: when
+     * the "Mining rush pings" toggle is off we drop the packet entirely (no
+     * sound, no marker), so the toggle never touches the shared renderer and
+     * can't affect gang or meteor pings. Key is label+world+block-coords so a
+     * re-sent rush refreshes in place and distinct tier rushes coexist.
+     */
+    public static void onMiningRushPing(MiningRushPingPayload payload) {
+        if (payload == null) return;
+        if (!FeatureToggles.isMiningRushPingsEnabled()) return;
+        String key = miningRushKey(payload);
+        if (pings.size() >= MAX_ACTIVE && !pings.containsKey(key)) {
+            pings.entrySet().removeIf(e -> e.getValue().expired(System.currentTimeMillis()));
+            if (pings.size() >= MAX_ACTIVE) return;
+        }
+        boolean refresh = pings.containsKey(key);
+        pings.put(key, new GangPing(
+                payload.label(),
+                payload.colorRgb(),
+                payload.x(),
+                payload.y(),
+                payload.z(),
+                payload.worldName(),
+                System.currentTimeMillis(),
+                payload.lifetimeMs()));
+        if (!refresh) playPingSound();
+    }
+
+    private static String miningRushKey(MiningRushPingPayload p) {
+        long bx = (long) Math.floor(p.x());
+        long by = (long) Math.floor(p.y());
+        long bz = (long) Math.floor(p.z());
+        return "mining_rush:" + p.label() + '@' + p.worldName() + ':' + bx + ',' + by + ',' + bz;
     }
 
     private static String meteorKey(MeteorPingPayload p) {
