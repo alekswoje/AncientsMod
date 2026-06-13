@@ -654,8 +654,10 @@ public final class Protocol {
     /** Mod protocol MINOR version, sent as the byte after {@link #PKT_HANDSHAKE}. Bumped within the
      *  same major (channel {@code prisonsmod:v1}) when the client gains the ability to handle a new
      *  server→client packet additively. Minor 1 = can reassemble {@link #PKT_PV_BUNDLE_CHUNK}.
-     *  Minor 2 = client understands the cell-terminal packets (S2C 41-44, C2S 137-144). */
-    public static final int PROTOCOL_MINOR = 2;
+     *  Minor 2 = client understands the cell-terminal packets (S2C 41-44, C2S 137-144).
+     *  Minor 3 = client parses the "#t<pattern>.<material>" trim suffix in a bundle icon key
+     *  and renders the armor-trim overlay on terminal icons (PV + cell terminal). */
+    public static final int PROTOCOL_MINOR = 3;
     /**
      * Client request: "I want to ping this world-space point for my gang."
      * Payload carries only coordinates + a hold-flag. Server authenticates the
@@ -1041,7 +1043,11 @@ public final class Protocol {
     // re-release of the mod every time VAULTS_PER_PLAYER goes up.
     public static final int PV_MAX_VAULTS = 64;
     public static final int PV_MAX_SLOTS = 162; // 6 rows × 9 cols × multiple rows of extras
-    public static final int PV_MAX_MATERIAL_KEY_CHARS = 48;
+    /** Icon-key cap ("ns:path", optional "#<cmd>", optional "#t<pattern>.<material>" trim
+     *  suffix). Raised from 48 to fit the trim suffix this minor (≥3) parses; the server
+     *  only appends the trim token for minor-≥3 clients, so this jar never receives a key
+     *  it would reject in {@code readString}. Mirrors PrisonsCore PV_MAX_MATERIAL_KEY_CHARS. */
+    public static final int PV_MAX_MATERIAL_KEY_CHARS = 80;
     /** Must stay in lockstep with PrisonsCore PrisonsModChannel.PV_MAX_DISPLAY_NAME_CHARS.
      *  Raised from 64 so colour/hex-coded names survive without truncation — a single
      *  hex colour is a 14-char §x§r§r§g§g§b§b run, so coloured names need the headroom.
