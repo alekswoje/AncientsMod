@@ -66,7 +66,6 @@ public final class PrisonsModClient implements ClientModInitializer {
         TooltipScroll.register();
         PickaxeBlocksTooltip.register();
         com.aleks.prisonsmod.client.wiki.InteractiveItemTooltip.register();
-        PickaxeBlocksTooltip.register();
         GangPingInput.register();
         GangPingRenderer.register();
         ClientCommands.register();
