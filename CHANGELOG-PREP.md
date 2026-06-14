@@ -16,6 +16,8 @@
 
 ## UI & Screens
 
+- **New: Cell Vault Terminal** — opening your cell's vault chest now brings up an ME-style terminal showing every container in your cell (vault + chests + barrels) as one searchable, sortable grid, with click-to-extract and shift-click/drag deposits, just like the PV terminal. Toggle it off in settings ("Cell terminal on vault chest") to keep the vanilla chest.
+
 ## Input & Keybinds
 
 ## Networking & Server Integration

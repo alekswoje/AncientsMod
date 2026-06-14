@@ -120,6 +120,10 @@ public final class PrisonsModClient implements ClientModInitializer {
                     // Tell the server whether we run swing-time mine prediction so it
                     // streams the speed table and suppresses its own crack/effects.
                     NetworkHandler.sendMinePredictState(FeatureToggles.isMinePredictEnabled());
+                    // Tell the server whether the cell-vault terminal is enabled so
+                    // it knows to intercept vault-chest opens with the custom
+                    // terminal (disabled → the vanilla chest GUI stays).
+                    NetworkHandler.sendCellTermState(FeatureToggles.isCellTerminalEnabled());
                 });
             }
         });
@@ -152,6 +156,7 @@ public final class PrisonsModClient implements ClientModInitializer {
             BugReportClient.reset();
             SuggestClient.reset();
             com.aleks.prisonsmod.client.loot.LootClient.reset();
+            com.aleks.prisonsmod.client.cellterm.CellTermClient.reset();
             lastWorldKey = null;
         });
 
