@@ -68,7 +68,7 @@ public final class PvClient {
         ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> {
             if (!expectingMenuReopen) return;
             if (!ServerAllowlist.isAllowed()) return;
-            if (!FeatureToggles.isPvOverviewEnabled()) return;
+            if (!FeatureToggles.isPvTerminalEnabled()) return;
             if (!(screen instanceof HandledScreen<?> hs)) return;
             String title = hs.getTitle().getString();
             if (title == null) return;
@@ -93,7 +93,7 @@ public final class PvClient {
         if (passingThroughFallback) return true;
         if (command == null || command.isEmpty()) return true;
         if (!ServerAllowlist.isAllowed()) return true;
-        if (!FeatureToggles.isPvOverviewEnabled()) return true;
+        if (!FeatureToggles.isPvTerminalEnabled()) return true;
         if (state != State.IDLE) return true;
 
         String trimmed = command.trim().toLowerCase(Locale.ROOT);

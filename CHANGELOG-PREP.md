@@ -29,6 +29,7 @@
 - **New: Cell Vault Terminal** — opening your cell's vault chest now brings up an ME-style terminal showing every container in your cell (vault + chests + barrels) as one searchable, sortable grid, with click-to-extract and shift-click/drag deposits, just like the PV terminal. Toggle it off in settings ("Cell terminal on vault chest") to keep the vanilla chest.
 - **Trimmed gear now keeps its trim in the PV and Cell Vault terminals** — armor with an armor trim renders with the trim overlay on its icon instead of looking like plain untrimmed gear.
 - **`/pickbuffs` is now a theorycrafting sandbox.** Click any buff layer to open a **slider** and dial its value up or down, then watch your final XP / energy / money / shard / combat numbers update live. A new **Custom Modifiers** tab lets you add your own "what-if" modifiers — *increased %* (joins the shared additive pool), *more ×* (its own multiplier), or *flat +* — aimed at a single channel or a whole group (All Mining / All Combat / Everything), so you can plan a gear or buff setup before chasing it. Your custom modifiers and slider tweaks are saved between sessions.
+- **PV settings simplified to one toggle.** The old "PV overview screen on /pv" and "PV terminal view on /pv" switches are now a single **"PV terminal view on /pv"** toggle — on opens the ME-style terminal when you run `/pv`, off falls back to the vanilla menu. Previously the terminal toggle quietly did nothing unless the overview toggle was also on.
 
 ## Input & Keybinds
 

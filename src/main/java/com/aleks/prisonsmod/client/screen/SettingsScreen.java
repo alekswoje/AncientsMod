@@ -82,8 +82,6 @@ public final class SettingsScreen extends WidgetSettingsScreen {
         addSection("Custom Screens");
         addToggle("Bug-report UI on /bugreport",
                 FeatureToggles::isBugReportUiEnabled, FeatureToggles::setBugReportUi);
-        addToggle("PV overview screen on /pv",
-                FeatureToggles::isPvOverviewEnabled, FeatureToggles::setPvOverview);
         addToggle("PV terminal view on /pv",
                 FeatureToggles::isPvTerminalEnabled, FeatureToggles::setPvTerminal);
         addToggle("Auto-focus PV terminal search",

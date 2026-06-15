@@ -80,10 +80,7 @@ public final class FeatureToggles {
     /** Intercept {@code /suggest} and open the in-game GUI. Off = command goes to the server (which will tell vanilla users to install the mod). */
     private static volatile boolean suggestUi = true;
 
-    /** Intercept {@code /pv} (no args) and open the mod's overview screen showing all 7 PVs at once. Off = vanilla server menu. */
-    private static volatile boolean pvOverview = true;
-
-    /** Use the ME-terminal style PV view (single grid of every stack across every unlocked PV, click to extract, drag to deposit) instead of the per-PV card overview. On by default — the terminal is the standard {@code /pv} view. Off = card overview (alternative view). Only takes effect when {@link #pvOverview} is also on. */
+    /** Intercept {@code /pv} (no args) and open the ME-terminal style PV view: a single grid of every stack across every unlocked PV, click to extract, drag to deposit. Off = vanilla server menu. This is the single toggle gating the mod's custom {@code /pv} screen. */
     private static volatile boolean pvTerminal = true;
 
     /** Auto-focus the PV terminal's search box the moment the terminal opens, so
@@ -183,7 +180,6 @@ public final class FeatureToggles {
             updateAlert = parseBool(props.getProperty("updateAlert"), updateAlert);
             bugReportUi = parseBool(props.getProperty("bugReportUi"), bugReportUi);
             suggestUi = parseBool(props.getProperty("suggestUi"), suggestUi);
-            pvOverview = parseBool(props.getProperty("pvOverview"), pvOverview);
             pvTerminal = parseBool(props.getProperty("pvTerminal"), pvTerminal);
             pvTerminalAutoFocusSearch = parseBool(props.getProperty("pvTerminalAutoFocusSearch"), pvTerminalAutoFocusSearch);
             pvTerminalSortMode = clampSortMode(parseInt(props.getProperty("pvTerminalSortMode"), pvTerminalSortMode));
@@ -223,7 +219,6 @@ public final class FeatureToggles {
         props.setProperty("updateAlert", Boolean.toString(updateAlert));
         props.setProperty("bugReportUi", Boolean.toString(bugReportUi));
         props.setProperty("suggestUi", Boolean.toString(suggestUi));
-        props.setProperty("pvOverview", Boolean.toString(pvOverview));
         props.setProperty("pvTerminal", Boolean.toString(pvTerminal));
         props.setProperty("pvTerminalAutoFocusSearch", Boolean.toString(pvTerminalAutoFocusSearch));
         props.setProperty("pvTerminalSortMode", Integer.toString(pvTerminalSortMode));
@@ -426,14 +421,6 @@ public final class FeatureToggles {
     public static void setSuggestUi(boolean value) {
         if (suggestUi == value) return;
         suggestUi = value;
-        save();
-    }
-
-    public static boolean isPvOverviewEnabled() { return pvOverview; }
-
-    public static void setPvOverview(boolean value) {
-        if (pvOverview == value) return;
-        pvOverview = value;
         save();
     }
 
