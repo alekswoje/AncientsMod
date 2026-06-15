@@ -6,6 +6,7 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.component.type.NbtComponent;
 import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NbtCompound;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 
@@ -32,16 +33,28 @@ public final class GearStatsOverlay {
     private static final Pattern PURE_INT = Pattern.compile("\\d{1,7}");
     private static final Pattern PRESTIGE_TOKEN = Pattern.compile("P(\\d{1,3})");
 
+    /** Bukkit serializes its PersistentDataContainer into custom_data under this compound. */
+    private static final String PDC_ROOT = "PublicBukkitValues";
+    /** Markers the plugin sets on real leveled gear / pickaxes (NamespacedKey(PrisonsCore, ...)). */
+    private static final String PICKAXE_MARKER = "prisonscore:ancient_pickaxe";
+    private static final String GEAR_MARKER = "prisonscore:ancient_gear";
+
     public static void render(DrawContext context, int x, int y, ItemStack stack) {
         if (stack == null || stack.isEmpty()) return;
         NbtComponent custom = stack.get(DataComponentTypes.CUSTOM_DATA);
         if (custom == null || custom.isEmpty()) return; // PrisonsCore custom items only
 
-        // Currency items (e.g. "630 Ancient Energy", "$1,000,000.00 Money Note")
-        // carry a *leading* amount in their name and are already annotated by
-        // CurrencyAmountOverlay in the same top-right corner. Don't also treat
-        // that amount as a gear "level" — that double-draws the number.
-        if (CurrencyAmountOverlay.compact(stack) != null) return;
+        // Only annotate REAL leveled gear / pickaxes. The display-name parse below
+        // treats the trailing integer of the name as a level, so without this gate
+        // ANY PrisonsCore item whose name ends in a number gets a bogus badge —
+        // e.g. a quest pane named "Quest 7: Reach Level 10" wrongly shows a "10".
+        // Bukkit serializes its PDC into custom_data under PublicBukkitValues; real
+        // gear carries the ancient_pickaxe / ancient_gear marker the plugin sets.
+        // (This also subsumes the old currency-name exclusion: currency items lack
+        // the gear marker, so they're filtered out here too.)
+        NbtCompound pdc = custom.copyNbt().getCompound(PDC_ROOT).orElse(null);
+        if (pdc == null) return;
+        if (!pdc.contains(PICKAXE_MARKER) && !pdc.contains(GEAR_MARKER)) return;
 
         Text name = stack.getName();
         if (name == null) return;

@@ -19,6 +19,7 @@
 - **Rift texture pack** now stays loaded across the full event — previously it unloaded on every other round when the server swapped to the alt rift world, causing two extra 5-15s resource reloads per event.
 - **Per-texture hiding from `/toggles`.** You can now hide individual custom item textures (not just all of them) from the server's **/toggles → Custom Textures** menu — with the mod installed, the ones you turn off render as their plain vanilla item just for you, while everyone else still sees the custom art.
 - **Fixed the Ancient Energy amount showing twice** on the item icon — the energy value no longer overlaps itself in the top-right corner. (The gear level/prestige overlay was wrongly reading the energy amount as a "level" and drawing it on top of the currency overlay.)
+- **Fixed stray level numbers on quest icons.** The gear level/prestige overlay no longer draws a number on non-gear items whose name happens to end in one — e.g. the *Path of the Ancients* quests "Reach Level 10" / "Reach Level 30" no longer show a bogus `10` / `30` badge. It now renders only on actual leveled gear and pickaxes.
 - **Booster multiplier & duration on the item** (Settings → Item Display → *Multiplier / duration on boosters*, on by default). Booster items now show their multiplier (e.g. `2x`, top-left) and total duration (e.g. `30m`, bottom-right) right on the icon in your inventory and hotbar, color-matched to the boost type (green XP, aqua Energy, gold Ore, purple Shard) — so you can read a booster's worth at a glance without hovering.
 
 ## UI & Screens
