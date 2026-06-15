@@ -158,6 +158,7 @@ public final class PrisonsModClient implements ClientModInitializer {
             com.aleks.prisonsmod.client.wiki.InteractiveItemTooltip.reset();
             com.aleks.prisonsmod.client.loot.LootClient.reset();
             com.aleks.prisonsmod.client.cellterm.CellTermClient.reset();
+            com.aleks.prisonsmod.client.pv.PvClient.reset();
             lastWorldKey = null;
         });
 
