@@ -371,6 +371,28 @@ public final class Protocol {
     public static final byte SKILL_EFFECT_DUNGEON_LIFESTEAL_PCT         = 9;
     public static final byte SKILL_EFFECT_DUNGEON_CULLING_THRESHOLD_PCT = 10;
     public static final byte SKILL_EFFECT_DUNGEON_DOUBLE_JUMP_FLAT      = 11;
+    // Season 2 redesign — appended; ordinals must match plugin SkillEffectType.
+    public static final byte SKILL_EFFECT_DUNGEON_SWORD_DAMAGE_PCT      = 12;
+    public static final byte SKILL_EFFECT_DUNGEON_AXE_DAMAGE_PCT        = 13;
+    public static final byte SKILL_EFFECT_DUNGEON_BOW_DAMAGE_PCT        = 14;
+    public static final byte SKILL_EFFECT_DUNGEON_WAND_DAMAGE_PCT       = 15;
+    public static final byte SKILL_EFFECT_DUNGEON_CRIT_CHANCE_PCT       = 16;
+    public static final byte SKILL_EFFECT_DUNGEON_CRIT_MULTI_PCT        = 17;
+    public static final byte SKILL_EFFECT_DUNGEON_AILMENT_DAMAGE_PCT    = 18;
+    public static final byte SKILL_EFFECT_DUNGEON_AILMENT_DURATION_PCT  = 19;
+    public static final byte SKILL_EFFECT_DUNGEON_ATTACK_SPEED_PCT      = 20;
+    public static final byte SKILL_EFFECT_DUNGEON_MAX_HP_PCT            = 21;
+    public static final byte SKILL_EFFECT_DUNGEON_LIFE_REGEN            = 22;
+    public static final byte SKILL_EFFECT_DUNGEON_XP_PCT                = 23;
+    public static final byte SKILL_EFFECT_DUNGEON_DUPLICATE_LOOT_PCT    = 24;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_GLASS_CANNON  = 25;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_EXECUTIONER   = 26;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_EARTHSPLITTER = 27;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_STORMWEAVER   = 28;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_AVATAR_HUNT   = 29;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_JUGGERNAUT    = 30;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_BLOODTHIRST   = 31;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_ATTUNEMENT    = 32;
 
     // Skill tree ACK action codes.
     public static final byte SKILL_ACTION_ALLOCATE = 0;

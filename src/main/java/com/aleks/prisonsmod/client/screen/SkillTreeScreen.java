@@ -1355,18 +1355,56 @@ public final class SkillTreeScreen extends Screen {
                 ? Integer.toString((int) v)
                 : String.format(Locale.US, "%.1f", v);
         return switch (n.effect) {
-            case Protocol.SKILL_EFFECT_DUNGEON_DAMAGE_PCT          -> num + "% increased Damage to Dungeon Mobs";
+            case Protocol.SKILL_EFFECT_DUNGEON_DAMAGE_PCT          -> num + "% increased Damage";
             case Protocol.SKILL_EFFECT_DUNGEON_BOSS_DAMAGE_PCT     -> num + "% increased Damage to Dungeon Bosses";
-            case Protocol.SKILL_EFFECT_DUNGEON_DAMAGE_REDUCTION_PCT -> num + "% decreased Damage Taken (Dungeons)";
-            case Protocol.SKILL_EFFECT_DUNGEON_MAX_HP_FLAT         -> "+" + num + " Max HP (Dungeons)";
-            case Protocol.SKILL_EFFECT_DUNGEON_MOVE_SPEED_PCT      -> num + "% increased Move Speed (Dungeons)";
-            case Protocol.SKILL_EFFECT_DUNGEON_JUMP_BOOST_FLAT     -> "+" + num + " Jump Boost (Dungeons)";
-            case Protocol.SKILL_EFFECT_CHEST_COST_REDUCTION_PCT    -> num + "% decreased Chest Cost (Dungeons)";
-            case Protocol.SKILL_EFFECT_RUNE_RARITY_UPGRADE_CHANCE  -> "+" + num + "% Rune Rarity Upgrade Chance (Dungeons)";
-            case Protocol.SKILL_EFFECT_BONUS_RUNE_DROP_CHANCE      -> "+" + num + "% Bonus Rune Drop Chance (Dungeons)";
-            case Protocol.SKILL_EFFECT_DUNGEON_LIFESTEAL_PCT       -> num + "% Damage Dealt Healed (Dungeon Mobs)";
-            case Protocol.SKILL_EFFECT_DUNGEON_CULLING_THRESHOLD_PCT -> "Culling Strike: kill below " + num + "% HP";
-            case Protocol.SKILL_EFFECT_DUNGEON_DOUBLE_JUMP_FLAT    -> "Unlocks Double Jump (Dungeons)";
+            case Protocol.SKILL_EFFECT_DUNGEON_DAMAGE_REDUCTION_PCT -> num + "% reduced Damage Taken";
+            case Protocol.SKILL_EFFECT_DUNGEON_MAX_HP_FLAT         -> "+" + num + " Maximum HP";
+            case Protocol.SKILL_EFFECT_DUNGEON_MOVE_SPEED_PCT      -> num + "% increased Move Speed";
+            case Protocol.SKILL_EFFECT_DUNGEON_JUMP_BOOST_FLAT     -> "+" + num + " Jump Boost";
+            case Protocol.SKILL_EFFECT_CHEST_COST_REDUCTION_PCT    -> num + "% reduced Chest Cost";
+            case Protocol.SKILL_EFFECT_RUNE_RARITY_UPGRADE_CHANCE  -> "+" + num + "% Rune Rarity Upgrade Chance";
+            case Protocol.SKILL_EFFECT_BONUS_RUNE_DROP_CHANCE      -> "+" + num + "% Bonus Rune Drop Chance";
+            case Protocol.SKILL_EFFECT_DUNGEON_LIFESTEAL_PCT       -> num + "% of Damage Dealt Healed";
+            case Protocol.SKILL_EFFECT_DUNGEON_CULLING_THRESHOLD_PCT -> "Culling Strike: kill enemies below " + num + "% HP";
+            case Protocol.SKILL_EFFECT_DUNGEON_DOUBLE_JUMP_FLAT    -> "Unlocks Double Jump";
+
+            // ── Season 2 weapon backbones (apply while that weapon is held)
+            case Protocol.SKILL_EFFECT_DUNGEON_SWORD_DAMAGE_PCT    -> num + "% increased Sword Damage";
+            case Protocol.SKILL_EFFECT_DUNGEON_AXE_DAMAGE_PCT      -> num + "% increased Axe Damage";
+            case Protocol.SKILL_EFFECT_DUNGEON_BOW_DAMAGE_PCT      -> num + "% increased Bow Damage";
+            case Protocol.SKILL_EFFECT_DUNGEON_WAND_DAMAGE_PCT     -> num + "% increased Wand Damage";
+
+            // ── Universal offense
+            case Protocol.SKILL_EFFECT_DUNGEON_CRIT_CHANCE_PCT     -> num + "% increased Critical Strike Chance";
+            case Protocol.SKILL_EFFECT_DUNGEON_CRIT_MULTI_PCT      -> "+" + num + "% Critical Strike Multiplier";
+            case Protocol.SKILL_EFFECT_DUNGEON_AILMENT_DAMAGE_PCT  -> num + "% increased Ailment Damage";
+            case Protocol.SKILL_EFFECT_DUNGEON_AILMENT_DURATION_PCT -> num + "% increased Ailment Duration";
+            case Protocol.SKILL_EFFECT_DUNGEON_ATTACK_SPEED_PCT    -> num + "% increased Attack Speed";
+
+            // ── Defense / fortune
+            case Protocol.SKILL_EFFECT_DUNGEON_MAX_HP_PCT          -> num + "% increased Maximum HP";
+            case Protocol.SKILL_EFFECT_DUNGEON_LIFE_REGEN          -> "+" + num + " Life Regenerated per second";
+            case Protocol.SKILL_EFFECT_DUNGEON_XP_PCT              -> num + "% increased Dungeon XP";
+            case Protocol.SKILL_EFFECT_DUNGEON_DUPLICATE_LOOT_PCT  -> "+" + num + "% chance to Duplicate a loot item";
+
+            // ── Keystones (build-defining)
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_GLASS_CANNON ->
+                    "Glass Cannon: 40% more Damage dealt, 25% more Damage taken";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_EXECUTIONER ->
+                    "Executioner: gain Culling Strike; 25% more Damage to enemies below 50% HP";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_EARTHSPLITTER ->
+                    "Earthsplitter: your hits deal 25% of the hit as splash to nearby enemies";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_STORMWEAVER ->
+                    "Stormweaver: Chilled or Ignited enemies take 20% more Damage from you";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_AVATAR_HUNT ->
+                    "Avatar of the Hunt: arrows pierce all; 30% more Damage to targets 8+ blocks away";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_JUGGERNAUT ->
+                    "Juggernaut: 25% more Max HP; cannot be slowed below base speed; 15% less Damage taken while stationary";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_BLOODTHIRST ->
+                    "Bloodthirst: heal 8% of Damage dealt; 20% reduced Maximum HP";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_ATTUNEMENT ->
+                    "Attunement: runes in your gear are 20% more effective in dungeons";
+
             default -> "+" + num + " (unknown effect)";
         };
     }
