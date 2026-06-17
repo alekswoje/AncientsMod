@@ -14,6 +14,8 @@
 
 ## UI & Screens
 
+- The **/loot** browser now shows each drop's luck-adjusted chance (raw% → with-luck%) on luck-affected tables, with your current luck total in the table header — matching the in-game chest GUI's "With luck" line.
+
 ## Input & Keybinds
 
 ## Networking & Server Integration

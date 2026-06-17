@@ -156,7 +156,15 @@ public final class LootTableDetailScreen extends Screen {
 
         // Subheader: rolls + luck.
         String rolls = table != null ? table.rollsText() : "?";
-        String luck = (table != null && table.luck) ? "§aLuck affects this table" : "§8Luck does not affect this table";
+        double luckPct = LootClient.luckPercent();
+        String luck;
+        if (table != null && table.luck) {
+            luck = (luckPct > 0)
+                    ? String.format(Locale.US, "§aLuck affects this table §8(§7%.1f%% luck§8)", luckPct)
+                    : "§aLuck affects this table";
+        } else {
+            luck = "§8Luck does not affect this table";
+        }
         ctx.drawText(this.textRenderer,
                 Text.literal("§7Rolls/trigger: §f" + rolls + " §8· " + luck),
                 panelX + 10, panelY + TITLE_BAR_H + 3, 0xFFAAAAAA, false);
@@ -201,14 +209,23 @@ public final class LootTableDetailScreen extends Screen {
                     : (LootRarityVisual.has(e.rarity) ? LootRarityVisual.code(e.rarity) : "§f");
             String displayName = e.masked ? "???" : (e.name == null || e.name.isEmpty() ? "?" : e.name);
 
+            // Right-aligned chance — raw, plus "→ luck-adjusted" when the
+            // viewer has luck and this table is luck-affected (matches the
+            // server chest GUI's "With luck" line, inline here).
+            double luckPct = LootClient.luckPercent();
+            boolean showAdj = table.showsLuck(luckPct);
+            String chanceStr = showAdj
+                    ? "§6" + e.chanceText() + " §7→ §a"
+                            + LootSnapshotPayload.Entry.pctText(table.adjustedChancePct(e, luckPct))
+                    : "§6" + e.chanceText();
+            int chanceW = this.textRenderer.getWidth(chanceStr);
+
             int nameX = lx + ICON + 6;
-            int chanceW = this.textRenderer.getWidth(e.chanceText());
             int nameMaxW = lw - (nameX - lx) - chanceW - 8;
             String trimmedName = this.textRenderer.trimToWidth(nameCode + displayName, Math.max(20, nameMaxW));
             ctx.drawText(this.textRenderer, Text.literal(trimmedName), nameX, ry + 3, 0xFFFFFFFF, false);
 
-            // Right-aligned chance.
-            ctx.drawText(this.textRenderer, Text.literal("§6" + e.chanceText()),
+            ctx.drawText(this.textRenderer, Text.literal(chanceStr),
                     lx + lw - chanceW - 2, ry + 3, 0xFFFFFFFF, false);
 
             // Second line: amount + rarity (or "Undiscovered").
@@ -368,6 +385,12 @@ public final class LootTableDetailScreen extends Screen {
         String nameCode = LootRarityVisual.has(e.rarity) ? LootRarityVisual.code(e.rarity) : "§f";
         lines.add(Text.literal(nameCode + displayName));
         lines.add(Text.literal("§7Drop chance: §f" + e.chanceText()));
+        double luckPct = LootClient.luckPercent();
+        if (table != null && table.showsLuck(luckPct)) {
+            lines.add(Text.literal("§7With luck: §a"
+                    + LootSnapshotPayload.Entry.pctText(table.adjustedChancePct(e, luckPct))
+                    + " §8(" + String.format(Locale.US, "%.1f", luckPct) + "% luck)"));
+        }
         if (!e.masked && e.amountText != null && !e.amountText.isEmpty()) {
             lines.add(Text.literal("§7Amount: §f" + e.amountText));
         }

@@ -39,6 +39,7 @@ public final class RateLimiter {
         SUGGEST(Protocol.RATE_SUGGEST_PER_SEC),
         PV_BUNDLE(Protocol.RATE_PV_BUNDLE_PER_SEC),
         LOOT_CHUNK(Protocol.RATE_LOOT_CHUNK_PER_SEC),
+        LOOT_LUCK(Protocol.RATE_LOOT_LUCK_PER_SEC),
         PV_CHUNK(Protocol.RATE_PV_CHUNK_PER_SEC),
         CELLTERM_BUNDLE(Protocol.RATE_CELLTERM_BUNDLE_PER_SEC),
         CELLTERM_CHUNK(Protocol.RATE_CELLTERM_CHUNK_PER_SEC),

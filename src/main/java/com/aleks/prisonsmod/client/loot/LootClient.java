@@ -42,6 +42,11 @@ public final class LootClient {
 
     private static volatile LootSnapshotPayload latest = null;
 
+    /** The viewer's current total loot-luck percent, pushed by the server via
+     *  {@code PKT_LOOT_LUCK} alongside each snapshot. Read live by the detail
+     *  screen to show luck-adjusted drop rates. 0 = no luck / pre-v2 server. */
+    private static volatile double luckPercent = 0;
+
     // ── Chunk reassembly (single in-flight snapshot; in-order TCP delivery) ──
     private static int asmVersion = -1;
     private static int asmCount = 0;
@@ -162,6 +167,16 @@ public final class LootClient {
         return latest;
     }
 
+    /** Called from {@link NetworkHandler} when a {@code PKT_LOOT_LUCK} arrives. */
+    public static void onLuck(double pct) {
+        luckPercent = Math.max(0, pct);
+    }
+
+    /** The viewer's current total loot-luck percent (0 if none / unknown). */
+    public static double luckPercent() {
+        return luckPercent;
+    }
+
     /** The list screen calls this on ESC so the server stops pushing refreshes. */
     public static void onScreenClosed() {
         state = State.IDLE;
@@ -182,6 +197,7 @@ public final class LootClient {
         intentSentAtMs = 0L;
         passingThroughFallback = false;
         latest = null;
+        luckPercent = 0;
         resetAssembly();
     }
 

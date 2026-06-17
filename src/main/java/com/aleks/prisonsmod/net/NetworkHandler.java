@@ -318,6 +318,15 @@ public final class NetworkHandler {
                     buf.readBytes(chunk);
                     LootClient.onSnapshotChunk(version, chunkIndex, chunkCount, chunk);
                 }
+                case Protocol.PKT_LOOT_LUCK -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.LOOT_LUCK)) return;
+                    int milli = buf.readVarInt();
+                    // Clamp defensively; the value is purely cosmetic (drives the
+                    // "with luck" drop-rate display in the loot browser).
+                    if (milli < 0) milli = 0;
+                    if (milli > 10_000_000) milli = 10_000_000;
+                    LootClient.onLuck(milli / 1000.0);
+                }
                 case Protocol.PKT_POWERBALL -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.POWERBALL)) return;
                     byte op = buf.readByte();
