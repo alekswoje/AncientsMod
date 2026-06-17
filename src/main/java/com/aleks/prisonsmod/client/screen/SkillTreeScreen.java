@@ -76,11 +76,11 @@ public final class SkillTreeScreen extends Screen {
      *
      *  Wider fan + bigger radius for c1/c2 and c6/c7 — those were the two
      *  bands sitting on top of the highway. */
-    // Season 2: wider fans splay each region's clusters toward its neighbours
-    // so the four arms blend into a continuous wheel (less "4-spoke star"),
-    // working with the new inner/mid/outer bridges. Tune these if regions
-    // crowd or collide.
-    private static final float[] CLUSTER_FAN_ANGLE  = { 0f, 35f,  35f,  42f,  42f,  0f,   30f,  30f  };
+    // Cluster fan angles — kept at the original clean spacing. (A wider splay
+    // was tried to make the tree read less star-like, but it rotated adjacent
+    // regions' clusters on top of each other; the "less star" feel now comes
+    // from the inner/mid/outer bridges instead, which don't crowd the nodes.)
+    private static final float[] CLUSTER_FAN_ANGLE  = { 0f, 25f,  25f,  28f,  28f,  0f,   16f,  16f  };
     private static final float[] CLUSTER_FAN_RADIUS = { 0f, 3.5f, 3.5f, 6.5f, 6.5f, 11.0f, 8.0f, 8.0f };
 
     // ── Tartarus palette ────────────────────────────────────────────────────
