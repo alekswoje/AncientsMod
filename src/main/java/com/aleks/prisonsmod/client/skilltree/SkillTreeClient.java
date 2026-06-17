@@ -303,10 +303,21 @@ public final class SkillTreeClient {
         }
         // Bridge pair edge — server only explicitly drew bridge_1↔bridge_2.
         String[][] BRIDGE_PAIRS = {
+                // inner (c1↔c2)
                 { "north_bridge_east_1",  "north_bridge_east_2"  },
                 { "east_bridge_south_1",  "east_bridge_south_2"  },
                 { "south_bridge_west_1",  "south_bridge_west_2"  },
                 { "west_bridge_north_1",  "west_bridge_north_2"  },
+                // mid (c3↔c4)
+                { "north_bridge_east_3",  "north_bridge_east_4"  },
+                { "east_bridge_south_3",  "east_bridge_south_4"  },
+                { "south_bridge_west_3",  "south_bridge_west_4"  },
+                { "west_bridge_north_3",  "west_bridge_north_4"  },
+                // outer (c6↔c7)
+                { "north_bridge_east_5",  "north_bridge_east_6"  },
+                { "east_bridge_south_5",  "east_bridge_south_6"  },
+                { "south_bridge_west_5",  "south_bridge_west_6"  },
+                { "west_bridge_north_5",  "west_bridge_north_6"  },
         };
         for (String[] pair : BRIDGE_PAIRS) {
             addEdge(out, idx, pair[0], pair[1]);
@@ -326,18 +337,33 @@ public final class SkillTreeClient {
         //   (= sideA) is at angle (arm+90°+φ) which is the "leading" side
         //   into the next CCW region. Mirror for p<0.
         String[][] BRIDGE_TO_SIDE = {
-                // north→east corner (north_c1 perp+ ↔ east_c2 perp-)
-                { "north_bridge_east_1", "north_c1_s0" },   // north_c1 sideA → east
-                { "north_bridge_east_2", "east_c2_s1"  },   // east_c2  sideB → north
-                // east→south corner (east_c1 perp+ ↔ south_c2 perp-)
-                { "east_bridge_south_1", "south_c2_s1" },   // south_c2 sideB → east (bridge_1 on south side)
-                { "east_bridge_south_2", "east_c1_s0"  },   // east_c1  sideA → south
-                // south→west corner (south_c1 perp+ ↔ west_c2 perp-)
-                { "south_bridge_west_1", "south_c1_s0" },   // south_c1 sideA → west
-                { "south_bridge_west_2", "west_c2_s1"  },   // west_c2  sideB → south
-                // west→north corner (west_c1 perp+ ↔ north_c2 perp-)
-                { "west_bridge_north_1", "north_c2_s1" },   // north_c2 sideB → west (bridge_1 on north side)
-                { "west_bridge_north_2", "west_c1_s0"  },   // west_c1  sideA → north
+                // ── inner (c1↔c2) ──
+                { "north_bridge_east_1", "north_c1_s0" },
+                { "north_bridge_east_2", "east_c2_s1"  },
+                { "east_bridge_south_1", "south_c2_s1" },
+                { "east_bridge_south_2", "east_c1_s0"  },
+                { "south_bridge_west_1", "south_c1_s0" },
+                { "south_bridge_west_2", "west_c2_s1"  },
+                { "west_bridge_north_1", "north_c2_s1" },
+                { "west_bridge_north_2", "west_c1_s0"  },
+                // ── mid (c3↔c4) ──
+                { "north_bridge_east_3", "north_c3_s0" },
+                { "north_bridge_east_4", "east_c4_s1"  },
+                { "east_bridge_south_3", "south_c4_s1" },
+                { "east_bridge_south_4", "east_c3_s0"  },
+                { "south_bridge_west_3", "south_c3_s0" },
+                { "south_bridge_west_4", "west_c4_s1"  },
+                { "west_bridge_north_3", "north_c4_s1" },
+                { "west_bridge_north_4", "west_c3_s0"  },
+                // ── outer (c6↔c7) ──
+                { "north_bridge_east_5", "north_c6_s0" },
+                { "north_bridge_east_6", "east_c7_s1"  },
+                { "east_bridge_south_5", "south_c7_s1" },
+                { "east_bridge_south_6", "east_c6_s0"  },
+                { "south_bridge_west_5", "south_c6_s0" },
+                { "south_bridge_west_6", "west_c7_s1"  },
+                { "west_bridge_north_5", "north_c7_s1" },
+                { "west_bridge_north_6", "west_c6_s0"  },
         };
         for (String[] pair : BRIDGE_TO_SIDE) {
             addEdge(out, idx, pair[0], pair[1]);

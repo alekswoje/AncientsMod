@@ -76,7 +76,11 @@ public final class SkillTreeScreen extends Screen {
      *
      *  Wider fan + bigger radius for c1/c2 and c6/c7 — those were the two
      *  bands sitting on top of the highway. */
-    private static final float[] CLUSTER_FAN_ANGLE  = { 0f, 25f,  25f,  28f,  28f,  0f,   16f,  16f  };
+    // Season 2: wider fans splay each region's clusters toward its neighbours
+    // so the four arms blend into a continuous wheel (less "4-spoke star"),
+    // working with the new inner/mid/outer bridges. Tune these if regions
+    // crowd or collide.
+    private static final float[] CLUSTER_FAN_ANGLE  = { 0f, 35f,  35f,  42f,  42f,  0f,   30f,  30f  };
     private static final float[] CLUSTER_FAN_RADIUS = { 0f, 3.5f, 3.5f, 6.5f, 6.5f, 11.0f, 8.0f, 8.0f };
 
     // ── Tartarus palette ────────────────────────────────────────────────────
@@ -392,10 +396,21 @@ public final class SkillTreeScreen extends Screen {
         // bridges arc out through the corner instead of cutting straight
         // across the cluster sides.
         String[][] BRIDGES = {
+                // inner (c1↔c2)
                 { "north_bridge_east_1",  "north_c1_s0", "north_bridge_east_2",  "east_c2_s1"  },
                 { "east_bridge_south_1",  "south_c2_s1", "east_bridge_south_2",  "east_c1_s0"  },
                 { "south_bridge_west_1",  "south_c1_s0", "south_bridge_west_2",  "west_c2_s1"  },
                 { "west_bridge_north_1",  "north_c2_s1", "west_bridge_north_2",  "west_c1_s0"  },
+                // mid (c3↔c4)
+                { "north_bridge_east_3",  "north_c3_s0", "north_bridge_east_4",  "east_c4_s1"  },
+                { "east_bridge_south_3",  "south_c4_s1", "east_bridge_south_4",  "east_c3_s0"  },
+                { "south_bridge_west_3",  "south_c3_s0", "south_bridge_west_4",  "west_c4_s1"  },
+                { "west_bridge_north_3",  "north_c4_s1", "west_bridge_north_4",  "west_c3_s0"  },
+                // outer (c6↔c7)
+                { "north_bridge_east_5",  "north_c6_s0", "north_bridge_east_6",  "east_c7_s1"  },
+                { "east_bridge_south_5",  "south_c7_s1", "east_bridge_south_6",  "east_c6_s0"  },
+                { "south_bridge_west_5",  "south_c6_s0", "south_bridge_west_6",  "west_c7_s1"  },
+                { "west_bridge_north_5",  "north_c7_s1", "west_bridge_north_6",  "west_c6_s0"  },
         };
         for (String[] b : BRIDGES) {
             float[] a1 = transformedPositions.get(b[1]);
