@@ -426,6 +426,15 @@ public final class Protocol {
     public static final byte PKT_LOOT_SNAPSHOT_CHUNK = 31;
 
     /**
+     * Server → client: the viewer's current total loot-luck percent (×1000,
+     * varint), pushed right after each loot snapshot so the loot browser can
+     * render luck-adjusted drop rates (mirrors the server chest GUI's "With
+     * luck" line). Byte 45 is free on master/dev/season2, so unlike the loot
+     * snapshot chunk it carries the same id on every scheme.
+     */
+    public static final byte PKT_LOOT_LUCK = 45;
+
+    /**
      * Server → client: the set of custom item textures this player has turned
      * off in {@code /toggles → Custom Textures}. The mod ignores those (item,
      * CMD) pairs at model-resolution time so the items render vanilla.
@@ -1158,6 +1167,9 @@ public final class Protocol {
     /** Loot snapshot is on-demand but multi-chunk; allow a burst for the chunks
      *  of one snapshot to arrive back-to-back without tripping the limiter. */
     public static final int RATE_LOOT_CHUNK_PER_SEC = 80;
+    /** Loot-luck push (one per snapshot/reload) — a small cap is plenty and
+     *  caps a misbehaving server's ability to spam the cheap handler. */
+    public static final int RATE_LOOT_LUCK_PER_SEC = 10;
     /** PV bundle chunks (for oversized vaults) arrive as a back-to-back burst, same as
      *  the loot snapshot — allow the whole bundle's chunks through in one window. */
     public static final int RATE_PV_CHUNK_PER_SEC = 80;

@@ -31,11 +31,14 @@ public final class LootSnapshotPayload {
         PacketByteBuf buf = new PacketByteBuf(Unpooled.wrappedBuffer(body));
 
         int wireFormat = buf.readVarInt();
-        if (wireFormat != 1) {
+        if (wireFormat != 1 && wireFormat != 2) {
             // Unknown schema — refuse rather than mis-parse. Caller treats a
             // null/throw as "drop snapshot".
             throw new IllegalArgumentException("loot snapshot wire format " + wireFormat);
         }
+        // Wire ≥ 2 carries raw weights (per entry) + full-table weight totals
+        // (per table) so we can replicate the server's luck reweighting locally.
+        boolean v2 = wireFormat >= 2;
 
         int stringCount = buf.readVarInt();
         if (stringCount < 0 || stringCount > Protocol.LOOT_MAX_STRINGS) {
@@ -71,6 +74,8 @@ public final class LootSnapshotPayload {
             int rollsMin = buf.readVarInt();
             int rollsMax = buf.readVarInt();
             boolean luck = buf.readByte() != 0;
+            float totalWeight = v2 ? buf.readFloat() : 0f;
+            float totalMinClamp = v2 ? buf.readFloat() : 0f;
 
             int entryCount = buf.readVarInt();
             if (entryCount < 0 || entryCount > Protocol.LOOT_MAX_ENTRIES_PER_TABLE) {
@@ -81,18 +86,20 @@ public final class LootSnapshotPayload {
                 boolean masked = buf.readByte() != 0;
                 int rarity = buf.readByte() & 0xFF;
                 int chanceMilli = buf.readVarInt();
+                float weight = v2 ? buf.readFloat() : 0f;
                 if (masked) {
-                    entries.add(new Entry(true, rarity, chanceMilli, (byte) 0, "", "", ""));
+                    entries.add(new Entry(true, rarity, chanceMilli, weight, (byte) 0, "", "", ""));
                 } else {
                     byte type = buf.readByte();
                     String eName = str(pool, buf.readVarInt());
                     String eIcon = str(pool, buf.readVarInt());
                     String amount = str(pool, buf.readVarInt());
-                    entries.add(new Entry(false, rarity, chanceMilli, type, eName, eIcon, amount));
+                    entries.add(new Entry(false, rarity, chanceMilli, weight, type, eName, eIcon, amount));
                 }
             }
             int safeCatIdx = (catIdx >= 0 && catIdx < categories.size()) ? catIdx : -1;
-            tables.add(new Table(safeCatIdx, tableId, name, iconKey, rollsMin, rollsMax, luck, entries));
+            tables.add(new Table(safeCatIdx, tableId, name, iconKey, rollsMin, rollsMax, luck,
+                    totalWeight, totalMinClamp, entries));
         }
         return new LootSnapshotPayload(categories, tables);
     }
@@ -121,10 +128,15 @@ public final class LootSnapshotPayload {
         public final int rollsMin;
         public final int rollsMax;
         public final boolean luck;
+        /** Σ weight over ALL entries (pre-truncation); 0 on wire format 1. */
+        public final float totalWeight;
+        /** Σ min(weight,1) over entries with weight&gt;0; 0 on wire format 1. */
+        public final float totalMinClamp;
         public final List<Entry> entries;
 
         public Table(int categoryIndex, String tableId, String name, String iconKey,
-                     int rollsMin, int rollsMax, boolean luck, List<Entry> entries) {
+                     int rollsMin, int rollsMax, boolean luck,
+                     float totalWeight, float totalMinClamp, List<Entry> entries) {
             this.categoryIndex = categoryIndex;
             this.tableId = tableId;
             this.name = name;
@@ -132,11 +144,36 @@ public final class LootSnapshotPayload {
             this.rollsMin = rollsMin;
             this.rollsMax = rollsMax;
             this.luck = luck;
+            this.totalWeight = totalWeight;
+            this.totalMinClamp = totalMinClamp;
             this.entries = entries;
         }
 
         public String rollsText() {
             return rollsMin == rollsMax ? String.valueOf(rollsMin) : (rollsMin + "-" + rollsMax);
+        }
+
+        /**
+         * Whether luck can be shown for this table: it must be luck-affected,
+         * the viewer must have some luck, and we must have the wire-format-2
+         * weight data to compute it from.
+         */
+        public boolean showsLuck(double luckPercent) {
+            return luck && luckPercent > 0 && totalWeight > 0;
+        }
+
+        /**
+         * The entry's drop chance (0..100) after applying {@code luckPercent},
+         * mirroring {@code OutpostBuff.adjustedWeight} + the server chest GUI's
+         * renormalisation over the full-table totals. Falls back to the raw
+         * chance when luck data is unavailable.
+         */
+        public double adjustedChancePct(Entry e, double luckPercent) {
+            if (!showsLuck(luckPercent) || e == null) return e == null ? 0 : e.chancePct();
+            double l = Math.max(0, Math.min(100, luckPercent)) / 100.0;
+            double aw = e.weight > 0 ? e.weight + l * Math.min(e.weight, 1.0) : e.weight;
+            double denom = totalWeight + l * totalMinClamp;
+            return denom > 0 ? Math.max(0, Math.min(100, aw / denom * 100.0)) : e.chancePct();
         }
     }
 
@@ -147,16 +184,19 @@ public final class LootSnapshotPayload {
         public final boolean masked;
         public final int rarity;
         public final int chanceMilli;
+        /** Raw entry weight, used to recompute luck-adjusted chance; 0 on wire format 1. */
+        public final float weight;
         public final byte type;
         public final String name;
         public final String iconKey;
         public final String amountText;
 
-        public Entry(boolean masked, int rarity, int chanceMilli, byte type,
+        public Entry(boolean masked, int rarity, int chanceMilli, float weight, byte type,
                      String name, String iconKey, String amountText) {
             this.masked = masked;
             this.rarity = rarity;
             this.chanceMilli = chanceMilli;
+            this.weight = weight;
             this.type = type;
             this.name = name;
             this.iconKey = iconKey;
@@ -170,6 +210,11 @@ public final class LootSnapshotPayload {
 
         public String chanceText() {
             return String.format(java.util.Locale.US, "%.2f%%", chancePct());
+        }
+
+        /** Format a percentage (0..100) the same way as {@link #chanceText()}. */
+        public static String pctText(double pct) {
+            return String.format(java.util.Locale.US, "%.2f%%", pct);
         }
     }
 }

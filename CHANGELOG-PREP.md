@@ -31,6 +31,7 @@
 - **Trimmed gear now keeps its trim in the PV and Cell Vault terminals** — armor with an armor trim renders with the trim overlay on its icon instead of looking like plain untrimmed gear.
 - **`/pickbuffs` is now a theorycrafting sandbox.** Click any buff layer to open a **slider** and dial its value up or down, then watch your final XP / energy / money / shard / combat numbers update live. A new **Custom Modifiers** tab lets you add your own "what-if" modifiers — *increased %* (joins the shared additive pool), *more ×* (its own multiplier), or *flat +* — aimed at a single channel or a whole group (All Mining / All Combat / Everything), so you can plan a gear or buff setup before chasing it. Your custom modifiers and slider tweaks are saved between sessions.
 - **PV settings simplified to one toggle.** The old "PV overview screen on /pv" and "PV terminal view on /pv" switches are now a single **"PV terminal view on /pv"** toggle — on opens the ME-style terminal when you run `/pv`, off falls back to the vanilla menu. Previously the terminal toggle quietly did nothing unless the overview toggle was also on.
+- **Loot browser shows drop rates with your luck.** The mod's `/loot` drop list now factors in your **current luck** — on a luck-affected table each entry shows `raw% §7→§a adjusted%` right on the row (with the full breakdown and your luck total on hover), matching the server's own loot GUI. The luck total reflects your live sources (outpost buff, armor trims, Orb of Moros) and updates whenever you reopen the list.
 
 ## Input & Keybinds
 
