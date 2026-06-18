@@ -53,9 +53,9 @@ public final class SkillTreeScreen extends Screen {
     private static final float ZOOM_MAX = 4.0f;
     private static final float ZOOM_DEFAULT = 0.5f;     // fallback; fitCameraToBounds overrides on open
 
-    private static final int NODE_BASE_RADIUS = 12;
-    private static final int NODE_NOTABLE_RADIUS = 17;
-    private static final int NODE_GATE_RADIUS = 26;
+    private static final int NODE_BASE_RADIUS = 9;
+    private static final int NODE_NOTABLE_RADIUS = 13;
+    private static final int NODE_GATE_RADIUS = 20;
 
     // ── Client-side organic transform tunables ──────────────────────────────
     /** Global rotation applied to every node position (degrees). Breaks the
@@ -479,11 +479,14 @@ public final class SkillTreeScreen extends Screen {
         float margin = 70f;
         float zx = (width - 2 * margin) / (spanX * GRID_PITCH);
         float zy = (height - 2 * margin) / (spanY * GRID_PITCH);
-        zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.min(zx, zy)));
-        float cx = (minX + maxX) * 0.5f;
-        float cy = (minY + maxY) * 0.5f;
-        panX = -cx * GRID_PITCH * zoom;
-        panY = -cy * GRID_PITCH * zoom;
+        // Open zoomed INTO the centre rather than fitting all 1000+ nodes onto a
+        // single screen (which is a dense, unreadable blob). The lower clamp is
+        // the key — never open more zoomed-out than this; the player scrolls out
+        // to see the whole map or pans to explore a wedge (PoE-style).
+        zoom = Math.max(0.55f, Math.min(ZOOM_MAX, Math.min(zx, zy)));
+        // Centre on the gate (0,0) — you open looking at the heart of the tree.
+        panX = 0f;
+        panY = 0f;
     }
 
     /** Extract the cluster number from a prefix like "north_c3" → 3, or
@@ -853,12 +856,10 @@ public final class SkillTreeScreen extends Screen {
         float[] tRange = clipLineToViewport(x1, y1, x2, y2);
         if (tRange == null) return;
         // Stamp size and stride are kept equal so stamps perfectly overlap
-        // (no visible gaps in the line) — and stride is bumped to 4 px even
-        // for thin lines because the old per-2-px stamping was still
-        // ~9000 ctx.fill / frame for the locked-edge network. 4 px stride
-        // brings that to ~2300 fills with no visible quality loss at default
-        // zoom (a 4-px square reads as a small dot anyway).
-        int stride = Math.max(4, thickness);
+        // (no visible gaps in the line). Stride is 6 px for thin lines — on the
+        // 1000+ node tree the locked-edge network is the second-biggest render
+        // cost, and a 6-px square still reads as a continuous faint line.
+        int stride = Math.max(6, thickness);
         int half = stride / 2;
         int rem  = stride - half;
         int iStart = (int) Math.floor(tRange[0] * steps);
@@ -1005,11 +1006,18 @@ public final class SkillTreeScreen extends Screen {
             //    own AI-Studio-generated 1024² PNG (gate full-colour amethyst;
             //    others are grayscale templates tinted to the node's branch).
             boolean isGrandCap = n.id.endsWith("_grand");
+            // Zoomed-out overview: render cheap procedural dots instead of binding
+            // a sprite texture per node — the per-node GPU binds (×2 sprites ×
+            // hundreds of visible nodes) were the scroll lag. Gems appear once you
+            // zoom into a cluster.
+            boolean lowZoomDots = zoom < 0.75f;
             Identifier chosenSprite = null;
             boolean tintSprite = true;
             if (n.autoUnlocked && hasGateSprite) {
                 chosenSprite = SPRITE_GATE;
                 tintSprite = false;
+            } else if (lowZoomDots) {
+                chosenSprite = null;
             } else if (isGrandCap && hasGrandSprite) {
                 chosenSprite = SPRITE_GRAND_TEMPLATE;
             } else if (n.notable && hasNotableSprite) {
@@ -1682,14 +1690,9 @@ public final class SkillTreeScreen extends Screen {
         Integer targetIdx = layout.indexById.get(targetId);
         if (targetIdx == null) return java.util.Collections.emptySet();
 
-        // Build adjacency lookup once — from the hand-authored set so the
-        // path halo only highlights nodes the player can visually trace
-        // an edge to.
-        Map<Integer, List<Integer>> adj = new HashMap<>(layout.nodes.size() * 2);
-        for (int[] e : SkillTreeClient.handAuthoredEdges(layout)) {
-            adj.computeIfAbsent(e[0], k -> new ArrayList<>()).add(e[1]);
-            adj.computeIfAbsent(e[1], k -> new ArrayList<>()).add(e[0]);
-        }
+        // Shared adjacency map (built once per layout in SkillTreeClient) so the
+        // BFS doesn't rebuild a full edge-index map on every hover change.
+        Map<Integer, int[]> adj = SkillTreeClient.adjacency(layout);
 
         // BFS sources: every unlocked node + every auto-unlocked (gate) node.
         Deque<Integer> queue = new ArrayDeque<>();
@@ -1707,7 +1710,7 @@ public final class SkillTreeScreen extends Screen {
         while (!queue.isEmpty()) {
             int cur = queue.poll();
             if (cur == targetIdx) { found = true; break; }
-            List<Integer> nbs = adj.get(cur);
+            int[] nbs = adj.get(cur);
             if (nbs == null) continue;
             for (int nb : nbs) {
                 if (parent.containsKey(nb)) continue;

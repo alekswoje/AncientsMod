@@ -42,6 +42,10 @@ public final class SkillTreeClient {
     private static int asmBytes = 0;
     private static byte[][] asmChunks = null;
 
+    /** Cached node-index → neighbour-indices adjacency, keyed by layout reference. */
+    private static volatile SkillTreeOpenPayload adjLayout;
+    private static volatile java.util.Map<Integer, int[]> adjMap;
+
     private SkillTreeClient() {}
 
     public static SkillTreeOpenPayload layout() { return layout; }
@@ -225,13 +229,10 @@ public final class SkillTreeClient {
 
     /**
      * True iff {@code nodeId} has at least one unlocked neighbour (or is
-     * itself the gate). Walks the hand-authored adjacency (NOT
-     * {@code layout.edges}, which mixes in {@code autoConnectAdjacent}
-     * noise the GUI doesn't render) so the "ready to allocate" halo
-     * matches what the player can actually see connected on screen.
-     *
-     * <p>Server may still accept allocations via the broader auto-adj set
-     * — that's fine, this is just for the visual allocatable indicator.
+     * itself the gate). Uses the cached {@link #adjacency} map so this is
+     * O(degree) — it's called once per node every frame, and the old
+     * full-edge-list rescan (O(edges) per node = O(nodes×edges) per frame)
+     * was the dominant render cost on the 1000+ node tree.
      */
     public static boolean isAllocatable(String nodeId) {
         SkillTreeOpenPayload lay = layout;
@@ -243,16 +244,39 @@ public final class SkillTreeClient {
         if (n.autoUnlocked) return true; // gate is always allocatable
         Integer idx = lay.indexById.get(nodeId);
         if (idx == null) return false;
-        for (int[] e : handAuthoredEdges(lay)) {
-            int other = -1;
-            if (e[0] == idx) other = e[1];
-            else if (e[1] == idx) other = e[0];
-            if (other < 0) continue;
+        int[] nbrs = adjacency(lay).get(idx);
+        if (nbrs == null) return false;
+        for (int other : nbrs) {
+            if (other < 0 || other >= lay.nodes.size()) continue;
             SkillTreeOpenPayload.Node neighbour = lay.nodes.get(other);
             if (neighbour.autoUnlocked) return true;
             if (st.unlocked.contains(neighbour.id)) return true;
         }
         return false;
+    }
+
+    /** Node-index → neighbour-indices adjacency, built once per layout from
+     *  {@code layout.edges} and reused (the layout is immutable after onOpen).
+     *  Shared by {@link #isAllocatable} and the screen's path BFS so neither
+     *  rescans the full edge list. */
+    public static java.util.Map<Integer, int[]> adjacency(SkillTreeOpenPayload lay) {
+        if (lay == null) return java.util.Collections.emptyMap();
+        if (lay == adjLayout && adjMap != null) return adjMap;
+        java.util.Map<Integer, java.util.List<Integer>> tmp = new java.util.HashMap<>(lay.nodes.size() * 2);
+        for (int[] e : lay.edges) {
+            tmp.computeIfAbsent(e[0], k -> new java.util.ArrayList<>()).add(e[1]);
+            tmp.computeIfAbsent(e[1], k -> new java.util.ArrayList<>()).add(e[0]);
+        }
+        java.util.Map<Integer, int[]> m = new java.util.HashMap<>(tmp.size() * 2);
+        for (java.util.Map.Entry<Integer, java.util.List<Integer>> en : tmp.entrySet()) {
+            java.util.List<Integer> v = en.getValue();
+            int[] arr = new int[v.size()];
+            for (int i = 0; i < arr.length; i++) arr[i] = v.get(i);
+            m.put(en.getKey(), arr);
+        }
+        adjLayout = lay;
+        adjMap = m;
+        return m;
     }
 
     /**
@@ -273,6 +297,8 @@ public final class SkillTreeClient {
     public static void reset() {
         layout = null;
         state = null;
+        adjLayout = null;
+        adjMap = null;
         resetAssembly();
         recentlyUnlockedAtMs.clear();
         recentlyRefundedAtMs.clear();
