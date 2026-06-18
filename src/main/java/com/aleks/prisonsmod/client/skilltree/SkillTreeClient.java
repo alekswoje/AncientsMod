@@ -35,10 +35,12 @@ public final class SkillTreeClient {
     /** Animation lifetime — pulses fade to zero over this window. */
     public static final long PULSE_LIFETIME_MS = 800L;
 
-    /** Hand-authored adjacency cache — keyed by layout reference so we don't
-     *  rebuild on every state push (which would bump the counter). */
-    private static volatile java.util.List<int[]> cachedHandAuthoredEdges;
-    private static volatile SkillTreeOpenPayload cachedEdgesForLayout;
+    // ── Chunk reassembly for the OPEN layout (single in-flight; in-order TCP) ──
+    private static int asmVersion = -1;
+    private static int asmCount = 0;
+    private static int asmReceived = 0;
+    private static int asmBytes = 0;
+    private static byte[][] asmChunks = null;
 
     private SkillTreeClient() {}
 
@@ -78,6 +80,52 @@ public final class SkillTreeClient {
                 mc.setScreen(new SkillTreeScreen());
             }
         });
+    }
+
+    /**
+     * One chunk of a chunked OPEN payload (the 1000+ node mega-tree exceeds the
+     * single-message ceiling). Reassembles by version; once every chunk has
+     * arrived, decodes the concatenated body exactly like a single OPEN packet
+     * (which carries everything after the type byte) and opens the screen.
+     * Mirrors {@code LootClient.onSnapshotChunk}.
+     */
+    public static void onOpenChunk(int version, int index, int count, byte[] chunk) {
+        if (count < 1 || count > Protocol.SKILLTREE_MAX_CHUNKS) return;
+        if (index < 0 || index >= count) return;
+        if (chunk == null) return;
+        if (version != asmVersion || count != asmCount) {
+            asmVersion = version;
+            asmCount = count;
+            asmReceived = 0;
+            asmBytes = 0;
+            asmChunks = new byte[count][];
+        }
+        if (asmChunks[index] != null) return; // duplicate
+        asmChunks[index] = chunk;
+        asmReceived++;
+        asmBytes += chunk.length;
+        if (asmBytes > Protocol.MAX_SKILLTREE_TOTAL_BYTES) { resetAssembly(); return; }
+        if (asmReceived < asmCount) return;
+
+        byte[] full = new byte[asmBytes];
+        int off = 0;
+        for (byte[] c : asmChunks) { System.arraycopy(c, 0, full, off, c.length); off += c.length; }
+        resetAssembly();
+        try {
+            net.minecraft.network.PacketByteBuf buf =
+                    new net.minecraft.network.PacketByteBuf(io.netty.buffer.Unpooled.wrappedBuffer(full));
+            onOpen(SkillTreeOpenPayload.decode(buf));
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("SkillTree: chunked OPEN decode failed", t);
+        }
+    }
+
+    private static void resetAssembly() {
+        asmVersion = -1;
+        asmCount = 0;
+        asmReceived = 0;
+        asmBytes = 0;
+        asmChunks = null;
     }
 
     /**
@@ -208,184 +256,24 @@ public final class SkillTreeClient {
     }
 
     /**
-     * Hand-authored adjacency derived from the layout's id conventions.
-     * The server's {@code layout.edges} list mixes the explicit intentional
-     * edges (gate↔hw1, hw chain, notable↔smalls, entry-small↔trunk, cap
-     * ↔notable, bridge_1↔bridge_2) with {@code autoConnectAdjacent} noise
-     * (every grid-adjacent cell connects, regardless of region) — the
-     * noise reads as a dense spider web inside each cluster and between
-     * cluster pairs from neighbouring regions. PoE doesn't do that; it
-     * uses explicit hand-authored adjacency only.
-     *
-     * <p>We rebuild the explicit edges here from the id conventions and
-     * cache by layout reference (immutable after {@link #onOpen}) so it
-     * runs once per layout, not per frame.
+     * Adjacency the screen renders. The mega-tree generator authors a clean
+     * graph server-side and sends it verbatim in {@code layout.edges} (no
+     * client-side topology reconstruction, no auto-adjacency noise), so we
+     * render those edges directly. Kept as a method (rather than inlining
+     * {@code lay.edges}) so the path BFS + allocatable check share one source.
      *
      * <p>If the layout is null this returns an empty list — callers can
      * safely iterate it.
      */
     public static java.util.List<int[]> handAuthoredEdges(SkillTreeOpenPayload lay) {
-        if (lay == null) return java.util.Collections.emptyList();
-        java.util.List<int[]> cached = cachedHandAuthoredEdges;
-        if (cached != null && cachedEdgesForLayout == lay) return cached;
-        cached = buildHandAuthoredEdges(lay);
-        cachedHandAuthoredEdges = cached;
-        cachedEdgesForLayout = lay;
-        return cached;
-    }
-
-    private static java.util.List<int[]> buildHandAuthoredEdges(SkillTreeOpenPayload lay) {
-        java.util.Map<String, Integer> idx = lay.indexById;
-        java.util.List<int[]> out = new java.util.ArrayList<>(220);
-        // Cluster table — {clusterNumber, armDepth, pSign}. pSign drives
-        // which small is the highway entry (s3 / s2 / s1 for perp+ /
-        // perp- / on-axis respectively, matching SkillTreeLayout.addCluster).
-        int[][] CLUSTERS = {
-                { 1, 2,  +1 }, { 2, 2,  -1 },
-                { 3, 4,  +1 }, { 4, 4,  -1 },
-                { 5, 9,   0 },
-                { 6, 6,  +1 }, { 7, 6,  -1 },
-        };
-        String[] REGIONS = { "north", "east", "west", "south" };
-        for (String region : REGIONS) {
-            // gate → hw1
-            addEdge(out, idx, "gate", region + "_hw1");
-            // highway chain hw1 ↔ hw2 ↔ … ↔ hw8
-            for (int d = 1; d < 8; d++) {
-                addEdge(out, idx, region + "_hw" + d, region + "_hw" + (d + 1));
-            }
-            // Per-cluster: PoE-style wheel + tail topology.
-            //   4 smalls form a diamond around the cluster centre:
-            //     entry-small (toward arm) — sideA — outward-small (far)
-            //                              ╲   ╱
-            //                              sideB
-            //   notable hangs off the outward-small as a tail at the far end.
-            //   entry-small ↔ trunk attaches the cluster to the highway.
-            //   Caps (cluster has one) extend further past the notable.
-            //
-            //   Slot assignment from server's s0..s3 offsets (forward / back / perp+ / perp-):
-            //     p>0  → entry=s3 (perp-)  outward=s2 (perp+)  sides={s0,s1}
-            //     p<0  → entry=s2 (perp+)  outward=s3 (perp-)  sides={s0,s1}
-            //     p==0 → entry=s1 (back)   outward=s0 (fwd)    sides={s2,s3}
-            for (int[] cluster : CLUSTERS) {
-                int n = cluster[0];
-                int a = cluster[1];
-                int pSign = cluster[2];
-                String cPrefix = region + "_c" + n;
-                String notableId = cPrefix + "_notable";
-                if (idx.get(notableId) == null) continue;
-                int entryIdx, outwardIdx, sideAIdx, sideBIdx;
-                if (pSign > 0)       { entryIdx = 3; outwardIdx = 2; sideAIdx = 0; sideBIdx = 1; }
-                else if (pSign < 0)  { entryIdx = 2; outwardIdx = 3; sideAIdx = 0; sideBIdx = 1; }
-                else                 { entryIdx = 1; outwardIdx = 0; sideAIdx = 2; sideBIdx = 3; }
-                String entrySmall   = cPrefix + "_s" + entryIdx;
-                String outwardSmall = cPrefix + "_s" + outwardIdx;
-                String sideA        = cPrefix + "_s" + sideAIdx;
-                String sideB        = cPrefix + "_s" + sideBIdx;
-                // Diamond ring (4 edges)
-                addEdge(out, idx, entrySmall, sideA);
-                addEdge(out, idx, entrySmall, sideB);
-                addEdge(out, idx, sideA,      outwardSmall);
-                addEdge(out, idx, sideB,      outwardSmall);
-                // Tail — notable hangs off the outward small ONLY. Nothing
-                // else inside the wheel connects to the notable.
-                addEdge(out, idx, outwardSmall, notableId);
-                // Entry from highway → entry-small
-                String trunkId = region + "_hw" + Math.min(8, a);
-                addEdge(out, idx, entrySmall, trunkId);
-            }
-            // Branch caps → cluster notables (caps continue past the notable;
-            // they're tails BEYOND the cluster wheel, not part of it).
-            addEdge(out, idx, region + "_capA",  region + "_c3_notable");
-            addEdge(out, idx, region + "_capB",  region + "_c4_notable");
-            addEdge(out, idx, region + "_capC",  region + "_c7_notable");
-            addEdge(out, idx, region + "_grand", region + "_c5_notable");
-        }
-        // Bridge pair edge — server only explicitly drew bridge_1↔bridge_2.
-        String[][] BRIDGE_PAIRS = {
-                // inner (c1↔c2)
-                { "north_bridge_east_1",  "north_bridge_east_2"  },
-                { "east_bridge_south_1",  "east_bridge_south_2"  },
-                { "south_bridge_west_1",  "south_bridge_west_2"  },
-                { "west_bridge_north_1",  "west_bridge_north_2"  },
-                // mid (c3↔c4)
-                { "north_bridge_east_3",  "north_bridge_east_4"  },
-                { "east_bridge_south_3",  "east_bridge_south_4"  },
-                { "south_bridge_west_3",  "south_bridge_west_4"  },
-                { "west_bridge_north_3",  "west_bridge_north_4"  },
-                // outer (c6↔c7)
-                { "north_bridge_east_5",  "north_bridge_east_6"  },
-                { "east_bridge_south_5",  "east_bridge_south_6"  },
-                { "south_bridge_west_5",  "south_bridge_west_6"  },
-                { "west_bridge_north_5",  "west_bridge_north_6"  },
-        };
-        for (String[] pair : BRIDGE_PAIRS) {
-            addEdge(out, idx, pair[0], pair[1]);
-        }
-        // Bridge endpoints → cluster side-small facing the adjacent region.
-        // Each corner (e.g. north→east) hosts two clusters whose side-smalls
-        // face each other across the corner; the bridge sits in between.
-        //
-        //   For each bridge:
-        //     bridge_1 attaches to the cluster whose arm runs along ±y
-        //     bridge_2 attaches to the cluster whose arm runs along ±x
-        //   The exact side-small (sideA = s0 vs sideB = s1) depends on
-        //   whether the cluster sits perp+ or perp- of its arm:
-        //     perp+ cluster (c1) → sideA (s0) is the corner-facing side
-        //     perp- cluster (c2) → sideB (s1) is the corner-facing side
-        //   Derivation: for a p>0 cluster at fan +φ from arm, perp_CCW
-        //   (= sideA) is at angle (arm+90°+φ) which is the "leading" side
-        //   into the next CCW region. Mirror for p<0.
-        String[][] BRIDGE_TO_SIDE = {
-                // ── inner (c1↔c2) ──
-                { "north_bridge_east_1", "north_c1_s0" },
-                { "north_bridge_east_2", "east_c2_s1"  },
-                { "east_bridge_south_1", "south_c2_s1" },
-                { "east_bridge_south_2", "east_c1_s0"  },
-                { "south_bridge_west_1", "south_c1_s0" },
-                { "south_bridge_west_2", "west_c2_s1"  },
-                { "west_bridge_north_1", "north_c2_s1" },
-                { "west_bridge_north_2", "west_c1_s0"  },
-                // ── mid (c3↔c4) ──
-                { "north_bridge_east_3", "north_c3_s0" },
-                { "north_bridge_east_4", "east_c4_s1"  },
-                { "east_bridge_south_3", "south_c4_s1" },
-                { "east_bridge_south_4", "east_c3_s0"  },
-                { "south_bridge_west_3", "south_c3_s0" },
-                { "south_bridge_west_4", "west_c4_s1"  },
-                { "west_bridge_north_3", "north_c4_s1" },
-                { "west_bridge_north_4", "west_c3_s0"  },
-                // ── outer (c6↔c7) ──
-                { "north_bridge_east_5", "north_c6_s0" },
-                { "north_bridge_east_6", "east_c7_s1"  },
-                { "east_bridge_south_5", "south_c7_s1" },
-                { "east_bridge_south_6", "east_c6_s0"  },
-                { "south_bridge_west_5", "south_c6_s0" },
-                { "south_bridge_west_6", "west_c7_s1"  },
-                { "west_bridge_north_5", "north_c7_s1" },
-                { "west_bridge_north_6", "west_c6_s0"  },
-        };
-        for (String[] pair : BRIDGE_TO_SIDE) {
-            addEdge(out, idx, pair[0], pair[1]);
-        }
-        return out;
-    }
-
-    private static void addEdge(java.util.List<int[]> out,
-                                 java.util.Map<String, Integer> idx,
-                                 String a, String b) {
-        Integer ai = idx.get(a);
-        Integer bi = idx.get(b);
-        if (ai == null || bi == null) return;
-        out.add(new int[] { ai, bi });
+        return lay == null ? java.util.Collections.emptyList() : lay.edges;
     }
 
     /** Clear cached layout/state on disconnect so the next server doesn't see stale data. */
     public static void reset() {
         layout = null;
         state = null;
-        cachedHandAuthoredEdges = null;
-        cachedEdgesForLayout = null;
+        resetAssembly();
         recentlyUnlockedAtMs.clear();
         recentlyRefundedAtMs.clear();
         version++;

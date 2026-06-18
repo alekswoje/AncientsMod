@@ -344,12 +344,28 @@ public final class Protocol {
      */
     public static final byte PKT_SKILLTREE_ACK = 30;
 
+    /**
+     * S2C — one chunk of the dungeon skill-tree OPEN layout. The 1000+ node
+     * mega-tree's OPEN payload exceeds the single-message ceiling, so the
+     * server splits the body (everything a single {@link #PKT_SKILLTREE_OPEN}
+     * carries after its type byte) into ordered chunks; the mod reassembles by
+     * {@code version} and decodes once the last chunk arrives. Same scheme as
+     * {@link #PKT_LOOT_SNAPSHOT_CHUNK}. Wire per chunk:
+     * {@code int version; varint chunkIndex; varint chunkCount; varint len; byte[len] body}.
+     * Byte 46 is free on both season2 plugin + mod.
+     */
+    public static final byte PKT_SKILLTREE_OPEN_CHUNK = 46;
+
     // Skill tree wire bounds (mirror plugin PrisonsModChannel).
     public static final int MAX_SKILLTREE_PAYLOAD_BYTES = 32_768;
-    public static final int SKILLTREE_MAX_NODES = 512;
-    public static final int SKILLTREE_MAX_EDGES = 1024;
+    public static final int SKILLTREE_MAX_NODES = 4096;
+    public static final int SKILLTREE_MAX_EDGES = 8192;
     public static final int SKILLTREE_MAX_NODE_ID_CHARS = 32;
     public static final int SKILLTREE_MAX_NODE_NAME_CHARS = 48;
+    // Chunked OPEN reassembly bounds (mirror plugin).
+    public static final int MAX_SKILLTREE_TOTAL_BYTES = 1_048_576;
+    public static final int MAX_SKILLTREE_CHUNK_BYTES = 32_768;
+    public static final int SKILLTREE_MAX_CHUNKS = 80;
 
     // Branch byte values (must match plugin BRANCH_*).
     public static final byte BRANCH_GATE      = 0;
@@ -393,6 +409,33 @@ public final class Protocol {
     public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_JUGGERNAUT    = 30;
     public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_BLOODTHIRST   = 31;
     public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_ATTUNEMENT    = 32;
+    // Mega-tree expansion — ordinals 33..58, must match plugin SkillEffectType.
+    public static final byte SKILL_EFFECT_DUNGEON_SWORD_CRIT_CHANCE_PCT  = 33;
+    public static final byte SKILL_EFFECT_DUNGEON_AXE_CRIT_CHANCE_PCT    = 34;
+    public static final byte SKILL_EFFECT_DUNGEON_BOW_CRIT_CHANCE_PCT    = 35;
+    public static final byte SKILL_EFFECT_DUNGEON_WAND_CRIT_CHANCE_PCT   = 36;
+    public static final byte SKILL_EFFECT_DUNGEON_SWORD_CRIT_MULTI_PCT   = 37;
+    public static final byte SKILL_EFFECT_DUNGEON_AXE_CRIT_MULTI_PCT     = 38;
+    public static final byte SKILL_EFFECT_DUNGEON_BOW_CRIT_MULTI_PCT     = 39;
+    public static final byte SKILL_EFFECT_DUNGEON_WAND_CRIT_MULTI_PCT    = 40;
+    public static final byte SKILL_EFFECT_DUNGEON_SWORD_ATTACK_SPEED_PCT = 41;
+    public static final byte SKILL_EFFECT_DUNGEON_AXE_ATTACK_SPEED_PCT   = 42;
+    public static final byte SKILL_EFFECT_DUNGEON_BOW_ATTACK_SPEED_PCT   = 43;
+    public static final byte SKILL_EFFECT_DUNGEON_WAND_ATTACK_SPEED_PCT  = 44;
+    public static final byte SKILL_EFFECT_DUNGEON_CRIT_CHANCE_FLAT_PCT   = 45;
+    public static final byte SKILL_EFFECT_DUNGEON_PROJECTILE_DAMAGE_PCT  = 46;
+    public static final byte SKILL_EFFECT_DUNGEON_MELEE_DAMAGE_PCT       = 47;
+    public static final byte SKILL_EFFECT_DUNGEON_AREA_DAMAGE_PCT        = 48;
+    public static final byte SKILL_EFFECT_DUNGEON_FULL_LIFE_DAMAGE_PCT   = 49;
+    public static final byte SKILL_EFFECT_DUNGEON_EXECUTE_DAMAGE_PCT     = 50;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_VOLLEY            = 51;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_PUNCTURE          = 52;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_RICOCHET          = 53;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_RIPOSTE           = 54;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_BLOODLETTER       = 55;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_CHAIN_LIGHTNING   = 56;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_RESOLUTE_TECHNIQUE = 57;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_RAMPAGE           = 58;
 
     // Skill tree ACK action codes.
     public static final byte SKILL_ACTION_ALLOCATE = 0;

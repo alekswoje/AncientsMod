@@ -44,14 +44,18 @@ import java.util.Set;
 public final class SkillTreeScreen extends Screen {
 
     // ── Layout tunables ─────────────────────────────────────────────────────
-    private static final float GRID_PITCH = 110f;       // big — give every cluster room
-    private static final float ZOOM_MIN = 0.18f;
-    private static final float ZOOM_MAX = 2.50f;
-    private static final float ZOOM_DEFAULT = 0.36f;    // re-fit the wider tree at startup
+    // Mega-tree coordinate scale: the server's gx/gy now span ~±200 units
+    // (the old tree was ~±11), so the pitch is small and fitCameraToBounds
+    // picks the real zoom on open. Inter-node spacing is a hard 6.5 units, so
+    // node radii are sized to read as gems without overlapping their neighbours.
+    private static final float GRID_PITCH = 7f;         // pixels per gx-unit at zoom 1
+    private static final float ZOOM_MIN = 0.05f;
+    private static final float ZOOM_MAX = 4.0f;
+    private static final float ZOOM_DEFAULT = 0.5f;     // fallback; fitCameraToBounds overrides on open
 
-    private static final int NODE_BASE_RADIUS = 10;
-    private static final int NODE_NOTABLE_RADIUS = 14;
-    private static final int NODE_GATE_RADIUS = 20;
+    private static final int NODE_BASE_RADIUS = 12;
+    private static final int NODE_NOTABLE_RADIUS = 17;
+    private static final int NODE_GATE_RADIUS = 26;
 
     // ── Client-side organic transform tunables ──────────────────────────────
     /** Global rotation applied to every node position (degrees). Breaks the
@@ -442,6 +446,44 @@ public final class SkillTreeScreen extends Screen {
                     a1[0] * 0.25f + a2[0] * 0.75f + perpX * nudge,
                     a1[1] * 0.25f + a2[1] * 0.75f + perpY * nudge });
         }
+
+        // Mega-tree: fit the camera to the tree bounds once per new layout so
+        // the 1000+ node web (which spans a far larger grid than the old tree)
+        // lands fully on-screen on open. The cluster/bridge passes above are
+        // no-ops for the new generator's id scheme, so transformedPositions is
+        // just the raw server (gx,gy) with the global tilt — we fit over those.
+        fitCameraToBounds(layout);
+    }
+
+    /** The layout we last fitted the camera to — so state pushes (which bump the
+     *  version and rebuild the transform) don't reset the player's pan/zoom. */
+    private SkillTreeOpenPayload fittedLayout = null;
+
+    private void fitCameraToBounds(SkillTreeOpenPayload layout) {
+        if (layout == null || layout.nodes.isEmpty() || layout == fittedLayout) return;
+        if (width <= 0 || height <= 0) return;
+        fittedLayout = layout;
+        float minX = Float.POSITIVE_INFINITY, maxX = Float.NEGATIVE_INFINITY;
+        float minY = Float.POSITIVE_INFINITY, maxY = Float.NEGATIVE_INFINITY;
+        for (SkillTreeOpenPayload.Node n : layout.nodes) {
+            float[] p = transformedPositions.get(n.id);
+            float fx = p != null ? p[0] : n.gx;
+            float fy = p != null ? p[1] : n.gy;
+            if (fx < minX) minX = fx;
+            if (fx > maxX) maxX = fx;
+            if (fy < minY) minY = fy;
+            if (fy > maxY) maxY = fy;
+        }
+        float spanX = Math.max(1f, maxX - minX);
+        float spanY = Math.max(1f, maxY - minY);
+        float margin = 70f;
+        float zx = (width - 2 * margin) / (spanX * GRID_PITCH);
+        float zy = (height - 2 * margin) / (spanY * GRID_PITCH);
+        zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.min(zx, zy)));
+        float cx = (minX + maxX) * 0.5f;
+        float cy = (minY + maxY) * 0.5f;
+        panX = -cx * GRID_PITCH * zoom;
+        panY = -cy * GRID_PITCH * zoom;
     }
 
     /** Extract the cluster number from a prefix like "north_c3" → 3, or
@@ -1419,6 +1461,46 @@ public final class SkillTreeScreen extends Screen {
                     "Bloodthirst: heal 8% of Damage dealt; 20% reduced Maximum HP";
             case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_ATTUNEMENT ->
                     "Attunement: runes in your gear are 20% more effective in dungeons";
+
+            // ── Mega-tree: weapon-specific crit / attack speed
+            case Protocol.SKILL_EFFECT_DUNGEON_SWORD_CRIT_CHANCE_PCT -> num + "% increased Sword Critical Strike Chance";
+            case Protocol.SKILL_EFFECT_DUNGEON_AXE_CRIT_CHANCE_PCT   -> num + "% increased Axe Critical Strike Chance";
+            case Protocol.SKILL_EFFECT_DUNGEON_BOW_CRIT_CHANCE_PCT   -> num + "% increased Bow Critical Strike Chance";
+            case Protocol.SKILL_EFFECT_DUNGEON_WAND_CRIT_CHANCE_PCT  -> num + "% increased Wand Critical Strike Chance";
+            case Protocol.SKILL_EFFECT_DUNGEON_SWORD_CRIT_MULTI_PCT  -> "+" + num + "% Sword Critical Strike Multiplier";
+            case Protocol.SKILL_EFFECT_DUNGEON_AXE_CRIT_MULTI_PCT    -> "+" + num + "% Axe Critical Strike Multiplier";
+            case Protocol.SKILL_EFFECT_DUNGEON_BOW_CRIT_MULTI_PCT    -> "+" + num + "% Bow Critical Strike Multiplier";
+            case Protocol.SKILL_EFFECT_DUNGEON_WAND_CRIT_MULTI_PCT   -> "+" + num + "% Wand Critical Strike Multiplier";
+            case Protocol.SKILL_EFFECT_DUNGEON_SWORD_ATTACK_SPEED_PCT -> num + "% increased Sword Attack Speed";
+            case Protocol.SKILL_EFFECT_DUNGEON_AXE_ATTACK_SPEED_PCT  -> num + "% increased Axe Attack Speed";
+            case Protocol.SKILL_EFFECT_DUNGEON_BOW_ATTACK_SPEED_PCT  -> num + "% increased Bow Fire Rate";
+            case Protocol.SKILL_EFFECT_DUNGEON_WAND_ATTACK_SPEED_PCT -> num + "% increased Wand Cast Speed";
+
+            // ── Mega-tree: extra universal offence
+            case Protocol.SKILL_EFFECT_DUNGEON_CRIT_CHANCE_FLAT_PCT  -> "+" + num + "% Critical Strike Chance";
+            case Protocol.SKILL_EFFECT_DUNGEON_PROJECTILE_DAMAGE_PCT -> num + "% increased Projectile Damage";
+            case Protocol.SKILL_EFFECT_DUNGEON_MELEE_DAMAGE_PCT      -> num + "% increased Melee Damage";
+            case Protocol.SKILL_EFFECT_DUNGEON_AREA_DAMAGE_PCT       -> num + "% increased Area Damage";
+            case Protocol.SKILL_EFFECT_DUNGEON_FULL_LIFE_DAMAGE_PCT  -> num + "% more Damage while above 80% Life";
+            case Protocol.SKILL_EFFECT_DUNGEON_EXECUTE_DAMAGE_PCT    -> num + "% increased Damage to enemies below 35% HP";
+
+            // ── Mega-tree: new keystones
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_VOLLEY ->
+                    "Volley: each shot looses 2 extra arrows in a spread (less damage each)";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_PUNCTURE ->
+                    "Puncture: arrows pierce; up to 50% more Damage the farther they fly";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_RICOCHET ->
+                    "Ricochet: your arrows chain to one nearby enemy on hit";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_RIPOSTE ->
+                    "Riposte: just after you take a hit, your next hit is a guaranteed Critical";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_BLOODLETTER ->
+                    "Bloodletter: your hits stack a bleed; your bleeds deal 30% more Damage";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_CHAIN_LIGHTNING ->
+                    "Chain Lightning: your beam arcs to a second nearby enemy";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_RESOLUTE_TECHNIQUE ->
+                    "Resolute Technique: you can never deal a Critical, but deal 25% more hit Damage";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_RAMPAGE ->
+                    "Rampage: kills grant stacking Attack Speed and Damage";
 
             default -> "+" + num + " (unknown effect)";
         };

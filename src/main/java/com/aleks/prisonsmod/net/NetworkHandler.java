@@ -273,6 +273,24 @@ public final class NetworkHandler {
                             com.aleks.prisonsmod.net.payload.SkillTreeOpenPayload.decode(buf);
                     com.aleks.prisonsmod.client.skilltree.SkillTreeClient.onOpen(p);
                 }
+                case Protocol.PKT_SKILLTREE_OPEN_CHUNK -> {
+                    // Chunks arrive as a short burst — gate on the generous
+                    // LOOT_CHUNK kind (sized for 80-chunk bursts) so reassembly
+                    // never drops a chunk to the single-shot SKILLTREE_OPEN rate.
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.LOOT_CHUNK)) return;
+                    int version = buf.readInt();
+                    int chunkIndex = buf.readVarInt();
+                    int chunkCount = buf.readVarInt();
+                    int len = buf.readVarInt();
+                    if (chunkCount < 1 || chunkCount > Protocol.SKILLTREE_MAX_CHUNKS) return;
+                    if (chunkIndex < 0 || chunkIndex >= chunkCount) return;
+                    if (len < 0 || len > Protocol.MAX_SKILLTREE_CHUNK_BYTES) return;
+                    if (buf.readableBytes() < len) return;
+                    byte[] chunk = new byte[len];
+                    buf.readBytes(chunk);
+                    com.aleks.prisonsmod.client.skilltree.SkillTreeClient.onOpenChunk(
+                            version, chunkIndex, chunkCount, chunk);
+                }
                 case Protocol.PKT_SKILLTREE_STATE -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.SKILLTREE_STATE)) return;
                     com.aleks.prisonsmod.net.payload.SkillTreeStatePayload p =
