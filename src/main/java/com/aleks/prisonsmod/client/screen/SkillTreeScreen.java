@@ -768,6 +768,13 @@ public final class SkillTreeScreen extends Screen {
                 continue;
             }
 
+            // Low zoom: skip the tiny wheel-internal edges (~11px). They're the
+            // bulk of the edge draw cost and barely visible zoomed out; the
+            // longer connective paths between clusters are kept.
+            if (zoom < 0.7f && Math.abs(sx2 - sx1) + Math.abs(sy2 - sy1) < 18) {
+                continue;
+            }
+
             boolean aUn = state.unlocked.contains(a.id) || a.autoUnlocked;
             boolean bUn = state.unlocked.contains(b.id) || b.autoUnlocked;
 
@@ -949,6 +956,24 @@ public final class SkillTreeScreen extends Screen {
             byte effBranch = effectiveBranch(n.id, n.branch);
             int branchCore = branchColor(effBranch);
             int branchGlow = branchGlowColor(effBranch);
+
+            // ── Fast path: the zoomed-out overview draws ONE flat fill per node.
+            //    The ornate body below is ~10 draw calls per node (fills + two
+            //    gradients + a 4-fill border), and at MC 1.21 draw-call overhead
+            //    that ~10k calls/frame was the lag on the 1000+ node tree. State
+            //    is encoded by colour; the gem sprites return when you zoom in.
+            if (zoom < 0.8f) {
+                int dr = Math.max(2, Math.round(baseRadius * 0.8f * zoom));
+                int col;
+                if (n.autoUnlocked)     col = COL_AMETHYST;
+                else if (matchesSearch) col = COL_SEARCH_MATCH;
+                else if (unlocked)      col = brighten(branchCore, 1.2f);
+                else if (allocatable)   col = branchCore;
+                else                    col = withAlpha(branchCore, 0x99);
+                if (dimmedBySearch)     col = withAlpha(col, 0x33);
+                ctx.fill(sx - dr, sy - dr, sx + dr, sy + dr, col);
+                continue;
+            }
 
             // ── Layer 0: path-to-here amethyst halo (behind everything)
             if (onPath && !unlocked && !dimmedBySearch) {
