@@ -1534,6 +1534,8 @@ public final class SkillTreeScreen extends Screen {
                     "Resolute Technique: you can never deal a Critical, but deal 25% more hit Damage";
             case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_RAMPAGE ->
                     "Rampage: kills grant stacking Attack Speed and Damage";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_AEGIS ->
+                    "Aegis: you take 30% less Damage, but deal 20% less Damage";
 
             default -> "+" + num + " (unknown effect)";
         };

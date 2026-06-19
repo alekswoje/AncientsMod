@@ -436,6 +436,7 @@ public final class Protocol {
     public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_CHAIN_LIGHTNING   = 56;
     public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_RESOLUTE_TECHNIQUE = 57;
     public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_RAMPAGE           = 58;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_AEGIS             = 59;
 
     // Skill tree ACK action codes.
     public static final byte SKILL_ACTION_ALLOCATE = 0;
