@@ -19,6 +19,17 @@ import net.minecraft.text.Text;
  * read/edit "{@code /pvsee}" mode) when an admin inspects another player's
  * vaults.
  *
+ * <h2>Interactions</h2>
+ * <ul>
+ *   <li>L-click tile → extract 1 ({@link Protocol#PV_EXTRACT_ONE}).</li>
+ *   <li>R-click tile → extract half ({@link Protocol#PV_EXTRACT_HALF}).</li>
+ *   <li>Shift+L-click tile → extract entire stack
+ *       ({@link Protocol#PV_EXTRACT_ALL}).</li>
+ *   <li>L-press hotbar slot, drag onto grid, release → deposit that hotbar
+ *       slot via {@link NetworkHandler#sendPvShiftClick(int)} (server fills the
+ *       first vault with space).</li>
+ * </ul>
+ *
  * <p>The screen is bundle-driven: after every extract / deposit the server
  * pushes a fresh {@link PvBundlePayload} which {@link PvClient#onBundle}
  * routes to {@link #onBundleUpdated} for in-place re-render.
@@ -210,6 +221,11 @@ public final class PvTerminalScreen extends ItemTerminalScreen {
      *  player's vaults, then release the PV state machine. */
     @Override
     protected void onClosed() {
+        if (isPvSee()) {
+            NetworkHandler.sendPvSeeClose();
+        }
+        // End the server-side /pvsee session so the admin's own PV packets stop
+        // acting on the inspected player's vaults.
         if (isPvSee()) {
             NetworkHandler.sendPvSeeClose();
         }

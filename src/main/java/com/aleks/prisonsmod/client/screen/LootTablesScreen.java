@@ -1,5 +1,8 @@
 package com.aleks.prisonsmod.client.screen;
 
+import com.aleks.prisonsmod.client.glass.GlassRender;
+import com.aleks.prisonsmod.client.glass.GlassTextField;
+import com.aleks.prisonsmod.client.glass.GlassTheme;
 import com.aleks.prisonsmod.client.loot.LootClient;
 import com.aleks.prisonsmod.client.loot.LootRarityVisual;
 import com.aleks.prisonsmod.net.payload.LootSnapshotPayload;
@@ -7,7 +10,6 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
@@ -56,7 +58,7 @@ public final class LootTablesScreen extends Screen {
     /** Remembered across detail navigation so Back returns to the same spot. */
     private static int savedScroll = 0;
     private static String savedQuery = "";
-    private TextFieldWidget searchField;
+    private GlassTextField searchField;
     private String searchQuery = "";
     private List<Text> hoverTooltip = null;
 
@@ -77,7 +79,7 @@ public final class LootTablesScreen extends Screen {
         int panelX = (this.width - PANEL_W) / 2;
         int panelY = (this.height - panelHeight()) / 2;
         int searchW = PANEL_W - PADDING * 2;
-        this.searchField = new TextFieldWidget(this.textRenderer,
+        this.searchField = new GlassTextField(this.textRenderer,
                 panelX + PADDING, panelY + TITLE_BAR_H + 4, searchW, 18,
                 Text.literal("Search any item…"));
         this.searchField.setMaxLength(64);
@@ -103,9 +105,10 @@ public final class LootTablesScreen extends Screen {
 
         if (searchMode) {
             for (LootSnapshotPayload.Table t : snapshot.tables) {
+                boolean tableNameMatches = t.name.toLowerCase(Locale.ROOT).contains(q);
                 for (LootSnapshotPayload.Entry e : t.entries) {
                     if (e.masked || e.name == null) continue;
-                    if (e.name.toLowerCase(Locale.ROOT).contains(q)) {
+                    if (tableNameMatches || e.name.toLowerCase(Locale.ROOT).contains(q)) {
                         searchHits.add(new Hit(t, e));
                     }
                 }
@@ -220,21 +223,25 @@ public final class LootTablesScreen extends Screen {
     @Override
     public void renderBackground(DrawContext ctx, int mouseX, int mouseY, float delta) {
         super.renderBackground(ctx, mouseX, mouseY, delta);
+        GlassRender.menuBackdrop(ctx, this.width, this.height);
         int panelW = PANEL_W;
         int panelH = panelHeight();
         int panelX = (this.width - panelW) / 2;
         int panelY = (this.height - panelH) / 2;
 
-        ctx.fill(panelX, panelY, panelX + panelW, panelY + panelH, 0xF0101010);
-        ctx.fill(panelX, panelY, panelX + panelW, panelY + 1, 0xFF555555);
-        ctx.fill(panelX, panelY + panelH - 1, panelX + panelW, panelY + panelH, 0xFF555555);
-        ctx.fill(panelX, panelY, panelX + 1, panelY + panelH, 0xFF555555);
-        ctx.fill(panelX + panelW - 1, panelY, panelX + panelW, panelY + panelH, 0xFF555555);
+        GlassRender.panel(ctx, panelX, panelY, panelW, panelH);
 
-        ctx.fill(panelX, panelY, panelX + panelW, panelY + TITLE_BAR_H, 0xFF1A1A1A);
+        // Violet title-bar wash, inset by the corner radius.
+        ctx.fill(panelX + GlassRender.RADIUS, panelY + GlassRender.RADIUS,
+                panelX + panelW - GlassRender.RADIUS, panelY + TITLE_BAR_H,
+                GlassTheme.withAlpha(GlassTheme.ACCENT, 0x2E));
+
         int tableCount = snapshot != null ? snapshot.tables.size() : 0;
-        ctx.drawText(this.textRenderer, Text.literal("§e§lLoot Tables §8· §7" + tableCount + " tables"),
-                panelX + 10, panelY + 7, 0xFFFFFFFF, true);
+        ctx.drawText(this.textRenderer, Text.literal("Loot Tables"),
+                panelX + 10, panelY + 7, GlassTheme.text(), true);
+        int titleW = this.textRenderer.getWidth("Loot Tables");
+        ctx.drawText(this.textRenderer, Text.literal("· " + tableCount + " tables"),
+                panelX + 10 + titleW + 5, panelY + 7, GlassTheme.textDim(), true);
     }
 
     @Override
@@ -264,27 +271,26 @@ public final class LootTablesScreen extends Screen {
             String msg = searchMode
                     ? "§7No items match §f\"" + searchQuery + "\""
                     : "§7No loot tables available.";
-            ctx.drawText(this.textRenderer, Text.literal(msg), lx + 4, ly + listH / 2 - 4, 0xFFAAAAAA, false);
+            ctx.drawText(this.textRenderer, Text.literal(msg), lx + 4, ly + 4, GlassTheme.textDim(), false);
         }
 
         // Scrollbar.
         int maxOffset = Math.max(0, rowCount() - ROWS_VISIBLE);
         if (maxOffset > 0) {
             int sbX = lx + lw + SCROLLBAR_GAP;
-            ctx.fill(sbX, ly, sbX + SCROLLBAR_W, ly + listH, 0x80000000);
             double ratio = (double) ROWS_VISIBLE / rowCount();
             int thumbH = Math.max(20, (int) (listH * ratio));
             int range = listH - thumbH;
             int thumbY = ly + (int) (range * ((double) scrollOffset / maxOffset));
-            ctx.fill(sbX, thumbY, sbX + SCROLLBAR_W, thumbY + thumbH, 0xFFAAAAAA);
+            GlassRender.scrollbar(ctx, sbX + (SCROLLBAR_W - 3) / 2, ly, ly + listH, thumbY, thumbH);
         }
 
         // Footer hint.
         int panelX = (this.width - PANEL_W) / 2;
         int panelY = (this.height - panelHeight()) / 2;
-        String hint = searchMode ? "§8Click a result → open its table" : "§8Click a table to view its drops";
+        String hint = searchMode ? "Click a result → open its table" : "Click a table to view its drops";
         ctx.drawText(this.textRenderer, Text.literal(hint),
-                panelX + 10, panelY + panelHeight() - 12, 0xFF777777, false);
+                panelX + 10, panelY + panelHeight() - 12, GlassTheme.textMuted(), false);
 
         if (hoverTooltip != null) {
             ctx.drawTooltip(this.textRenderer, hoverTooltip, mouseX, mouseY);
@@ -293,21 +299,22 @@ public final class LootTablesScreen extends Screen {
 
     private void renderBrowseRow(DrawContext ctx, Object row, int lx, int ry, int lw, int mouseX, int mouseY) {
         if (row instanceof String header) {
-            ctx.fill(lx, ry, lx + lw, ry + ROW_H - 2, 0xFF222630);
-            ctx.drawText(this.textRenderer, Text.literal("§b§l" + header),
-                    lx + 4, ry + 6, 0xFFFFFFFF, false);
+            GlassRender.roundedRect(ctx, lx, ry, lx + lw, ry + ROW_H - 2, 6,
+                    GlassTheme.withAlpha(GlassTheme.ACCENT, 0x22));
+            ctx.drawText(this.textRenderer, Text.literal("§l" + header),
+                    lx + 6, ry + 6, GlassTheme.ACCENT_SOFT, false);
             return;
         }
         LootSnapshotPayload.Table t = (LootSnapshotPayload.Table) row;
         boolean hovered = mouseX >= lx && mouseX < lx + lw && mouseY >= ry && mouseY < ry + ROW_H;
-        ctx.fill(lx, ry, lx + lw, ry + ROW_H - 2, hovered ? 0x33FFFFFF : 0xFF0E0E0E);
+        GlassRender.row(ctx, lx, ry, lx + lw, ry + ROW_H - 2, hovered);
 
         int iconY = ry + (ROW_H - 2 - ICON) / 2;
         ctx.drawItem(resolveIcon(t.iconKey), lx + 2, iconY);
 
         int nameX = lx + ICON + 6;
-        String name = this.textRenderer.trimToWidth("§f" + t.name, NAME_COL_W);
-        ctx.drawText(this.textRenderer, Text.literal(name), nameX, ry + 6, 0xFFFFFFFF, false);
+        String name = this.textRenderer.trimToWidth(t.name, NAME_COL_W);
+        ctx.drawText(this.textRenderer, Text.literal(name), nameX, ry + 6, GlassTheme.text(), false);
 
         // Preview icons of the first few drops (masked drops render as paper).
         int px = nameX + NAME_COL_W + 4;
@@ -321,9 +328,9 @@ public final class LootTablesScreen extends Screen {
             shown++;
         }
 
-        String drops = "§8" + t.entries.size() + " drops";
+        String drops = t.entries.size() + " drops";
         int dropsW = this.textRenderer.getWidth(drops);
-        ctx.drawText(this.textRenderer, Text.literal(drops), lx + lw - dropsW - 2, ry + 6, 0xFF888888, false);
+        ctx.drawText(this.textRenderer, Text.literal(drops), lx + lw - dropsW - 2, ry + 6, GlassTheme.textMuted(), false);
 
         if (hovered) hoverTooltip = buildTableTooltip(t);
     }
@@ -358,19 +365,19 @@ public final class LootTablesScreen extends Screen {
     private void renderHitRow(DrawContext ctx, Hit hit, int lx, int ry, int lw, int mouseX, int mouseY) {
         LootSnapshotPayload.Entry e = hit.entry;
         boolean hovered = mouseX >= lx && mouseX < lx + lw && mouseY >= ry && mouseY < ry + ROW_H;
-        ctx.fill(lx, ry, lx + lw, ry + ROW_H - 2, hovered ? 0x33FFFFFF : 0xFF0E0E0E);
+        GlassRender.row(ctx, lx, ry, lx + lw, ry + ROW_H - 2, hovered);
 
         int iconY = ry + (ROW_H - 2 - ICON) / 2;
         ctx.drawItem(resolveIcon(e.iconKey), lx + 2, iconY);
 
         int nameX = lx + ICON + 6;
         String nameCode = LootRarityVisual.has(e.rarity) ? LootRarityVisual.code(e.rarity) : "§f";
-        String chance = "§6" + e.chanceText();
+        String chance = e.chanceText();
         int chanceW = this.textRenderer.getWidth(chance);
         String line = nameCode + (e.name == null ? "?" : e.name) + " §8in " + hit.table.name;
         String trimmed = this.textRenderer.trimToWidth(line, Math.max(20, lw - (nameX - lx) - chanceW - 8));
-        ctx.drawText(this.textRenderer, Text.literal(trimmed), nameX, ry + 6, 0xFFFFFFFF, false);
-        ctx.drawText(this.textRenderer, Text.literal(chance), lx + lw - chanceW - 2, ry + 6, 0xFFFFFFFF, false);
+        ctx.drawText(this.textRenderer, Text.literal(trimmed), nameX, ry + 6, GlassTheme.text(), false);
+        ctx.drawText(this.textRenderer, Text.literal(chance), lx + lw - chanceW - 2, ry + 6, GlassTheme.VALUE, false);
 
         if (hovered) {
             List<Text> tip = new ArrayList<>();
@@ -462,9 +469,13 @@ public final class LootTablesScreen extends Screen {
     private void renderCloseButton(DrawContext ctx, int mouseX, int mouseY) {
         int[] b = closeButtonBounds();
         boolean hov = mouseX >= b[0] && mouseX < b[0] + b[2] && mouseY >= b[1] && mouseY < b[1] + b[3];
-        ctx.fill(b[0], b[1], b[0] + b[2], b[1] + b[3], hov ? 0xFFAA3030 : 0xFF402020);
-        ctx.fill(b[0], b[1], b[0] + b[2], b[1] + 1, 0xFF777777);
-        ctx.drawText(this.textRenderer, Text.literal("§f✕"), b[0] + 5, b[1] + 3, 0xFFFFFFFF, false);
+        GlassRender.button(ctx, b[0], b[1], b[0] + b[2], b[1] + b[3], hov, true, false);
+        GlassRender.roundedBorder(ctx, b[0], b[1], b[0] + b[2], b[1] + b[3], 6,
+                GlassTheme.withAlpha(GlassTheme.WARN, hov ? 0xCC : 0x66));
+        int glyphW = this.textRenderer.getWidth("✕");
+        ctx.drawText(this.textRenderer, Text.literal("✕"),
+                b[0] + (b[2] - glyphW) / 2, b[1] + (b[3] - this.textRenderer.fontHeight) / 2 + 1,
+                GlassTheme.WARN, false);
     }
 
     private static ItemStack resolveIcon(String key) {

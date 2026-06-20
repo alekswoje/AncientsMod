@@ -300,6 +300,162 @@ public final class Protocol {
     public static final byte PKT_MINING_STATS = 24;
 
     /**
+     * Fullbright blacklist for the mod's client-side fullbright feature. List
+     * of Bukkit world names where fullbright should NOT activate. Sent once
+     * after the handshake. Wire: type byte + varint count + repeating
+     * varint+UTF8 world name. Empty list = fullbright everywhere.
+     */
+    public static final byte PKT_FULLBRIGHT_BLACKLIST = 25;
+
+    /** Hard cap on worlds per blacklist packet (mirrors plugin). */
+    public static final int MAX_FULLBRIGHT_WORLDS = 32;
+    /** Hard cap on a single blacklisted world name length (mirrors plugin). */
+    public static final int MAX_FULLBRIGHT_WORLD_NAME_CHARS = 64;
+
+    /**
+     * S2C — per-player Tartarus Rift daily-time HUD state (mirrors plugin
+     * PrisonsModChannel#PKT_RIFT_BUDGET). Replaces the rift row in the Events
+     * HUD now that the rift is a personal daily activity. Wire after the type
+     * byte: byte flags (bit0=available, bit1=consuming), varint remainingSeconds,
+     * varint secondsUntilReset.
+     */
+    public static final byte PKT_RIFT_BUDGET = 26;
+
+    /**
+     * S2C — full dungeon skill tree layout. Pushed when a player clicks
+     * "Tartarus Vision" on the Oracle NPC. Bounded by
+     * {@link #MAX_SKILLTREE_PAYLOAD_BYTES}. The mod's screen opens on receipt
+     * and renders the tree using the bundled layout (positions, names,
+     * effects, adjacency).
+     */
+    public static final byte PKT_SKILLTREE_OPEN = 28;
+
+    /**
+     * S2C — per-player skill-tree state (unlocked set + banked/available/spent
+     * points + live respec cost). Sent immediately after a SKILLTREE_OPEN
+     * and on every successful allocate / refund / respec (mod- or chisel-
+     * driven). The mod's open screen re-renders live on each push.
+     */
+    public static final byte PKT_SKILLTREE_STATE = 29;
+
+    /**
+     * S2C — result of a mod-initiated allocate / refund / respec. Mostly used
+     * for failure toasts; success is implied by the matching STATE push.
+     */
+    public static final byte PKT_SKILLTREE_ACK = 30;
+
+    /**
+     * S2C — one chunk of the dungeon skill-tree OPEN layout. The 1000+ node
+     * mega-tree's OPEN payload exceeds the single-message ceiling, so the
+     * server splits the body (everything a single {@link #PKT_SKILLTREE_OPEN}
+     * carries after its type byte) into ordered chunks; the mod reassembles by
+     * {@code version} and decodes once the last chunk arrives. Same scheme as
+     * {@link #PKT_LOOT_SNAPSHOT_CHUNK}. Wire per chunk:
+     * {@code int version; varint chunkIndex; varint chunkCount; varint len; byte[len] body}.
+     * Byte 46 is free on both season2 plugin + mod.
+     */
+    public static final byte PKT_SKILLTREE_OPEN_CHUNK = 46;
+
+    // Skill tree wire bounds (mirror plugin PrisonsModChannel).
+    public static final int MAX_SKILLTREE_PAYLOAD_BYTES = 32_768;
+    public static final int SKILLTREE_MAX_NODES = 4096;
+    public static final int SKILLTREE_MAX_EDGES = 8192;
+    public static final int SKILLTREE_MAX_NODE_ID_CHARS = 32;
+    public static final int SKILLTREE_MAX_NODE_NAME_CHARS = 48;
+    // Chunked OPEN reassembly bounds (mirror plugin).
+    public static final int MAX_SKILLTREE_TOTAL_BYTES = 1_048_576;
+    public static final int MAX_SKILLTREE_CHUNK_BYTES = 32_768;
+    public static final int SKILLTREE_MAX_CHUNKS = 80;
+
+    // Branch byte values (must match plugin BRANCH_*).
+    public static final byte BRANCH_GATE      = 0;
+    public static final byte BRANCH_ASSAULT   = 1;
+    public static final byte BRANCH_ENDURANCE = 2;
+    public static final byte BRANCH_AGILITY   = 3;
+    public static final byte BRANCH_FORTUNE   = 4;
+
+    // Skill effect type bytes (must match plugin SKILL_EFFECT_*).
+    public static final byte SKILL_EFFECT_DUNGEON_DAMAGE_PCT            = 0;
+    public static final byte SKILL_EFFECT_DUNGEON_BOSS_DAMAGE_PCT       = 1;
+    public static final byte SKILL_EFFECT_DUNGEON_DAMAGE_REDUCTION_PCT  = 2;
+    public static final byte SKILL_EFFECT_DUNGEON_MAX_HP_FLAT           = 3;
+    public static final byte SKILL_EFFECT_DUNGEON_MOVE_SPEED_PCT        = 4;
+    public static final byte SKILL_EFFECT_DUNGEON_JUMP_BOOST_FLAT       = 5;
+    public static final byte SKILL_EFFECT_CHEST_COST_REDUCTION_PCT      = 6;
+    public static final byte SKILL_EFFECT_RUNE_RARITY_UPGRADE_CHANCE    = 7;
+    public static final byte SKILL_EFFECT_BONUS_RUNE_DROP_CHANCE        = 8;
+    public static final byte SKILL_EFFECT_DUNGEON_LIFESTEAL_PCT         = 9;
+    public static final byte SKILL_EFFECT_DUNGEON_CULLING_THRESHOLD_PCT = 10;
+    public static final byte SKILL_EFFECT_DUNGEON_DOUBLE_JUMP_FLAT      = 11;
+    // Season 2 redesign — appended; ordinals must match plugin SkillEffectType.
+    public static final byte SKILL_EFFECT_DUNGEON_SWORD_DAMAGE_PCT      = 12;
+    public static final byte SKILL_EFFECT_DUNGEON_AXE_DAMAGE_PCT        = 13;
+    public static final byte SKILL_EFFECT_DUNGEON_BOW_DAMAGE_PCT        = 14;
+    public static final byte SKILL_EFFECT_DUNGEON_WAND_DAMAGE_PCT       = 15;
+    public static final byte SKILL_EFFECT_DUNGEON_CRIT_CHANCE_PCT       = 16;
+    public static final byte SKILL_EFFECT_DUNGEON_CRIT_MULTI_PCT        = 17;
+    public static final byte SKILL_EFFECT_DUNGEON_AILMENT_DAMAGE_PCT    = 18;
+    public static final byte SKILL_EFFECT_DUNGEON_AILMENT_DURATION_PCT  = 19;
+    public static final byte SKILL_EFFECT_DUNGEON_ATTACK_SPEED_PCT      = 20;
+    public static final byte SKILL_EFFECT_DUNGEON_MAX_HP_PCT            = 21;
+    public static final byte SKILL_EFFECT_DUNGEON_LIFE_REGEN            = 22;
+    public static final byte SKILL_EFFECT_DUNGEON_XP_PCT                = 23;
+    public static final byte SKILL_EFFECT_DUNGEON_DUPLICATE_LOOT_PCT    = 24;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_GLASS_CANNON  = 25;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_EXECUTIONER   = 26;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_EARTHSPLITTER = 27;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_STORMWEAVER   = 28;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_AVATAR_HUNT   = 29;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_JUGGERNAUT    = 30;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_BLOODTHIRST   = 31;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_ATTUNEMENT    = 32;
+    // Mega-tree expansion — ordinals 33..58, must match plugin SkillEffectType.
+    public static final byte SKILL_EFFECT_DUNGEON_SWORD_CRIT_CHANCE_PCT  = 33;
+    public static final byte SKILL_EFFECT_DUNGEON_AXE_CRIT_CHANCE_PCT    = 34;
+    public static final byte SKILL_EFFECT_DUNGEON_BOW_CRIT_CHANCE_PCT    = 35;
+    public static final byte SKILL_EFFECT_DUNGEON_WAND_CRIT_CHANCE_PCT   = 36;
+    public static final byte SKILL_EFFECT_DUNGEON_SWORD_CRIT_MULTI_PCT   = 37;
+    public static final byte SKILL_EFFECT_DUNGEON_AXE_CRIT_MULTI_PCT     = 38;
+    public static final byte SKILL_EFFECT_DUNGEON_BOW_CRIT_MULTI_PCT     = 39;
+    public static final byte SKILL_EFFECT_DUNGEON_WAND_CRIT_MULTI_PCT    = 40;
+    public static final byte SKILL_EFFECT_DUNGEON_SWORD_ATTACK_SPEED_PCT = 41;
+    public static final byte SKILL_EFFECT_DUNGEON_AXE_ATTACK_SPEED_PCT   = 42;
+    public static final byte SKILL_EFFECT_DUNGEON_BOW_ATTACK_SPEED_PCT   = 43;
+    public static final byte SKILL_EFFECT_DUNGEON_WAND_ATTACK_SPEED_PCT  = 44;
+    public static final byte SKILL_EFFECT_DUNGEON_CRIT_CHANCE_FLAT_PCT   = 45;
+    public static final byte SKILL_EFFECT_DUNGEON_PROJECTILE_DAMAGE_PCT  = 46;
+    public static final byte SKILL_EFFECT_DUNGEON_MELEE_DAMAGE_PCT       = 47;
+    public static final byte SKILL_EFFECT_DUNGEON_AREA_DAMAGE_PCT        = 48;
+    public static final byte SKILL_EFFECT_DUNGEON_FULL_LIFE_DAMAGE_PCT   = 49;
+    public static final byte SKILL_EFFECT_DUNGEON_EXECUTE_DAMAGE_PCT     = 50;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_VOLLEY            = 51;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_PUNCTURE          = 52;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_RICOCHET          = 53;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_RIPOSTE           = 54;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_BLOODLETTER       = 55;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_CHAIN_LIGHTNING   = 56;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_RESOLUTE_TECHNIQUE = 57;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_RAMPAGE           = 58;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_AEGIS             = 59;
+
+    // Skill tree ACK action codes.
+    public static final byte SKILL_ACTION_ALLOCATE = 0;
+    public static final byte SKILL_ACTION_REFUND   = 1;
+    public static final byte SKILL_ACTION_RESPEC   = 2;
+
+    // Skill tree ACK result codes.
+    public static final byte SKILL_RESULT_SUCCESS           = 0;
+    public static final byte SKILL_RESULT_ALREADY_UNLOCKED  = 1;
+    public static final byte SKILL_RESULT_PREREQ_MISSING    = 2;
+    public static final byte SKILL_RESULT_NOT_ENOUGH_POINTS = 3;
+    public static final byte SKILL_RESULT_NOT_UNLOCKED      = 4;
+    public static final byte SKILL_RESULT_HAS_DEPENDENTS    = 5;
+    public static final byte SKILL_RESULT_NOT_ENOUGH_MONEY  = 6;
+    public static final byte SKILL_RESULT_INVALID           = 7;
+    public static final byte SKILL_RESULT_NOTHING_TO_RESPEC = 8;
+    public static final byte SKILL_RESULT_ECONOMY_ERROR     = 9;
+
+    /**
      * One chunk of the loot-browser catalog snapshot (server → mod), pushed in
      * response to {@link #PKT_LOOT_REQ} and again on {@code /loottablesplit
      * reload} or a fresh discovery. The full body is split into ordered chunks;
@@ -307,8 +463,11 @@ public final class Protocol {
      * arrives. Wire per chunk:
      * {@code int version; varint chunkIndex; varint chunkCount; varint len; byte[len] body}.
      * Bounded by {@link #MAX_LOOT_CHUNK_BYTES} per packet, {@link #MAX_LOOT_SNAPSHOT_BYTES} total.
+     * NB: byte 25 is PKT_FULLBRIGHT_BLACKLIST on this season2 branch, so the loot
+     * snapshot is renumbered 25 → 31 here to match the season2 plugin. Public
+     * master uses 25.
      */
-    public static final byte PKT_LOOT_SNAPSHOT_CHUNK = 25;
+    public static final byte PKT_LOOT_SNAPSHOT_CHUNK = 31;
 
     /**
      * Server → client: the viewer's current total loot-luck percent (×1000,
@@ -320,11 +479,23 @@ public final class Protocol {
     public static final byte PKT_LOOT_LUCK = 45;
 
     /**
+     * Server → client: the set of custom item textures this player has turned
+     * off in {@code /toggles → Custom Textures}. The mod ignores those (item,
+     * CMD) pairs at model-resolution time so the items render vanilla.
+     *
+     * <p>Wire format: {@code varint count; for each: string itemId (≤64), varint cmd}.
+     * Re-sent on join and on every toggle change.
+     */
+    public static final byte PKT_DISABLED_TEXTURES = 32;
+
+    public static final int MAX_DISABLED_TEXTURES = 128;
+
+    /**
      * Periodic snapshot of all outpost states (name, gang, capture %). Drives the
      * moveable Outpost HUD. Wire: type byte + count byte + per-outpost (id string,
      * gangName string, percent byte, flags byte). Empty gangName = neutral.
      */
-    public static final byte PKT_OUTPOST_STATE = 26;
+    public static final byte PKT_OUTPOST_STATE = 33;
 
     public static final int MAX_OUTPOST_ENTRIES    = 8;
     public static final int OUTPOST_MAX_ID_CHARS   = 16;
@@ -478,56 +649,6 @@ public final class Protocol {
      */
     public static final byte PKT_CELLTERM_CLOSE = 44;
 
-    /**
-     * Per-ore predicted break time + post-break replacement block for swing-time
-     * mine prediction. With this table the client starts the crack animation —
-     * and the ghost ore→replacement swap — the instant the player swings,
-     * instead of waiting one round trip for {@link #PKT_MINE_START}; that packet
-     * still follows per block and stays the authoritative reconciliation signal.
-     * Server sends it on predict-enable and at 1 Hz while a live mining window
-     * is active (so momentum / pickaxe-swap drift stays ≤ ~1s).
-     *
-     * <p>Wire after the type byte: {@code byte count; for each:
-     * varint+string oreId (Bukkit Material name); varint durationMs;
-     * varint+string replacementId (Bukkit Material name)}.
-     *
-     * <p>Byte 39 is free on BOTH the master/dev scheme (tops at 38) and the
-     * season2 scheme — same anchor strategy as {@link #PKT_MINING_SESSION}.
-     * Keep it that way on merge.
-     */
-    public static final byte PKT_MINE_SPEEDS = 39;
-
-    /** Hard cap on rows per mine-speeds snapshot (mirrors plugin). */
-    public static final int MAX_MINE_SPEED_ROWS = 32;
-    /** Max ore/replacement id (Bukkit Material name) length accepted on the wire. */
-    public static final int MINE_SPEED_MAX_ID_CHARS = 48;
-    /** Mine-speeds heartbeat is 1 Hz from the server; 5 absorbs jitter. */
-    public static final int RATE_MINE_SPEEDS_PER_SEC = 5;
-
-    /**
-     * S2C — the player's ClickLock on/off state (single state byte: 1=on, 0=off).
-     * ClickLock is server-driven (the server raycasts + mines without the attack
-     * key held), so while it's on the prediction engine keeps its server-paced
-     * crack alive on crosshair-targeting alone instead of the attack key. Sent on
-     * toggle, join restore, and predict-enable. Byte 40 is free on both the
-     * master and season2 server schemes — keep it that way on merge.
-     */
-    public static final byte PKT_CLICKLOCK_STATE = 40;
-    /** ClickLock state is a low-frequency keepalive — a handful per second is the ceiling. */
-    public static final int RATE_CLICKLOCK_STATE_PER_SEC = 5;
-
-    /**
-     * Server → client: the set of custom item textures this player has turned
-     * off in {@code /toggles → Custom Textures}. The mod ignores those (item,
-     * CMD) pairs at model-resolution time so the items render vanilla.
-     *
-     * <p>Wire format: {@code varint count; for each: string itemId (≤64), varint cmd}.
-     * Re-sent on join and on every toggle change.
-     */
-    public static final byte PKT_DISABLED_TEXTURES = 32;
-
-    public static final int MAX_DISABLED_TEXTURES = 128;
-
     // Suggest category enum-bytes (must match plugin PrisonsModChannel).
     public static final byte SUGGEST_CAT_MOD    = 0;
     public static final byte SUGGEST_CAT_SERVER = 1;
@@ -608,8 +729,10 @@ public final class Protocol {
     /** Mod protocol MINOR version, sent as the byte after {@link #PKT_HANDSHAKE}. Bumped within the
      *  same major (channel {@code prisonsmod:v1}) when the client gains the ability to handle a new
      *  server→client packet additively. Minor 1 = can reassemble {@link #PKT_PV_BUNDLE_CHUNK}.
-     *  Minor 2 = client understands the cell-terminal packets (S2C 41-44, C2S 137-144). */
-    public static final int PROTOCOL_MINOR = 2;
+     *  Minor 2 = client understands the cell-terminal packets (S2C 41-44, C2S 137-144).
+     *  Minor 3 = client parses the "#t<pattern>.<material>" trim suffix in a bundle icon key
+     *  and renders the armor-trim overlay on terminal icons (PV + cell terminal). */
+    public static final int PROTOCOL_MINOR = 3;
     /**
      * Client request: "I want to ping this world-space point for my gang."
      * Payload carries only coordinates + a hold-flag. Server authenticates the
@@ -762,6 +885,25 @@ public final class Protocol {
     // C2S byte 123 was PKT_PV_FEATURES_STATE (gated the now-removed affinity
     // routing). Retired with the affinity system.
 
+    /** C2S — player clicked "Tartarus Vision" on the Oracle NPC or asked the
+     *  mod to reopen the screen. Server replies with PKT_SKILLTREE_OPEN +
+     *  PKT_SKILLTREE_STATE. No payload. */
+    public static final byte PKT_SKILLTREE_OPEN_REQ  = (byte) 124;
+
+    /** C2S — allocate a node. Wire: varint+string nodeId. Server replies with
+     *  PKT_SKILLTREE_ACK + PKT_SKILLTREE_STATE. */
+    public static final byte PKT_SKILLTREE_ALLOCATE  = (byte) 125;
+
+    /** C2S — refund a single node (free, no money cost). Same wire shape. */
+    public static final byte PKT_SKILLTREE_REFUND    = (byte) 126;
+
+    /** C2S — full respec (charges money per dungeon level). No payload. */
+    public static final byte PKT_SKILLTREE_RESPEC    = (byte) 127;
+
+    // NB: bytes 124-127 are the skill-tree C2S packets on this season2 branch.
+    // Public master assigns 124-128 to the PV-extract / loot packets below; to
+    // avoid a collision they are renumbered to 128-132 here, matching the
+    // season2 plugin (PrisonsModChannel). Public master uses 124-128.
     /**
      * Player clicked a tile in the PV terminal view: pull from a specific
      * vault slot into the player's inventory. Server reads the slot, computes
@@ -777,7 +919,7 @@ public final class Protocol {
      *   byte   target      (PV_TARGET_*)
      * </pre>
      */
-    public static final byte PKT_PV_EXTRACT_REQ = (byte) 124;
+    public static final byte PKT_PV_EXTRACT_REQ = (byte) 128;
 
     /** Extract one item from the stack. */
     public static final byte PV_EXTRACT_ONE  = 0;
@@ -823,14 +965,14 @@ public final class Protocol {
      * swaps if the target slot is occupied by a different item, merges if same.
      * Wire: {@code byte invSlot} (0..35, Bukkit ordering).
      */
-    public static final byte PKT_PV_CURSOR_PLACE_INV = (byte) 125;
+    public static final byte PKT_PV_CURSOR_PLACE_INV = (byte) 129;
 
     /**
      * Return whatever is on the player's cursor back into a PV (or their
      * inventory) — sent when the terminal screen closes with a non-empty
      * cursor so picked-up items are never lost. No payload.
      */
-    public static final byte PKT_PV_CURSOR_RETURN = (byte) 126;
+    public static final byte PKT_PV_CURSOR_RETURN = (byte) 130;
 
     /**
      * The admin closed the {@code /pvsee} terminal — end the server-side session
@@ -846,10 +988,10 @@ public final class Protocol {
      * the player as a loot-browser viewer and replies with a chunked
      * {@link #PKT_LOOT_SNAPSHOT_CHUNK} catalog.
      */
-    public static final byte PKT_LOOT_REQ = (byte) 127;
+    public static final byte PKT_LOOT_REQ = (byte) 131;
     /** Player closed the mod loot browser. Server deregisters them so reload /
      *  discovery pushes stop. No payload. */
-    public static final byte PKT_LOOT_CLOSE = (byte) 128;
+    public static final byte PKT_LOOT_CLOSE = (byte) 132;
 
     /** C2S — report whether the mod renders Powerball client-side (1=on, 0=off).
      *  When on, the server suppresses the server-side ItemDisplay + trail for
@@ -867,15 +1009,6 @@ public final class Protocol {
     public static final byte PKT_CLIENT_TIMEZONE = (byte) 135;
     /** Max chars for the IANA zone id carried by {@link #PKT_CLIENT_TIMEZONE}. */
     public static final int CLIENT_TIMEZONE_MAX_CHARS = 64;
-
-    /** C2S — report whether the mod runs swing-time mine prediction (1=on, 0=off).
-     *  When on, the server streams {@link #PKT_MINE_SPEEDS}, suppresses its own
-     *  crack-stage stream + break particle/sound/fragment for this player's breaks
-     *  (the mod renders them locally), and grants a ping-bounded completion grace
-     *  on early retarget so predicted breaks confirm instead of rolling back. Sent
-     *  on join after the handshake and on every toggle flip. Byte 136 is free on
-     *  both the master and season2 server schemes — keep it that way on merge. */
-    public static final byte PKT_MINE_PREDICT_STATE = (byte) 136;
 
     // ── Cell Vault Terminal C2S (intent-only; the server resolves the sender
     //    from the connection — payloads carry indices only, never item identity
@@ -985,7 +1118,11 @@ public final class Protocol {
     // re-release of the mod every time VAULTS_PER_PLAYER goes up.
     public static final int PV_MAX_VAULTS = 64;
     public static final int PV_MAX_SLOTS = 162; // 6 rows × 9 cols × multiple rows of extras
-    public static final int PV_MAX_MATERIAL_KEY_CHARS = 48;
+    /** Icon-key cap ("ns:path", optional "#<cmd>", optional "#t<pattern>.<material>" trim
+     *  suffix). Raised from 48 to fit the trim suffix this minor (≥3) parses; the server
+     *  only appends the trim token for minor-≥3 clients, so this jar never receives a key
+     *  it would reject in {@code readString}. Mirrors PrisonsCore PV_MAX_MATERIAL_KEY_CHARS. */
+    public static final int PV_MAX_MATERIAL_KEY_CHARS = 80;
     /** Must stay in lockstep with PrisonsCore PrisonsModChannel.PV_MAX_DISPLAY_NAME_CHARS.
      *  Raised from 64 so colour/hex-coded names survive without truncation — a single
      *  hex colour is a 14-char §x§r§r§g§g§b§b run, so coloured names need the headroom.
@@ -1038,6 +1175,7 @@ public final class Protocol {
     public static final int RATE_BOOSTER_UPDATE_PER_SEC = 5;
     /** Event timer heartbeat — same shape as boosters. */
     public static final int RATE_EVENT_TIMERS_PER_SEC = 5;
+    public static final int RATE_RIFT_BUDGET_PER_SEC = 5;
     /** Cooldowns heartbeat — same shape as boosters. */
     public static final int RATE_COOLDOWNS_PER_SEC = 5;
     /** PvE stats heartbeat — same shape. */
@@ -1062,6 +1200,14 @@ public final class Protocol {
      *  aren't dropped (a dropped bundle leaves the terminal grid looking like
      *  items vanished until reopen). Still bounded against a misbehaving server. */
     public static final int RATE_PV_BUNDLE_PER_SEC = 20;
+    /** Fullbright blacklist is one-shot per handshake — tight cap. */
+    public static final int RATE_FULLBRIGHT_BLACKLIST_PER_SEC = 2;
+    /** Skill tree layout pushed only when the screen opens — tight cap. */
+    public static final int RATE_SKILLTREE_OPEN_PER_SEC  = 2;
+    /** State pushed after every chisel / mod allocation — 1 Hz typical, allow burst. */
+    public static final int RATE_SKILLTREE_STATE_PER_SEC = 10;
+    /** Ack arrives at most once per mod action — burst limit is the player's click rate. */
+    public static final int RATE_SKILLTREE_ACK_PER_SEC   = 10;
     /** Loot snapshot is on-demand but multi-chunk; allow a burst for the chunks
      *  of one snapshot to arrive back-to-back without tripping the limiter. */
     public static final int RATE_LOOT_CHUNK_PER_SEC = 80;
@@ -1119,18 +1265,6 @@ public final class Protocol {
     public static final int MAX_MINE_DURATION_MS = 30_000;
     /** Predictions below this duration skip the crack ladder and fire an "insta-break" flash instead. */
     public static final int INSTA_BREAK_THRESHOLD_MS = 100;
-    /** Swing-time prediction only runs while the server has sent a PKT_MINE_START
-     *  within this window — keeps the engine quiet outside custom-mining areas
-     *  (cells, lobby) where a ghost swap would be wrong. */
-    public static final long MINE_PREDICT_ARMED_WINDOW_MS = 60_000L;
-    /** Floor / ceiling for the ghost-swap confirmation window (actual value is
-     *  2×latency + 500ms, clamped to this range). On timeout the swap rolls back. */
-    public static final long MINE_PREDICT_CONFIRM_MIN_MS = 600L;
-    public static final long MINE_PREDICT_CONFIRM_MAX_MS = 3_000L;
-    /** After a rollback (server disagreed — e.g. a meteorite block that stays put),
-     *  ghost swaps at that exact position are suppressed for this long; the crack
-     *  animation still predicts. */
-    public static final long MINE_PREDICT_POS_BLACKLIST_MS = 10_000L;
 
     private Protocol() {}
 }

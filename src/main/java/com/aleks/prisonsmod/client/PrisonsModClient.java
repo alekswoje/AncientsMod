@@ -55,6 +55,7 @@ public final class PrisonsModClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         FeatureToggles.load();
+        com.aleks.prisonsmod.client.muffler.MufflerSettings.load();
         HudPositions.load();
         HudSettings.load();
         com.aleks.prisonsmod.client.buffs.BuffSandboxStore.load();
@@ -65,9 +66,9 @@ public final class PrisonsModClient implements ClientModInitializer {
         TooltipCollapse.register();
         TooltipScroll.register();
         PickaxeBlocksTooltip.register();
+        com.aleks.prisonsmod.client.wiki.InteractiveItemTooltip.register();
         GangPingInput.register();
         GangPingRenderer.register();
-        PowerballRenderer.register();
         ClientCommands.register();
         BugReportClient.register();
         SuggestClient.register();
@@ -83,6 +84,7 @@ public final class PrisonsModClient implements ClientModInitializer {
         HudRegistry.register(OutpostHud.INSTANCE);
         HudRenderer.register();
         MeteoriteLabelRenderer.register();
+        PowerballRenderer.register();
 
         // Server allowlist: flip on/off as the player joins/leaves servers.
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
@@ -117,9 +119,6 @@ public final class PrisonsModClient implements ClientModInitializer {
                     // Tell the server whether we render Powerball client-side so it
                     // can suppress its per-ball ItemDisplay + per-tick packet stream.
                     NetworkHandler.sendPowerballState(FeatureToggles.isPowerballRenderEnabled());
-                    // Tell the server whether we run swing-time mine prediction so it
-                    // streams the speed table and suppresses its own crack/effects.
-                    NetworkHandler.sendMinePredictState(FeatureToggles.isMinePredictEnabled());
                     // Tell the server whether the cell-vault terminal is enabled so
                     // it knows to intercept vault-chest opens with the custom
                     // terminal (disabled → the vanilla chest GUI stays).
@@ -155,8 +154,12 @@ public final class PrisonsModClient implements ClientModInitializer {
             com.aleks.prisonsmod.client.buffs.BuffSnapshotState.clear();
             BugReportClient.reset();
             SuggestClient.reset();
+            com.aleks.prisonsmod.client.Fullbright.clear();
+            com.aleks.prisonsmod.client.skilltree.SkillTreeClient.reset();
+            com.aleks.prisonsmod.client.wiki.InteractiveItemTooltip.reset();
             com.aleks.prisonsmod.client.loot.LootClient.reset();
             com.aleks.prisonsmod.client.cellterm.CellTermClient.reset();
+            com.aleks.prisonsmod.client.pv.PvClient.reset();
             lastWorldKey = null;
         });
 

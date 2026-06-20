@@ -1,5 +1,8 @@
 package com.aleks.prisonsmod.client.screen;
 
+import com.aleks.prisonsmod.client.glass.GlassRender;
+import com.aleks.prisonsmod.client.glass.GlassTextField;
+import com.aleks.prisonsmod.client.glass.GlassTheme;
 import com.aleks.prisonsmod.client.loot.LootClient;
 import com.aleks.prisonsmod.client.loot.LootRarityVisual;
 import com.aleks.prisonsmod.net.payload.LootSnapshotPayload;
@@ -49,7 +52,7 @@ public final class LootTableDetailScreen extends Screen {
     private int scrollOffset = 0;
     private boolean draggingScroll = false;
     private double dragGrab = 0;
-    private TextFieldWidget searchField;
+    private GlassTextField searchField;
     private String searchQuery = "";
     private List<Text> hoverTooltip = null;
 
@@ -81,7 +84,7 @@ public final class LootTableDetailScreen extends Screen {
         int panelX = (this.width - PANEL_W) / 2;
         int panelY = (this.height - panelHeight()) / 2;
         int searchW = PANEL_W - PADDING * 2;
-        this.searchField = new TextFieldWidget(this.textRenderer,
+        this.searchField = new GlassTextField(this.textRenderer,
                 panelX + PADDING, panelY + TITLE_BAR_H + SUBHEADER_H + 4, searchW, 18,
                 Text.literal("Search this table…"));
         this.searchField.setMaxLength(64);
@@ -142,32 +145,45 @@ public final class LootTableDetailScreen extends Screen {
         int panelX = (this.width - panelW) / 2;
         int panelY = (this.height - panelH) / 2;
 
-        ctx.fill(panelX, panelY, panelX + panelW, panelY + panelH, 0xF0101010);
-        ctx.fill(panelX, panelY, panelX + panelW, panelY + 1, 0xFF555555);
-        ctx.fill(panelX, panelY + panelH - 1, panelX + panelW, panelY + panelH, 0xFF555555);
-        ctx.fill(panelX, panelY, panelX + 1, panelY + panelH, 0xFF555555);
-        ctx.fill(panelX + panelW - 1, panelY, panelX + panelW, panelY + panelH, 0xFF555555);
+        GlassRender.menuBackdrop(ctx, this.width, this.height);
+        GlassRender.panel(ctx, panelX, panelY, panelW, panelH);
 
-        ctx.fill(panelX, panelY, panelX + panelW, panelY + TITLE_BAR_H, 0xFF1A1A1A);
+        // Violet title-bar wash, inset by the panel radius.
+        ctx.fill(panelX + GlassRender.RADIUS, panelY + GlassRender.RADIUS,
+                panelX + panelW - GlassRender.RADIUS, panelY + TITLE_BAR_H,
+                GlassTheme.withAlpha(GlassTheme.ACCENT, 0x2E));
+
         String name = table != null ? table.name : tableId;
         int dropCount = table != null ? table.entries.size() : 0;
-        ctx.drawText(this.textRenderer, Text.literal("§e§l" + name + " §8· §7" + dropCount + " drops"),
-                panelX + 10, panelY + 7, 0xFFFFFFFF, true);
+        ctx.drawText(this.textRenderer, Text.literal(name),
+                panelX + 10, panelY + 7, GlassTheme.text(), true);
+        int nameW = this.textRenderer.getWidth(name);
+        ctx.drawText(this.textRenderer, Text.literal("§8· §7" + dropCount + " drops"),
+                panelX + 10 + nameW + 5, panelY + 7, GlassTheme.textDim(), false);
 
-        // Subheader: rolls + luck.
+        // Subheader: rolls + luck (§a green luck text → GlassTheme.OK).
         String rolls = table != null ? table.rollsText() : "?";
         double luckPct = LootClient.luckPercent();
+        ctx.drawText(this.textRenderer,
+                Text.literal("§7Rolls/trigger: §f" + rolls),
+                panelX + 10, panelY + TITLE_BAR_H + 3, GlassTheme.textDim(), false);
+        int rollsW = this.textRenderer.getWidth("Rolls/trigger: " + rolls);
         String luck;
+        int luckColor;
         if (table != null && table.luck) {
             luck = (luckPct > 0)
-                    ? String.format(Locale.US, "§aLuck affects this table §8(§7%.1f%% luck§8)", luckPct)
-                    : "§aLuck affects this table";
+                    ? String.format(Locale.US, "Luck affects this table (%.1f%% luck)", luckPct)
+                    : "Luck affects this table";
+            luckColor = GlassTheme.OK;
         } else {
-            luck = "§8Luck does not affect this table";
+            luck = "Luck does not affect this table";
+            luckColor = GlassTheme.textMuted();
         }
-        ctx.drawText(this.textRenderer,
-                Text.literal("§7Rolls/trigger: §f" + rolls + " §8· " + luck),
-                panelX + 10, panelY + TITLE_BAR_H + 3, 0xFFAAAAAA, false);
+        ctx.drawText(this.textRenderer, Text.literal("§8· "),
+                panelX + 10 + rollsW + 4, panelY + TITLE_BAR_H + 3, GlassTheme.textMuted(), false);
+        ctx.drawText(this.textRenderer, Text.literal(luck),
+                panelX + 10 + rollsW + 4 + this.textRenderer.getWidth("· "),
+                panelY + TITLE_BAR_H + 3, luckColor, false);
     }
 
     @Override
@@ -183,7 +199,7 @@ public final class LootTableDetailScreen extends Screen {
 
         if (table == null) {
             ctx.drawText(this.textRenderer, Text.literal("§7This table is no longer available."),
-                    lx, ly + 8, 0xFFAAAAAA, false);
+                    lx, ly + 8, GlassTheme.textDim(), false);
             renderFooter(ctx);
             return;
         }
@@ -197,7 +213,7 @@ public final class LootTableDetailScreen extends Screen {
 
             // Row background + hover highlight.
             boolean hovered = mouseX >= lx && mouseX < lx + lw && mouseY >= ry && mouseY < ry + ROW_H;
-            ctx.fill(lx, ry, lx + lw, ry + ROW_H - 2, hovered ? 0x33FFFFFF : 0xFF0E0E0E);
+            GlassRender.row(ctx, lx, ry, lx + lw, ry + ROW_H - 2, hovered);
 
             int iconY = ry + (ROW_H - 2 - ICON) / 2;
             ItemStack icon = e.masked ? new ItemStack(Items.PAPER) : resolveIcon(e.iconKey);
@@ -223,10 +239,10 @@ public final class LootTableDetailScreen extends Screen {
             int nameX = lx + ICON + 6;
             int nameMaxW = lw - (nameX - lx) - chanceW - 8;
             String trimmedName = this.textRenderer.trimToWidth(nameCode + displayName, Math.max(20, nameMaxW));
-            ctx.drawText(this.textRenderer, Text.literal(trimmedName), nameX, ry + 3, 0xFFFFFFFF, false);
+            ctx.drawText(this.textRenderer, Text.literal(trimmedName), nameX, ry + 3, GlassTheme.text(), false);
 
             ctx.drawText(this.textRenderer, Text.literal(chanceStr),
-                    lx + lw - chanceW - 2, ry + 3, 0xFFFFFFFF, false);
+                    lx + lw - chanceW - 2, ry + 3, GlassTheme.VALUE, false);
 
             // Second line: amount + rarity (or "Undiscovered").
             String second;
@@ -241,7 +257,7 @@ public final class LootTableDetailScreen extends Screen {
                 }
                 second = sb.toString();
             }
-            ctx.drawText(this.textRenderer, Text.literal(second), nameX, ry + 13, 0xFF888888, false);
+            ctx.drawText(this.textRenderer, Text.literal(second), nameX, ry + 13, GlassTheme.textMuted(), false);
 
             if (hovered) hoverTooltip = buildTooltip(e, displayName);
         }
@@ -251,19 +267,19 @@ public final class LootTableDetailScreen extends Screen {
             String msg = searchQuery.trim().isEmpty()
                     ? "§7This table has no drops."
                     : "§7No drops match §f\"" + searchQuery + "\"";
-            ctx.drawText(this.textRenderer, Text.literal(msg), lx + 4, ly + listH / 2 - 4, 0xFFAAAAAA, false);
+            ctx.drawText(this.textRenderer, Text.literal(msg), lx + 4, ly + listH / 2 - 4, GlassTheme.textDim(), false);
         }
 
         // Scrollbar.
         int maxOffset = Math.max(0, filtered.size() - ROWS_VISIBLE);
         if (maxOffset > 0) {
             int sbX = lx + lw + SCROLLBAR_GAP;
-            ctx.fill(sbX, ly, sbX + SCROLLBAR_W, ly + listH, 0x80000000);
             double ratio = (double) ROWS_VISIBLE / filtered.size();
             int thumbH = Math.max(20, (int) (listH * ratio));
             int range = listH - thumbH;
             int thumbY = ly + (int) (range * ((double) scrollOffset / maxOffset));
-            ctx.fill(sbX, thumbY, sbX + SCROLLBAR_W, thumbY + thumbH, 0xFFAAAAAA);
+            // Centre the 3px glass bar within the 6px hit slot (hit-testing geometry unchanged).
+            GlassRender.scrollbar(ctx, sbX + (SCROLLBAR_W - 3) / 2, ly, ly + listH, thumbY, thumbH);
         }
 
         renderFooter(ctx);
@@ -368,16 +384,15 @@ public final class LootTableDetailScreen extends Screen {
     private void renderBackButton(DrawContext ctx, int mouseX, int mouseY) {
         int[] b = backButtonBounds();
         boolean hov = mouseX >= b[0] && mouseX < b[0] + b[2] && mouseY >= b[1] && mouseY < b[1] + b[3];
-        ctx.fill(b[0], b[1], b[0] + b[2], b[1] + b[3], hov ? 0xFF3A3A3A : 0xFF262626);
-        ctx.fill(b[0], b[1], b[0] + b[2], b[1] + 1, 0xFF777777);
-        ctx.drawText(this.textRenderer, Text.literal("§f‹ Back"), b[0] + 6, b[1] + 3, 0xFFFFFFFF, false);
+        GlassRender.button(ctx, b[0], b[1], b[0] + b[2], b[1] + b[3], hov, true, false);
+        ctx.drawText(this.textRenderer, Text.literal("‹ Back"), b[0] + 6, b[1] + 3, GlassTheme.text(), false);
     }
 
     private void renderFooter(DrawContext ctx) {
         int panelX = (this.width - PANEL_W) / 2;
         int panelY = (this.height - panelHeight()) / 2;
         ctx.drawText(this.textRenderer, Text.literal("§8ESC → back to tables"),
-                panelX + 10, panelY + panelHeight() - 12, 0xFF777777, false);
+                panelX + 10, panelY + panelHeight() - 12, GlassTheme.textMuted(), false);
     }
 
     private List<Text> buildTooltip(LootSnapshotPayload.Entry e, String displayName) {

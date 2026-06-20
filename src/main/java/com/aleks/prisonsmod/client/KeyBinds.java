@@ -1,6 +1,7 @@
 package com.aleks.prisonsmod.client;
 
 import com.aleks.prisonsmod.PrisonsMod;
+import com.aleks.prisonsmod.client.screen.MufflerScreen;
 import com.aleks.prisonsmod.client.screen.SettingsScreen;
 import com.aleks.prisonsmod.render.MinePredictRenderer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -45,6 +46,15 @@ public final class KeyBinds {
             KeyBinding.Category.MISC
     );
 
+    /** Open the Sound & Particle Muffler screen. Unbound by default — also
+     *  reachable from F9 → Audio & Particles and {@code /muffler}. */
+    public static final KeyBinding OPEN_MUFFLER = new KeyBinding(
+            "key.prisonsmod.openMuffler",
+            InputUtil.Type.KEYSYM,
+            GLFW.GLFW_KEY_UNKNOWN,
+            KeyBinding.Category.MISC
+    );
+
     /**
      * Toggle item lock on the slot currently hovered in any inventory screen.
      * Default Z (unbound in vanilla 1.21). Consumed by the screen-key mixin,
@@ -67,6 +77,7 @@ public final class KeyBinds {
         KeyBindingHelper.registerKeyBinding(TOGGLE_MINE_PREDICT);
         KeyBindingHelper.registerKeyBinding(GANG_PING);
         KeyBindingHelper.registerKeyBinding(OPEN_SETTINGS);
+        KeyBindingHelper.registerKeyBinding(OPEN_MUFFLER);
         KeyBindingHelper.registerKeyBinding(TOGGLE_ITEM_LOCK);
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
@@ -81,6 +92,11 @@ public final class KeyBinds {
             while (OPEN_SETTINGS.wasPressed()) {
                 if (client.currentScreen == null) {
                     client.setScreen(new SettingsScreen(null));
+                }
+            }
+            while (OPEN_MUFFLER.wasPressed()) {
+                if (client.currentScreen == null) {
+                    client.setScreen(new MufflerScreen(null));
                 }
             }
         });

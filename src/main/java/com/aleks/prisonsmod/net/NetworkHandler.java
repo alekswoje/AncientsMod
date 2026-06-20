@@ -2,6 +2,7 @@ package com.aleks.prisonsmod.net;
 
 import com.aleks.prisonsmod.PrisonsMod;
 import com.aleks.prisonsmod.client.DuelState;
+import com.aleks.prisonsmod.client.Fullbright;
 import com.aleks.prisonsmod.client.GangRoster;
 import com.aleks.prisonsmod.client.ServerAllowlist;
 import com.aleks.prisonsmod.client.bugreport.BugReportClient;
@@ -13,6 +14,7 @@ import com.aleks.prisonsmod.client.gangping.GangPingManager;
 import com.aleks.prisonsmod.client.hud.BoosterState;
 import com.aleks.prisonsmod.client.hud.CooldownState;
 import com.aleks.prisonsmod.client.hud.EventState;
+import com.aleks.prisonsmod.client.hud.RiftBudgetState;
 import com.aleks.prisonsmod.client.hud.MeteoriteState;
 import com.aleks.prisonsmod.client.hud.MiningStatsState;
 import com.aleks.prisonsmod.client.hud.OutpostState;
@@ -28,6 +30,8 @@ import com.aleks.prisonsmod.net.payload.SuggestFiledPayload;
 import com.aleks.prisonsmod.net.payload.SuggestOpenPayload;
 import com.aleks.prisonsmod.net.payload.CooldownsPayload;
 import com.aleks.prisonsmod.net.payload.EventTimersPayload;
+import com.aleks.prisonsmod.net.payload.RiftBudgetPayload;
+import com.aleks.prisonsmod.net.payload.FullbrightBlacklistPayload;
 import com.aleks.prisonsmod.net.payload.MeteoriteHudPayload;
 import com.aleks.prisonsmod.net.payload.MiningStatsPayload;
 import com.aleks.prisonsmod.net.payload.PveStatsPayload;
@@ -119,16 +123,6 @@ public final class NetworkHandler {
                     MineCancelPayload p = MineCancelPayload.decode(buf);
                     MinePredictRenderer.onMineCancel(p.pos());
                 }
-                case Protocol.PKT_MINE_SPEEDS -> {
-                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.MINE_SPEEDS)) return;
-                    com.aleks.prisonsmod.net.payload.MineSpeedsPayload p =
-                            com.aleks.prisonsmod.net.payload.MineSpeedsPayload.decode(buf);
-                    MinePredictRenderer.onSpeedTable(p);
-                }
-                case Protocol.PKT_CLICKLOCK_STATE -> {
-                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.CLICKLOCK_STATE)) return;
-                    MinePredictRenderer.onClickLockState(buf.readByte() != 0);
-                }
                 case Protocol.PKT_GANG_PING -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.GANG_PING)) return;
                     GangPingPayload p = GangPingPayload.decode(buf);
@@ -164,6 +158,11 @@ public final class NetworkHandler {
                     EventTimersPayload p = EventTimersPayload.decode(buf);
                     EventState.update(p);
                 }
+                case Protocol.PKT_RIFT_BUDGET -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.RIFT_BUDGET)) return;
+                    RiftBudgetPayload p = RiftBudgetPayload.decode(buf);
+                    RiftBudgetState.update(p);
+                }
                 case Protocol.PKT_METEORITE_HUD -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.METEORITE_HUD)) return;
                     MeteoriteHudPayload p = MeteoriteHudPayload.decode(buf);
@@ -183,6 +182,12 @@ public final class NetworkHandler {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.MINING_STATS)) return;
                     MiningStatsPayload p = MiningStatsPayload.decode(buf);
                     MiningStatsState.update(p);
+                }
+                case Protocol.PKT_FULLBRIGHT_BLACKLIST -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.FULLBRIGHT_BLACKLIST)) return;
+                    FullbrightBlacklistPayload p = FullbrightBlacklistPayload.decode(buf);
+                    Fullbright.setBlacklist(p.worlds());
+                    Fullbright.logReceived(p.worlds());
                 }
                 case Protocol.PKT_MINING_BLOCKS -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.MINING_BLOCKS)) return;
@@ -261,6 +266,42 @@ public final class NetworkHandler {
                     byte[] chunk = new byte[len];
                     buf.readBytes(chunk);
                     PvClient.onBundleChunk(version, chunkIndex, chunkCount, chunk);
+                }
+                case Protocol.PKT_SKILLTREE_OPEN -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.SKILLTREE_OPEN)) return;
+                    com.aleks.prisonsmod.net.payload.SkillTreeOpenPayload p =
+                            com.aleks.prisonsmod.net.payload.SkillTreeOpenPayload.decode(buf);
+                    com.aleks.prisonsmod.client.skilltree.SkillTreeClient.onOpen(p);
+                }
+                case Protocol.PKT_SKILLTREE_OPEN_CHUNK -> {
+                    // Chunks arrive as a short burst — gate on the generous
+                    // LOOT_CHUNK kind (sized for 80-chunk bursts) so reassembly
+                    // never drops a chunk to the single-shot SKILLTREE_OPEN rate.
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.LOOT_CHUNK)) return;
+                    int version = buf.readInt();
+                    int chunkIndex = buf.readVarInt();
+                    int chunkCount = buf.readVarInt();
+                    int len = buf.readVarInt();
+                    if (chunkCount < 1 || chunkCount > Protocol.SKILLTREE_MAX_CHUNKS) return;
+                    if (chunkIndex < 0 || chunkIndex >= chunkCount) return;
+                    if (len < 0 || len > Protocol.MAX_SKILLTREE_CHUNK_BYTES) return;
+                    if (buf.readableBytes() < len) return;
+                    byte[] chunk = new byte[len];
+                    buf.readBytes(chunk);
+                    com.aleks.prisonsmod.client.skilltree.SkillTreeClient.onOpenChunk(
+                            version, chunkIndex, chunkCount, chunk);
+                }
+                case Protocol.PKT_SKILLTREE_STATE -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.SKILLTREE_STATE)) return;
+                    com.aleks.prisonsmod.net.payload.SkillTreeStatePayload p =
+                            com.aleks.prisonsmod.net.payload.SkillTreeStatePayload.decode(buf);
+                    com.aleks.prisonsmod.client.skilltree.SkillTreeClient.onState(p);
+                }
+                case Protocol.PKT_SKILLTREE_ACK -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.SKILLTREE_ACK)) return;
+                    com.aleks.prisonsmod.net.payload.SkillTreeAckPayload p =
+                            com.aleks.prisonsmod.net.payload.SkillTreeAckPayload.decode(buf);
+                    com.aleks.prisonsmod.client.skilltree.SkillTreeClient.onAck(p);
                 }
                 case Protocol.PKT_PV_OPEN_TERMINAL -> {
                     // Server-initiated (admin /pvsee). Not client-spammable, so
@@ -459,25 +500,6 @@ public final class NetworkHandler {
      * Buff-screen refresh request. Single-byte payload — server identifies the
      * sender from the channel connection. Server enforces a 1Hz rate limit.
      */
-    /**
-     * Report whether the mod runs swing-time mine prediction. When on, the
-     * server streams {@link Protocol#PKT_MINE_SPEEDS}, suppresses its own
-     * crack-stage stream + break particle/sound/fragment for this player's own
-     * breaks, and grants a ping-bounded completion grace on early retarget.
-     * Sent after the handshake on join and on every toggle change.
-     */
-    public static void sendMinePredictState(boolean on) {
-        if (!ServerAllowlist.isAllowed()) return;
-        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
-        try {
-            ClientPlayNetworking.send(new RawPayload(new byte[] {
-                    Protocol.PKT_MINE_PREDICT_STATE, (byte) (on ? 1 : 0)
-            }));
-        } catch (Throwable t) {
-            PrisonsMod.LOGGER.debug("send mine predict state failed", t);
-        }
-    }
-
     public static void sendBuffRefreshRequest() {
         if (!ServerAllowlist.isAllowed()) return;
         if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
@@ -763,6 +785,55 @@ public final class NetworkHandler {
             sendBuf(buf);
         } catch (Throwable t) {
             PrisonsMod.LOGGER.debug("send pv shift-click failed", t);
+        }
+    }
+
+    // ── Skill tree sends ────────────────────────────────────────────────────
+
+    /** "Open the Tartarus Vision screen — push me the layout + state." */
+    public static void sendSkillTreeOpenRequest() {
+        if (!ServerAllowlist.isAllowed()) {
+            PrisonsMod.LOGGER.info("sendSkillTreeOpenRequest: skipped — server not allowlisted");
+            return;
+        }
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) {
+            PrisonsMod.LOGGER.info("sendSkillTreeOpenRequest: skipped — channel not registered server-side");
+            net.minecraft.client.MinecraftClient mc = net.minecraft.client.MinecraftClient.getInstance();
+            if (mc != null && mc.player != null) {
+                mc.player.sendMessage(net.minecraft.text.Text.literal(
+                        "Skill tree channel not ready yet — try again in a second.")
+                        .formatted(net.minecraft.util.Formatting.YELLOW), false);
+            }
+            return;
+        }
+        try {
+            ClientPlayNetworking.send(new RawPayload(new byte[] { Protocol.PKT_SKILLTREE_OPEN_REQ }));
+            PrisonsMod.LOGGER.info("sendSkillTreeOpenRequest: sent");
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.warn("send skilltree open req failed", t);
+        }
+    }
+
+    /** "Allocate this node." Server validates + replies with ACK + STATE. */
+    public static void sendSkillTreeAllocate(String nodeId) {
+        sendString(Protocol.PKT_SKILLTREE_ALLOCATE,
+                clamp(nodeId, Protocol.SKILLTREE_MAX_NODE_ID_CHARS));
+    }
+
+    /** "Refund this allocated node (free, no money cost)." Same wire as allocate. */
+    public static void sendSkillTreeRefund(String nodeId) {
+        sendString(Protocol.PKT_SKILLTREE_REFUND,
+                clamp(nodeId, Protocol.SKILLTREE_MAX_NODE_ID_CHARS));
+    }
+
+    /** "Respec all allocated nodes (charges money per dungeon level)." */
+    public static void sendSkillTreeRespec() {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            ClientPlayNetworking.send(new RawPayload(new byte[] { Protocol.PKT_SKILLTREE_RESPEC }));
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send skilltree respec failed", t);
         }
     }
 

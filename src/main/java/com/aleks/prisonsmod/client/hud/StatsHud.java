@@ -266,27 +266,13 @@ public final class StatsHud extends HudElement {
 
         if (sections.contains("hunter")) {
             for (MiningRow r : hunterRows()) {
-                ctx.fill(padX, rowY, padX + stripW, rowY + rowH - 2, r.accent);
-                int textX = padX + stripW + stripGap;
-                int textY = rowY + 2;
-                int valW = fr.getWidth(r.value);
-                ctx.drawText(fr, Text.literal(r.value), w - padX - valW, textY, VALUE_COLOR, true);
-                ctx.drawText(fr, Text.literal(r.label), textX, textY,
-                        (r.accent & 0x00FFFFFF) | 0xFF000000, true);
-                rowY += rowH;
+                rowY = drawValueRow(ctx, fr, r.label, r.value, r.accent, padX, stripW, stripGap, rowH, rowY, w);
             }
         }
 
         if (sections.contains("mining") && MiningStatsState.isLive()) {
             for (MiningRow r : miningRows()) {
-                ctx.fill(padX, rowY, padX + stripW, rowY + rowH - 2, r.accent);
-                int textX = padX + stripW + stripGap;
-                int textY = rowY + 2;
-                int valW = fr.getWidth(r.value);
-                ctx.drawText(fr, Text.literal(r.value), w - padX - valW, textY, VALUE_COLOR, true);
-                ctx.drawText(fr, Text.literal(r.label), textX, textY,
-                        (r.accent & 0x00FFFFFF) | 0xFF000000, true);
-                rowY += rowH;
+                rowY = drawValueRow(ctx, fr, r.label, r.value, r.accent, padX, stripW, stripGap, rowH, rowY, w);
             }
         }
 
@@ -329,31 +315,35 @@ public final class StatsHud extends HudElement {
         if (sections.contains("kills")) {
             for (Row r : killRows()) {
                 int accent = killColorFor(r.key);
-                ctx.fill(padX, rowY, padX + stripW, rowY + rowH - 2, accent);
-                int textX = padX + stripW + stripGap;
-                int textY = rowY + 2;
-                String val = String.valueOf(r.value);
-                int valW = fr.getWidth(val);
-                ctx.drawText(fr, Text.literal(val), w - padX - valW, textY, VALUE_COLOR, true);
-                ctx.drawText(fr, Text.literal(r.label), textX, textY,
-                        (accent & 0x00FFFFFF) | 0xFF000000, true);
-                rowY += rowH;
+                rowY = drawValueRow(ctx, fr, r.label, String.valueOf(r.value), accent, padX, stripW, stripGap, rowH, rowY, w);
             }
         }
 
         if (sections.contains("drops") && !dropRows().isEmpty()) {
             for (Row r : dropRows()) {
                 int accent = dropColorFor(r.key);
-                ctx.fill(padX, rowY, padX + stripW, rowY + rowH - 2, accent);
                 int textX = padX + stripW + stripGap;
                 int textY = rowY + 2;
                 String val = String.valueOf(r.value);
                 int valW = fr.getWidth(val);
+                ctx.fill(padX, rowY, padX + stripW, rowY + rowH - 2, accent);
                 ctx.drawText(fr, Text.literal(val), w - padX - valW, textY, VALUE_COLOR, true);
                 ctx.drawText(fr, Text.literal(r.label), textX, textY, 0xFFE6E8EE, true);
                 rowY += rowH;
             }
         }
+    }
+
+    /** Draw one "label … value" row with a coloured left strip; returns the next rowY. */
+    private int drawValueRow(DrawContext ctx, TextRenderer fr, String label, String value, int accent,
+                             int padX, int stripW, int stripGap, int rowH, int rowY, int w) {
+        ctx.fill(padX, rowY, padX + stripW, rowY + rowH - 2, accent);
+        int textX = padX + stripW + stripGap;
+        int textY = rowY + 2;
+        int valW = fr.getWidth(value);
+        ctx.drawText(fr, Text.literal(value), w - padX - valW, textY, VALUE_COLOR, true);
+        ctx.drawText(fr, Text.literal(label), textX, textY, (accent & 0x00FFFFFF) | 0xFF000000, true);
+        return rowY + rowH;
     }
 
     /** Live Hunter XP rows: rolling XP/h (while farming) + the session total. */

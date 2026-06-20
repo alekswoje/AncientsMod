@@ -22,12 +22,10 @@ public final class FeatureToggles {
 
     // ── Toggles (defaults below) ─────────────────────────────────────────────
 
-    /** Swing-time mine prediction. On by default: the crack starts the instant you
-     *  swing (no round trip), the block ghost-swaps to its replacement when the
-     *  predicted timer ends, and the break flash plays locally. The server is told
-     *  via PKT_MINE_PREDICT_STATE and suppresses its own crack stream + break
-     *  effects for this client (no doubled crack), so high-ping mining feels like
-     *  low-ping. Off = legacy server-driven crack + effects. */
+    /** Client-side break-crack prediction. On by default. Note: on this server the plugin
+     *  already sends its own crack the same tick mining starts, so prediction can render a
+     *  second, overlapping crack (a slightly doubled/choppy look) — flip it off under
+     *  Settings → Advanced → Mining if that bothers you. */
     private static volatile boolean minePredict = true;
 
     /** Collapse marked enchant tooltip lines behind Shift. Off by default — full enchant list always visible. */
@@ -36,9 +34,14 @@ public final class FeatureToggles {
     /** Scroll oversized tooltips with the mouse wheel. Off = vanilla bottom-pin (top spills off-screen). */
     private static volatile boolean scrollableTooltips = true;
 
-    /** Render the per-ore-type "Blocks Mined" breakdown on pickaxe tooltips, client-side, from the
-     *  pickaxe's ore-mined data. The server keeps a compact tooltip (no ore lines) for performance,
-     *  so this is how the full breakdown is shown. Only active on compact-lore pickaxes. On by default. */
+    /** In-mod item wiki: hold Alt over a wired item (any armor trim) to pin its tooltip and
+     *  click underlined terms for a plain-English explainer. On by default. */
+    private static volatile boolean itemWiki = true;
+
+    /** Render the per-ore-type "Blocks Mined" breakdown on pickaxe tooltips, client-side,
+     *  from the pickaxe's ore-mined data. The server keeps a compact tooltip (no ore lines)
+     *  for performance, so this is how the full breakdown is shown. Only active on
+     *  compact-lore pickaxes. On by default. */
     private static volatile boolean pickaxeBlocks = true;
 
     /** While holding a pickaxe, fade nearby player-shaped entities (players + NPCs) so they don't obscure the block you're mining. */
@@ -77,10 +80,7 @@ public final class FeatureToggles {
     /** Intercept {@code /suggest} and open the in-game GUI. Off = command goes to the server (which will tell vanilla users to install the mod). */
     private static volatile boolean suggestUi = true;
 
-    /** Intercept {@code /pv} (no args) and open the mod's overview screen showing all 7 PVs at once. Off = vanilla server menu. */
-    private static volatile boolean pvOverview = true;
-
-    /** Use the ME-terminal style PV view (single grid of every stack across every unlocked PV, click to extract, drag to deposit) instead of the per-PV card overview. On by default — the terminal is the standard {@code /pv} view. Off = card overview (alternative view). Only takes effect when {@link #pvOverview} is also on. */
+    /** Intercept {@code /pv} (no args) and open the ME-terminal style PV view: a single grid of every stack across every unlocked PV, click to extract, drag to deposit. Off = vanilla server menu. This is the single toggle gating the mod's custom {@code /pv} screen. */
     private static volatile boolean pvTerminal = true;
 
     /** Auto-focus the PV terminal's search box the moment the terminal opens, so
@@ -119,11 +119,16 @@ public final class FeatureToggles {
     /** When dragging a widget in the HUD editor, snap to positions that make spacing relative to other widgets equal (midpoint between two, or continuing a pattern of three). */
     private static volatile boolean evenSpacingSnap = true;
 
-    /** Auto-rejoin the server after an involuntary disconnect (kick, restart, network drop). Retries every 5s while the disconnect screen is showing. Backend routing + queueing on the way back in is handled by the proxy. */
-    private static volatile boolean autoRejoin = false;
+    /** Auto-rejoin the server after an involuntary disconnect (kick, restart, network drop).
+     *  On by default. Retries every 5s while the disconnect screen is showing. Backend routing +
+     *  queueing on the way back in is handled by the proxy. */
+    private static volatile boolean autoRejoin = true;
 
     /** Item lock — block Q-drop, Ctrl+Q drop-stack, inventory drag-out, and 1-9 hotbar swap on player-inv slots flagged via the lock keybind ({@link KeyBinds#TOGGLE_ITEM_LOCK}). Per-slot state lives in {@link ItemLocks} (separate file). When off, locks are ignored but not forgotten. */
     private static volatile boolean itemLock = true;
+
+    /** Client-side fullbright. Overrides the gamma slider so dark areas render fully lit. Disabled in worlds the server includes in the {@code prisonsmod.fullbright.blacklist-worlds} config (see {@link Fullbright}). Default on — server NV used to do this for everyone. */
+    private static volatile boolean fullbright = true;
 
     /** Draw a compact amount (e.g. "1m", "1.1k") in the top-right corner of currency item slots
      *  (currently Ancient Energy). Parsed from the synced display name — no server change needed. */
@@ -139,6 +144,10 @@ public final class FeatureToggles {
     /** Draw the % value (bottom-right) on Enchant Dust and Calcified Dust slots.
      *  Parsed from the synced lore — no server change needed. */
     private static volatile boolean dustPercentOverlay = true;
+
+    /** Glass GUI theme variant: false = dark smoked glass (default), true = light frosted glass.
+     *  Drives {@link com.aleks.prisonsmod.client.glass.GlassTheme}; affects every mod screen + HUD. */
+    private static volatile boolean glassLightTheme = false;
 
     // Client-side Powerball rendering is always on (no user toggle): the mod draws
     // the ball as a true item-model fire charge that matches the server 1:1, and the
@@ -163,6 +172,7 @@ public final class FeatureToggles {
             minePredict = parseBool(props.getProperty("minePredict"), minePredict);
             enchantCollapse = parseBool(props.getProperty("enchantCollapse"), enchantCollapse);
             scrollableTooltips = parseBool(props.getProperty("scrollableTooltips"), scrollableTooltips);
+            itemWiki = parseBool(props.getProperty("itemWiki"), itemWiki);
             pickaxeBlocks = parseBool(props.getProperty("pickaxeBlocks"), pickaxeBlocks);
             peacefulMining = parseBool(props.getProperty("peacefulMining"), peacefulMining);
             peacefulPvp = parseBool(props.getProperty("peacefulPvp"), peacefulPvp);
@@ -176,7 +186,6 @@ public final class FeatureToggles {
             updateAlert = parseBool(props.getProperty("updateAlert"), updateAlert);
             bugReportUi = parseBool(props.getProperty("bugReportUi"), bugReportUi);
             suggestUi = parseBool(props.getProperty("suggestUi"), suggestUi);
-            pvOverview = parseBool(props.getProperty("pvOverview"), pvOverview);
             pvTerminal = parseBool(props.getProperty("pvTerminal"), pvTerminal);
             pvTerminalAutoFocusSearch = parseBool(props.getProperty("pvTerminalAutoFocusSearch"), pvTerminalAutoFocusSearch);
             pvTerminalSortMode = clampSortMode(parseInt(props.getProperty("pvTerminalSortMode"), pvTerminalSortMode));
@@ -187,10 +196,12 @@ public final class FeatureToggles {
             evenSpacingSnap = parseBool(props.getProperty("evenSpacingSnap"), evenSpacingSnap);
             autoRejoin = parseBool(props.getProperty("autoRejoin"), autoRejoin);
             itemLock = parseBool(props.getProperty("itemLock"), itemLock);
+            fullbright = parseBool(props.getProperty("fullbright"), fullbright);
             currencyAmountOverlay = parseBool(props.getProperty("currencyAmountOverlay"), currencyAmountOverlay);
             gearStatsOverlay = parseBool(props.getProperty("gearStatsOverlay"), gearStatsOverlay);
             boosterInfoOverlay = parseBool(props.getProperty("boosterInfoOverlay"), boosterInfoOverlay);
             dustPercentOverlay = parseBool(props.getProperty("dustPercentOverlay"), dustPercentOverlay);
+            glassLightTheme = parseBool(props.getProperty("glassLightTheme"), glassLightTheme);
         } catch (IOException e) {
             PrisonsMod.LOGGER.warn("failed to load {}: {}", FILE_NAME, e.getMessage());
         }
@@ -201,6 +212,7 @@ public final class FeatureToggles {
         props.setProperty("minePredict", Boolean.toString(minePredict));
         props.setProperty("enchantCollapse", Boolean.toString(enchantCollapse));
         props.setProperty("scrollableTooltips", Boolean.toString(scrollableTooltips));
+        props.setProperty("itemWiki", Boolean.toString(itemWiki));
         props.setProperty("pickaxeBlocks", Boolean.toString(pickaxeBlocks));
         props.setProperty("peacefulMining", Boolean.toString(peacefulMining));
         props.setProperty("peacefulPvp", Boolean.toString(peacefulPvp));
@@ -214,7 +226,6 @@ public final class FeatureToggles {
         props.setProperty("updateAlert", Boolean.toString(updateAlert));
         props.setProperty("bugReportUi", Boolean.toString(bugReportUi));
         props.setProperty("suggestUi", Boolean.toString(suggestUi));
-        props.setProperty("pvOverview", Boolean.toString(pvOverview));
         props.setProperty("pvTerminal", Boolean.toString(pvTerminal));
         props.setProperty("pvTerminalAutoFocusSearch", Boolean.toString(pvTerminalAutoFocusSearch));
         props.setProperty("pvTerminalSortMode", Integer.toString(pvTerminalSortMode));
@@ -225,10 +236,12 @@ public final class FeatureToggles {
         props.setProperty("evenSpacingSnap", Boolean.toString(evenSpacingSnap));
         props.setProperty("autoRejoin", Boolean.toString(autoRejoin));
         props.setProperty("itemLock", Boolean.toString(itemLock));
+        props.setProperty("fullbright", Boolean.toString(fullbright));
         props.setProperty("currencyAmountOverlay", Boolean.toString(currencyAmountOverlay));
         props.setProperty("gearStatsOverlay", Boolean.toString(gearStatsOverlay));
         props.setProperty("boosterInfoOverlay", Boolean.toString(boosterInfoOverlay));
         props.setProperty("dustPercentOverlay", Boolean.toString(dustPercentOverlay));
+        props.setProperty("glassLightTheme", Boolean.toString(glassLightTheme));
         try {
             Files.createDirectories(configPath().getParent());
             try (var out = Files.newOutputStream(configPath())) {
@@ -242,7 +255,8 @@ public final class FeatureToggles {
     public static boolean isMinePredictEnabled() { return minePredict; }
 
     public static boolean toggleMinePredict() {
-        setMinePredict(!minePredict);
+        minePredict = !minePredict;
+        save();
         return minePredict;
     }
 
@@ -250,9 +264,6 @@ public final class FeatureToggles {
         if (minePredict == value) return;
         minePredict = value;
         save();
-        // Tell the server so it flips its side (speed-table stream, crack/effect
-        // suppression, completion grace) together with us. No-op when not connected.
-        com.aleks.prisonsmod.net.NetworkHandler.sendMinePredictState(value);
     }
 
     public static boolean isEnchantCollapseEnabled() { return enchantCollapse; }
@@ -294,6 +305,14 @@ public final class FeatureToggles {
     public static void setScrollableTooltips(boolean value) {
         if (scrollableTooltips == value) return;
         scrollableTooltips = value;
+        save();
+    }
+
+    public static boolean isItemWikiEnabled() { return itemWiki; }
+
+    public static void setItemWiki(boolean value) {
+        if (itemWiki == value) return;
+        itemWiki = value;
         save();
     }
 
@@ -413,14 +432,6 @@ public final class FeatureToggles {
         save();
     }
 
-    public static boolean isPvOverviewEnabled() { return pvOverview; }
-
-    public static void setPvOverview(boolean value) {
-        if (pvOverview == value) return;
-        pvOverview = value;
-        save();
-    }
-
     public static boolean isPvTerminalEnabled() { return pvTerminal; }
 
     public static void setPvTerminal(boolean value) {
@@ -524,6 +535,14 @@ public final class FeatureToggles {
         save();
     }
 
+    public static boolean isFullbrightEnabled() { return fullbright; }
+
+    public static void setFullbright(boolean value) {
+        if (fullbright == value) return;
+        fullbright = value;
+        save();
+    }
+
     public static boolean isCurrencyAmountOverlayEnabled() { return currencyAmountOverlay; }
 
     public static void setCurrencyAmountOverlay(boolean value) {
@@ -553,6 +572,14 @@ public final class FeatureToggles {
     public static void setDustPercentOverlay(boolean value) {
         if (dustPercentOverlay == value) return;
         dustPercentOverlay = value;
+        save();
+    }
+
+    public static boolean isGlassLightThemeEnabled() { return glassLightTheme; }
+
+    public static void setGlassLightTheme(boolean value) {
+        if (glassLightTheme == value) return;
+        glassLightTheme = value;
         save();
     }
 

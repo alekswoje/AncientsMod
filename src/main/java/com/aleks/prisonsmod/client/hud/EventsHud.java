@@ -140,6 +140,13 @@ public final class EventsHud extends HudElement {
         List<Row> out = new ArrayList<>();
         for (String key : ALL_KEYS) {
             if (!enabled.contains(key)) continue;
+            // The rift is per-player now (PKT_RIFT_BUDGET), not part of the shared
+            // event-timer snapshot — source its row from RiftBudgetState instead.
+            if (key.equals("rift")) {
+                Row r = riftRow();
+                if (r != null) out.add(r);
+                continue;
+            }
             EventTimersPayload.Entry e = byKey.get(key);
             if (e == null) continue;
             if (e.state() == Protocol.EVENT_STATE_UNKNOWN) continue;
@@ -220,6 +227,27 @@ public final class EventsHud extends HudElement {
         int h = m / 60;
         int rm = m % 60;
         return String.format(Locale.US, "%d:%02d:%02d", h, rm, s);
+    }
+
+    /** Rift row sourced from the per-player daily-time packet (e.g. "12:30 · 4h"). */
+    private static Row riftRow() {
+        if (!RiftBudgetState.isFresh()) return null;
+        if (!RiftBudgetState.isAvailable()) {
+            return new Row(displayNameFor("rift"), "OFF", STATE_OFF, accentFor("rift"));
+        }
+        String right = formatDuration(RiftBudgetState.liveRemaining())
+                + " · " + formatShort(RiftBudgetState.liveUntilReset());
+        return new Row(displayNameFor("rift"), right, HudStyle.TIME_COLOR, accentFor("rift"));
+    }
+
+    /** Compact single-unit duration (e.g. "4h", "12m", "30s") for the reset countdown. */
+    private static String formatShort(int seconds) {
+        if (seconds <= 0) return "0s";
+        int h = seconds / 3600;
+        int m = (seconds % 3600) / 60;
+        if (h > 0) return h + "h";
+        if (m > 0) return m + "m";
+        return seconds + "s";
     }
 
     private static TextRenderer textRenderer() {

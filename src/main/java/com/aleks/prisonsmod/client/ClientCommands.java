@@ -1,6 +1,8 @@
 package com.aleks.prisonsmod.client;
 
+import com.aleks.prisonsmod.client.screen.MufflerScreen;
 import com.aleks.prisonsmod.client.screen.SettingsScreen;
+import com.aleks.prisonsmod.client.skilltree.SkillTreeClient;
 import com.aleks.prisonsmod.client.update.UpdateInstaller;
 import com.mojang.brigadier.Command;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
@@ -31,10 +33,40 @@ public final class ClientCommands {
                             .executes(ctx -> openSettings())
                             .then(ClientCommandManager.literal("settings")
                                     .executes(ctx -> openSettings()))
+                            .then(ClientCommandManager.literal("muffler")
+                                    .executes(ctx -> openMuffler()))
                             .then(ClientCommandManager.literal("update")
                                     .executes(ctx -> runUpdate()))
             );
+            // /muffler — open the sound & particle muffler directly.
+            dispatcher.register(
+                    ClientCommandManager.literal("muffler")
+                            .executes(ctx -> openMuffler())
+            );
+            // /skilltree — re-open the Tartarus Vision screen without
+            // walking back to the Oracle. Requests a fresh layout + state
+            // from the server every time so balance edits show up.
+            dispatcher.register(
+                    ClientCommandManager.literal("skilltree")
+                            .executes(ctx -> requestSkillTreeOpen())
+            );
         });
+    }
+
+    private static int requestSkillTreeOpen() {
+        com.aleks.prisonsmod.PrisonsMod.LOGGER.info("/skilltree invoked; allowlisted={}",
+                ServerAllowlist.isAllowed());
+        if (!ServerAllowlist.isAllowed()) {
+            MinecraftClient mc = MinecraftClient.getInstance();
+            if (mc != null && mc.player != null) {
+                mc.player.sendMessage(net.minecraft.text.Text.literal(
+                        "/skilltree only works on the Ancients server.")
+                        .formatted(net.minecraft.util.Formatting.RED), false);
+            }
+            return 0;
+        }
+        SkillTreeClient.requestOpen();
+        return Command.SINGLE_SUCCESS;
     }
 
     private static int openSettings() {
@@ -46,6 +78,17 @@ public final class ClientCommands {
         client.send(() -> {
             if (client.currentScreen == null) {
                 client.setScreen(new SettingsScreen(null));
+            }
+        });
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private static int openMuffler() {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null) return 0;
+        client.send(() -> {
+            if (client.currentScreen == null) {
+                client.setScreen(new MufflerScreen(null));
             }
         });
         return Command.SINGLE_SUCCESS;

@@ -68,7 +68,7 @@ public final class PvClient {
         ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> {
             if (!expectingMenuReopen) return;
             if (!ServerAllowlist.isAllowed()) return;
-            if (!FeatureToggles.isPvOverviewEnabled()) return;
+            if (!FeatureToggles.isPvTerminalEnabled()) return;
             if (!(screen instanceof HandledScreen<?> hs)) return;
             String title = hs.getTitle().getString();
             if (title == null) return;
@@ -93,7 +93,7 @@ public final class PvClient {
         if (passingThroughFallback) return true;
         if (command == null || command.isEmpty()) return true;
         if (!ServerAllowlist.isAllowed()) return true;
-        if (!FeatureToggles.isPvOverviewEnabled()) return true;
+        if (!FeatureToggles.isPvTerminalEnabled()) return true;
         if (state != State.IDLE) return true;
 
         String trimmed = command.trim().toLowerCase(Locale.ROOT);
@@ -228,6 +228,33 @@ public final class PvClient {
         // Picker dismissed via ESC or Back button — return to the overview if
         // we still have data, otherwise just go idle.
         state = State.IDLE;
+    }
+
+    /**
+     * Reset all {@code /pv} flow state. Called from the client DISCONNECT handler.
+     * These are static fields that survive a reconnect, so a server reboot while
+     * the terminal was open (or a bundle request was in flight) would otherwise
+     * leave {@code state} stuck at OPEN/REQUESTING forever — making every later
+     * {@code /pv} fall straight through to the server's default chest menu (no
+     * timeout message, because the intercept never re-arms) until a full client
+     * restart. The cell terminal already resets here (CellTermClient.reset), which
+     * is why it never got stuck; the PV terminal was simply missing from the list.
+     */
+    public static void reset() {
+        state = State.IDLE;
+        intentSentAtMs = 0L;
+        passingThroughFallback = false;
+        expectingMenuReopen = false;
+        pendingPvSee = false;
+        pvSeeTargetName = "";
+        latestBundle = null;
+        // Drop any half-received chunked bundle so a stale reassembly from the
+        // previous session can't bleed into the next one.
+        asmVersion = -1;
+        asmCount = 0;
+        asmReceived = 0;
+        asmBytes = 0;
+        asmChunks = null;
     }
 
     /** Re-open the overview from the picker's "Back" button. Uses the latest

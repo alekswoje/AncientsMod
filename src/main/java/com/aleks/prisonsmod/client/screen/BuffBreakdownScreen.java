@@ -5,13 +5,15 @@ import com.aleks.prisonsmod.client.buffs.BuffSnapshotState;
 import com.aleks.prisonsmod.client.buffs.BuffStacker;
 import com.aleks.prisonsmod.client.buffs.BuffTarget;
 import com.aleks.prisonsmod.client.buffs.CustomModifier;
+import com.aleks.prisonsmod.client.glass.GlassButton;
+import com.aleks.prisonsmod.client.glass.GlassRender;
+import com.aleks.prisonsmod.client.glass.GlassTextField;
+import com.aleks.prisonsmod.client.glass.GlassTheme;
 import com.aleks.prisonsmod.net.NetworkHandler;
 import com.aleks.prisonsmod.net.payload.BuffSnapshotPayload;
 import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import org.jetbrains.annotations.Nullable;
@@ -42,30 +44,16 @@ import java.util.Map;
  */
 public final class BuffBreakdownScreen extends Screen {
 
-    // Theme — matches BoosterHud's dark-gradient + accent-strip aesthetic.
-    private static final int BG_TOP        = 0xE6111319;
-    private static final int BG_BOT        = 0xE61A1D26;
-    private static final int PANEL_BG_TOP  = 0xCC1F2330;
-    private static final int PANEL_BG_BOT  = 0xCC15171F;
-    private static final int BORDER        = 0x55FFFFFF;
-    private static final int HEADER_BG     = 0x22FFC857;
-    private static final int HEADER_RULE   = 0x44FFFFFF;
-    private static final int HEADER_TEXT   = 0xFFFFD68A;
-    private static final int LABEL_COLOR   = 0xFFE6E8EE;
-    private static final int DIM_COLOR     = 0xFF8A8F9A;
-    private static final int VALUE_COLOR   = 0xFFFFFFFF;
-    private static final int DELTA_UP      = 0xFF8AE08A;
-    private static final int DELTA_DOWN    = 0xFFFF8A8A;
-    private static final int ROW_ALT       = 0x10FFFFFF;
-    private static final int ROW_HOVER     = 0x22FFFFFF;
-    private static final int ROW_SELECTED  = 0x3366E0E0;
-    private static final int TAB_ACTIVE_BG = 0x33FFC857;
-    private static final int TAB_TEXT      = 0xFFE6E8EE;
-    private static final int CUSTOM_ACCENT = 0xFF66E0E0;
-    private static final int SLIDER_TRACK  = 0x55000000;
-    private static final int SLIDER_FILL   = 0x9966E0E0;
-    private static final int SLIDER_KNOB   = 0xFFFFFFFF;
-    private static final int DELETE_COLOR  = 0xFFFF8A8A;
+    // Theme — season2 frosted glass. Mode-aware chrome (panels, borders, header,
+    // text, rows) is read live from GlassTheme/GlassRender at the draw sites; the
+    // constants below are the handful of fixed glass tints/accents reused inline.
+    private static final int HEADER_RULE   = 0x44FFFFFF;                 // hairline rule under headers
+    private static final int ROW_ALT       = 0x0AFFFFFF;                 // zebra stripe
+    private static final int ROW_SELECTED  = GlassTheme.withAlpha(GlassTheme.ACCENT, 0x40);
+    private static final int CUSTOM_ACCENT = GlassTheme.ACCENT_SOFT;     // custom-modifier accent strip
+    private static final int DELTA_UP      = GlassTheme.OK;
+    private static final int DELTA_DOWN    = GlassTheme.WARN;
+    private static final int DELETE_COLOR  = GlassTheme.WARN;
 
     private static final int PADDING = 8;
     private static final int TAB_W   = 180;
@@ -92,11 +80,11 @@ public final class BuffBreakdownScreen extends Screen {
     private long lastRefreshAtMs;
 
     // ── Builder widgets (only present in CUSTOM view) ──────────────────────────
-    private @Nullable ButtonWidget targetBtn;
-    private @Nullable ButtonWidget kindBtn;
-    private @Nullable TextFieldWidget valueField;
-    private @Nullable TextFieldWidget nameField;
-    private @Nullable ButtonWidget addBtn;
+    private @Nullable GlassButton targetBtn;
+    private @Nullable GlassButton kindBtn;
+    private @Nullable GlassTextField valueField;
+    private @Nullable GlassTextField nameField;
+    private @Nullable GlassButton addBtn;
     private List<BuffTarget> targetOptions = new ArrayList<>();
     private int targetIndex;
     private int kindIndex; // 0 additive, 1 multiplicative, 2 flat — equals the kind byte
@@ -142,21 +130,18 @@ public final class BuffBreakdownScreen extends Screen {
 
     @Override
     protected void init() {
-        addDrawableChild(ButtonWidget.builder(Text.literal("Done"), b -> this.close())
-                .dimensions(width - PADDING - 60, height - PADDING - 20, 60, 20)
-                .build());
+        addDrawableChild(new GlassButton(width - PADDING - 60, height - PADDING - 20, 60, 20,
+                Text.literal("Done"), this::close).primary());
 
-        addDrawableChild(ButtonWidget.builder(Text.literal("Refresh"), b -> requestRefresh())
-                .dimensions(PADDING, height - PADDING - 20, 80, 20)
-                .build());
+        addDrawableChild(new GlassButton(PADDING, height - PADDING - 20, 80, 20,
+                Text.literal("Refresh"), this::requestRefresh));
 
         if (view == View.CHANNEL) {
-            addDrawableChild(ButtonWidget.builder(Text.literal("Reset channel"), b -> {
+            addDrawableChild(new GlassButton(width / 2 - 60, height - PADDING - 20, 120, 20,
+                    Text.literal("Reset channel"), () -> {
                         BuffSandboxStore.resetChannel(activeChannel);
                         selectedKey = null;
-                    })
-                    .dimensions(width / 2 - 60, height - PADDING - 20, 120, 20)
-                    .build());
+                    }));
         }
 
         if (view == View.CUSTOM) initBuilderWidgets();
@@ -172,34 +157,31 @@ public final class BuffBreakdownScreen extends Screen {
         int x = panelX + PADDING;
 
         int targetW = 96, kindW = 84, valueW = 50, addW = 46;
-        targetBtn = ButtonWidget.builder(targetBtnText(), b -> {
+        targetBtn = new GlassButton(x, by, targetW, 18, targetBtnText(), () -> {
                     targetIndex = (targetIndex + 1) % targetOptions.size();
                     if (targetBtn != null) targetBtn.setMessage(targetBtnText());
-                })
-                .dimensions(x, by, targetW, 18).build();
+                });
         addDrawableChild(targetBtn);
 
-        kindBtn = ButtonWidget.builder(kindBtnText(), b -> {
+        kindBtn = new GlassButton(x + targetW + 4, by, kindW, 18, kindBtnText(), () -> {
                     kindIndex = (kindIndex + 1) % 3;
                     if (kindBtn != null) kindBtn.setMessage(kindBtnText());
-                })
-                .dimensions(x + targetW + 4, by, kindW, 18).build();
+                });
         addDrawableChild(kindBtn);
 
         int valueX = x + targetW + 4 + kindW + 4;
-        valueField = new TextFieldWidget(this.textRenderer, valueX, by, valueW, 18, Text.literal("value"));
+        valueField = new GlassTextField(this.textRenderer, valueX, by, valueW, 18, Text.literal("value"));
         valueField.setMaxLength(12);
         valueField.setPlaceholder(Text.literal("25").formatted(Formatting.DARK_GRAY));
         addDrawableChild(valueField);
 
         int addX = panelRight - PADDING - addW;
-        addBtn = ButtonWidget.builder(Text.literal("Add").formatted(Formatting.GREEN), b -> onAddCustom())
-                .dimensions(addX, by, addW, 18).build();
+        addBtn = new GlassButton(addX, by, addW, 18, Text.literal("Add"), this::onAddCustom).primary();
         addDrawableChild(addBtn);
 
         int nameX = valueX + valueW + 16; // leave room for the unit hint after the value field
         int nameW = Math.max(40, addX - 6 - nameX);
-        nameField = new TextFieldWidget(this.textRenderer, nameX, by, nameW, 18, Text.literal("name"));
+        nameField = new GlassTextField(this.textRenderer, nameX, by, nameW, 18, Text.literal("name"));
         nameField.setMaxLength(28);
         nameField.setPlaceholder(Text.literal("name (optional)").formatted(Formatting.DARK_GRAY));
         addDrawableChild(nameField);
@@ -420,15 +402,15 @@ public final class BuffBreakdownScreen extends Screen {
 
     @Override
     public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
-        ctx.fillGradient(0, 0, width, height, BG_TOP, BG_BOT);
+        GlassRender.menuBackdrop(ctx, this.width, this.height);
         ctx.drawCenteredTextWithShadow(textRenderer,
-                Text.literal("Pickaxe Buffs — interactive breakdown").formatted(Formatting.GOLD),
-                width / 2, PADDING, HEADER_TEXT);
+                Text.literal("Pickaxe Buffs — interactive breakdown"),
+                width / 2, PADDING, GlassTheme.ACCENT_SOFT);
 
         if (snapshot == null || snapshot.channels.isEmpty()) {
             ctx.drawCenteredTextWithShadow(textRenderer,
                     Text.literal("No snapshot yet. Press Refresh."),
-                    width / 2, height / 2, DIM_COLOR);
+                    width / 2, height / 2, GlassTheme.textDim());
             super.render(ctx, mouseX, mouseY, delta);
             return;
         }
@@ -459,8 +441,8 @@ public final class BuffBreakdownScreen extends Screen {
     }
 
     private void renderLeftRail(DrawContext ctx, int x, int y, int w, int h, int mouseX, int mouseY) {
-        ctx.fillGradient(x, y, x + w, y + h, PANEL_BG_TOP, PANEL_BG_BOT);
-        drawBorder(ctx, x, y, x + w, y + h, BORDER);
+        GlassRender.roundedRectGrad(ctx, x, y, x + w, y + h, GlassRender.RADIUS, GlassTheme.panelTop(), GlassTheme.panelBot());
+        GlassRender.roundedBorder(ctx, x, y, x + w, y + h, GlassRender.RADIUS, GlassTheme.rim());
         tabRects.clear();
 
         int rowY = y + 4;
@@ -471,18 +453,18 @@ public final class BuffBreakdownScreen extends Screen {
             BuffSnapshotPayload.Channel ch = e.getValue();
             boolean active = view == View.CHANNEL && chId == activeChannel;
             boolean hovered = mouseX >= x + 2 && mouseX <= x + w - 2 && mouseY >= rowY && mouseY <= rowY + TAB_H - 2;
-            int bg = active ? TAB_ACTIVE_BG : (hovered ? ROW_HOVER : 0);
+            int bg = active ? GlassTheme.withAlpha(GlassTheme.ACCENT, 0x33) : (hovered ? GlassTheme.rowHover() : 0);
             if (bg != 0) ctx.fill(x + 2, rowY, x + w - 2, rowY + TAB_H - 2, bg);
             int textY = rowY + (TAB_H - 2 - textRenderer.fontHeight) / 2;
 
             String mini = formatValueForChannel(chId, ch.serverFinalValue);
             int miniW = textRenderer.getWidth(mini);
             int miniX = x + w - rightPad - miniW;
-            ctx.drawText(textRenderer, Text.literal(mini), miniX, textY, DIM_COLOR, true);
+            ctx.drawText(textRenderer, Text.literal(mini), miniX, textY, GlassTheme.textDim(), true);
 
             int nameRoom = Math.max(0, miniX - gap - (x + leftPad));
             String fitted = textRenderer.trimToWidth(BuffSnapshotPayload.channelDisplayName(chId), nameRoom);
-            ctx.drawText(textRenderer, Text.literal(fitted), x + leftPad, textY, active ? HEADER_TEXT : TAB_TEXT, true);
+            ctx.drawText(textRenderer, Text.literal(fitted), x + leftPad, textY, active ? GlassTheme.ACCENT_SOFT : GlassTheme.text(), true);
 
             tabRects.add(new int[]{0, chId, x + 2, rowY, x + w - 2, rowY + TAB_H - 2});
             rowY += TAB_H;
@@ -506,19 +488,19 @@ public final class BuffBreakdownScreen extends Screen {
     private int drawSyntheticTab(DrawContext ctx, int x, int w, int rowY, String label, boolean active,
                                   int mouseX, int mouseY, int code) {
         boolean hovered = mouseX >= x + 2 && mouseX <= x + w - 2 && mouseY >= rowY && mouseY <= rowY + TAB_H - 2;
-        int bg = active ? TAB_ACTIVE_BG : (hovered ? ROW_HOVER : 0);
+        int bg = active ? GlassTheme.withAlpha(GlassTheme.ACCENT, 0x33) : (hovered ? GlassTheme.rowHover() : 0);
         if (bg != 0) ctx.fill(x + 2, rowY, x + w - 2, rowY + TAB_H - 2, bg);
         int textY = rowY + (TAB_H - 2 - textRenderer.fontHeight) / 2;
         int room = Math.max(0, (x + w - 6) - (x + 8));
         String fitted = textRenderer.trimToWidth(label, room);
-        ctx.drawText(textRenderer, Text.literal(fitted), x + 8, textY, active ? HEADER_TEXT : TAB_TEXT, true);
+        ctx.drawText(textRenderer, Text.literal(fitted), x + 8, textY, active ? GlassTheme.ACCENT_SOFT : GlassTheme.text(), true);
         tabRects.add(new int[]{code, 0, x + 2, rowY, x + w - 2, rowY + TAB_H - 2});
         return rowY + TAB_H;
     }
 
     private void renderChannelPanel(DrawContext ctx, int x, int y, int w, int h, int mouseX, int mouseY) {
-        ctx.fillGradient(x, y, x + w, y + h, PANEL_BG_TOP, PANEL_BG_BOT);
-        drawBorder(ctx, x, y, x + w, y + h, BORDER);
+        GlassRender.roundedRectGrad(ctx, x, y, x + w, y + h, GlassRender.RADIUS, GlassTheme.panelTop(), GlassTheme.panelBot());
+        GlassRender.roundedBorder(ctx, x, y, x + w, y + h, GlassRender.RADIUS, GlassTheme.rim());
 
         BuffSnapshotPayload.Channel ch = snapshot.channels.get(activeChannel);
         if (ch == null) return;
@@ -528,19 +510,19 @@ public final class BuffBreakdownScreen extends Screen {
         BuffStacker.Result sandbox = computeRows(activeRows);
 
         // Header.
-        ctx.fill(x + 1, y + 1, x + w - 1, y + 1 + HEADER_H, HEADER_BG);
+        ctx.fill(x + GlassRender.RADIUS, y + 1, x + w - GlassRender.RADIUS, y + 1 + HEADER_H, GlassTheme.headerWash());
         ctx.fill(x + 1, y + 1 + HEADER_H, x + w - 1, y + 1 + HEADER_H + 1, HEADER_RULE);
         ctx.drawText(textRenderer, Text.literal(BuffSnapshotPayload.channelDisplayName(ch.id)),
-                x + PADDING, y + 5, HEADER_TEXT, true);
+                x + PADDING, y + 5, GlassTheme.ACCENT_SOFT, true);
         String current = formatValueForChannel(ch.id, ch.serverFinalValue);
         String sand = formatValueForChannel(ch.id, sandbox.finalValue);
         int deltaColor = Math.abs(sandbox.finalValue - ch.serverFinalValue) < 1e-6
-                ? VALUE_COLOR : (sandbox.finalValue > ch.serverFinalValue ? DELTA_UP : DELTA_DOWN);
+                ? GlassTheme.text() : (sandbox.finalValue > ch.serverFinalValue ? DELTA_UP : DELTA_DOWN);
         String arrow = "  →  ";
         String composite = current + arrow + sand;
         int compX = x + w - PADDING - textRenderer.getWidth(composite);
-        ctx.drawText(textRenderer, Text.literal(current), compX, y + 5, DIM_COLOR, true);
-        ctx.drawText(textRenderer, Text.literal(arrow), compX + textRenderer.getWidth(current), y + 5, DIM_COLOR, true);
+        ctx.drawText(textRenderer, Text.literal(current), compX, y + 5, GlassTheme.textDim(), true);
+        ctx.drawText(textRenderer, Text.literal(arrow), compX + textRenderer.getWidth(current), y + 5, GlassTheme.textDim(), true);
         ctx.drawText(textRenderer, Text.literal(sand),
                 compX + textRenderer.getWidth(current + arrow), y + 5, deltaColor, true);
 
@@ -561,7 +543,7 @@ public final class BuffBreakdownScreen extends Screen {
         ctx.fill(x + 1, footerTop, x + w - 1, footerTop + 1, HEADER_RULE);
         String footer = String.format(Locale.US, "additive pool × %s × multipliers × %s",
                 formatX(sandbox.additivePool), formatX(sandbox.multiplicativeProduct));
-        ctx.drawText(textRenderer, Text.literal(footer), x + PADDING, footerTop + 3, DIM_COLOR, false);
+        ctx.drawText(textRenderer, Text.literal(footer), x + PADDING, footerTop + 3, GlassTheme.textDim(), false);
     }
 
     /** Shared compact row list for both the channel view and the custom-modifier list. */
@@ -589,7 +571,7 @@ public final class BuffBreakdownScreen extends Screen {
         boolean selected = selectedKey != null && selectedKey.equals(r.selKey);
         boolean hovered = mouseX >= x && mouseX <= x + w && mouseY >= y && mouseY <= y + rowH;
         if (selected) ctx.fill(x, y, x + w, y + rowH, ROW_SELECTED);
-        else if (hovered) ctx.fill(x, y, x + w, y + rowH, ROW_HOVER);
+        else if (hovered) ctx.fill(x, y, x + w, y + rowH, GlassTheme.rowHover());
         else if (((y / rowH) & 1) == 1) ctx.fill(x, y, x + w, y + rowH, ROW_ALT);
 
         int accent = r.custom ? CUSTOM_ACCENT : BuffSnapshotPayload.categoryColor(r.category);
@@ -598,18 +580,18 @@ public final class BuffBreakdownScreen extends Screen {
         int checkboxX = x + 8;
         int checkboxY = y + (rowH - CHECKBOX_W) / 2;
         if (r.toggleable) {
-            ctx.fill(checkboxX, checkboxY, checkboxX + CHECKBOX_W, checkboxY + CHECKBOX_W, 0x44000000);
-            drawBorder(ctx, checkboxX, checkboxY, checkboxX + CHECKBOX_W, checkboxY + CHECKBOX_W, BORDER);
+            GlassRender.slot(ctx, checkboxX, checkboxY, checkboxX + CHECKBOX_W, checkboxY + CHECKBOX_W);
             if (r.enabled) {
-                ctx.fill(checkboxX + 2, checkboxY + 2, checkboxX + CHECKBOX_W - 2, checkboxY + CHECKBOX_W - 2, accent);
+                GlassRender.roundedRect(ctx, checkboxX + 2, checkboxY + 2,
+                        checkboxX + CHECKBOX_W - 2, checkboxY + CHECKBOX_W - 2, 2, accent);
             }
         }
 
         int labelX = checkboxX + CHECKBOX_W + 6;
         int textY = y + (rowH - textRenderer.fontHeight) / 2;
-        int labelColor = (!r.enabled && r.toggleable) ? DIM_COLOR
-                : (r.state == BuffSnapshotPayload.STATE_POTENTIAL ? DIM_COLOR : LABEL_COLOR);
-        if (r.kind == BuffSnapshotPayload.KIND_PROC_DAMAGE) labelColor = LABEL_COLOR;
+        int labelColor = (!r.enabled && r.toggleable) ? GlassTheme.textDim()
+                : (r.state == BuffSnapshotPayload.STATE_POTENTIAL ? GlassTheme.textDim() : GlassTheme.text());
+        if (r.kind == BuffSnapshotPayload.KIND_PROC_DAMAGE) labelColor = GlassTheme.text();
 
         // Reserve space on the right for the value (+ delete glyph in the custom list).
         boolean deletable = r.custom && view == View.CUSTOM;
@@ -626,7 +608,7 @@ public final class BuffBreakdownScreen extends Screen {
 
         String valueStr = rowValueString(r, sandbox);
         int valW = textRenderer.getWidth(valueStr);
-        int valColor = (!r.enabled && r.toggleable) ? DIM_COLOR : VALUE_COLOR;
+        int valColor = (!r.enabled && r.toggleable) ? GlassTheme.textDim() : GlassTheme.text();
         ctx.drawText(textRenderer, Text.literal(valueStr), rightEdge - valW, textY, valColor, true);
 
         int labelRoom = Math.max(0, (rightEdge - valW - 6) - labelX);
@@ -635,7 +617,7 @@ public final class BuffBreakdownScreen extends Screen {
         int usedW = textRenderer.getWidth(fittedLabel);
         if (!r.detail.isEmpty() && usedW < labelRoom) {
             String detail = textRenderer.trimToWidth("  " + r.detail, labelRoom - usedW);
-            ctx.drawText(textRenderer, Text.literal(detail), labelX + usedW, textY, DIM_COLOR, false);
+            ctx.drawText(textRenderer, Text.literal(detail), labelX + usedW, textY, GlassTheme.textDim(), false);
         }
     }
 
@@ -651,20 +633,20 @@ public final class BuffBreakdownScreen extends Screen {
     }
 
     private void renderDetailStrip(DrawContext ctx, int x, int top, int w, int h, Row r, int mouseX, int mouseY) {
-        ctx.fill(x + 1, top, x + w - 1, top + 1, HEADER_RULE);
-        ctx.fill(x + 1, top + 1, x + w - 1, top + h, 0x22000000);
+        ctx.fill(x + GlassRender.RADIUS, top, x + w - GlassRender.RADIUS, top + 1, HEADER_RULE);
+        GlassRender.roundedRect(ctx, x + GlassRender.RADIUS, top + 2, x + w - GlassRender.RADIUS, top + h, 6, GlassTheme.slot());
 
         int innerX = x + PADDING;
         int innerRight = x + w - PADDING;
 
         // Line 1: "Adjusting: <label>" + on/off pill + reset/delete.
         String head = "Adjusting: " + stripGlyph(r.label);
-        ctx.drawText(textRenderer, Text.literal(textRenderer.trimToWidth(head, w / 2)), innerX, top + 4, HEADER_TEXT, true);
+        ctx.drawText(textRenderer, Text.literal(textRenderer.trimToWidth(head, w / 2)), innerX, top + 4, GlassTheme.ACCENT_SOFT, true);
 
         int btnY = top + 3;
         // Reset (real) or Delete (custom) — far right.
         String actionText = r.custom ? "Delete" : "Reset";
-        int actionColor = r.custom ? DELETE_COLOR : DIM_COLOR;
+        int actionColor = r.custom ? DELETE_COLOR : GlassTheme.textDim();
         int actionW = textRenderer.getWidth(actionText);
         int actionX = innerRight - actionW;
         boolean actionHover = mouseX >= actionX - 2 && mouseX <= actionX + actionW + 2 && mouseY >= btnY && mouseY <= btnY + 10;
@@ -677,11 +659,10 @@ public final class BuffBreakdownScreen extends Screen {
         String pill = r.enabled ? "On" : "Off";
         int pillW = textRenderer.getWidth(pill) + 10;
         int pillX = actionX - 8 - pillW;
-        int pillColor = r.enabled ? 0x338AE08A : 0x33FF8A8A;
-        ctx.fill(pillX, btnY - 1, pillX + pillW, btnY + 10, pillColor);
-        drawBorder(ctx, pillX, btnY - 1, pillX + pillW, btnY + 10, BORDER);
+        boolean pillHover = mouseX >= pillX && mouseX <= pillX + pillW && mouseY >= btnY - 1 && mouseY <= btnY + 10;
+        GlassRender.button(ctx, pillX, btnY - 1, pillX + pillW, btnY + 10, pillHover, true, r.enabled);
         ctx.drawText(textRenderer, Text.literal(pill), pillX + 5, btnY,
-                r.enabled ? DELTA_UP : DELTA_DOWN, true);
+                r.enabled ? 0xFFFFFFFF : GlassTheme.textDim(), true);
         pillHit = new int[]{pillX, btnY - 1, pillX + pillW, btnY + 10};
 
         // Line 2: slider + value readout. Freeze the range while dragging — if we
@@ -700,14 +681,13 @@ public final class BuffBreakdownScreen extends Screen {
         int trackX = innerX;
         int trackY = top + 20;
         int trackW = Math.max(20, (readoutX - 8) - trackX);
-        ctx.fill(trackX, trackY, trackX + trackW, trackY + 5, SLIDER_TRACK);
         double frac = (max > min) ? (r.value - min) / (max - min) : 0.0;
         frac = Math.max(0.0, Math.min(1.0, frac));
+        GlassRender.sliderTrack(ctx, trackX, trackY, trackX + trackW, trackY + 5, (float) frac);
         int fillW = (int) Math.round(frac * trackW);
-        ctx.fill(trackX, trackY, trackX + fillW, trackY + 5, SLIDER_FILL);
         int knobX = trackX + fillW;
-        ctx.fill(knobX - 2, trackY - 3, knobX + 2, trackY + 8, SLIDER_KNOB);
-        ctx.drawText(textRenderer, Text.literal(readout), readoutX, top + 18, VALUE_COLOR, true);
+        GlassRender.roundedRect(ctx, knobX - 2, trackY - 3, knobX + 2, trackY + 8, 2, 0xFFFFFFFF);
+        ctx.drawText(textRenderer, Text.literal(readout), readoutX, top + 18, GlassTheme.text(), true);
 
         sliderActive = true;
         sliderTrackX = trackX;
@@ -718,18 +698,18 @@ public final class BuffBreakdownScreen extends Screen {
     }
 
     private void renderCustomPanel(DrawContext ctx, int x, int y, int w, int h, int mouseX, int mouseY) {
-        ctx.fillGradient(x, y, x + w, y + h, PANEL_BG_TOP, PANEL_BG_BOT);
-        drawBorder(ctx, x, y, x + w, y + h, BORDER);
+        GlassRender.roundedRectGrad(ctx, x, y, x + w, y + h, GlassRender.RADIUS, GlassTheme.panelTop(), GlassTheme.panelBot());
+        GlassRender.roundedBorder(ctx, x, y, x + w, y + h, GlassRender.RADIUS, GlassTheme.rim());
 
         activeRows = buildCustomRows();
         selectedRow = resolveSelectedRow();
 
         // Header.
-        ctx.fill(x + 1, y + 1, x + w - 1, y + 1 + HEADER_H, HEADER_BG);
+        ctx.fill(x + GlassRender.RADIUS, y + 1, x + w - GlassRender.RADIUS, y + 1 + HEADER_H, GlassTheme.headerWash());
         ctx.fill(x + 1, y + 1 + HEADER_H, x + w - 1, y + 1 + HEADER_H + 1, HEADER_RULE);
-        ctx.drawText(textRenderer, Text.literal("Custom Modifiers"), x + PADDING, y + 5, HEADER_TEXT, true);
+        ctx.drawText(textRenderer, Text.literal("Custom Modifiers"), x + PADDING, y + 5, GlassTheme.ACCENT_SOFT, true);
         ctx.drawText(textRenderer, Text.literal("your what-if modifiers — fold into every matching channel"),
-                x + PADDING + textRenderer.getWidth("Custom Modifiers") + 8, y + 5, DIM_COLOR, false);
+                x + PADDING + textRenderer.getWidth("Custom Modifiers") + 8, y + 5, GlassTheme.textDim(), false);
 
         int builderTop = (addBtn != null) ? addBtn.getY() - 4 : y + h - BUILDER_H - 2;
         int detailH = (selectedRow != null && selectedRow.sliderable) ? DETAIL_H : 0;
@@ -741,7 +721,7 @@ public final class BuffBreakdownScreen extends Screen {
 
         if (activeRows.isEmpty()) {
             ctx.drawText(textRenderer, Text.literal("No custom modifiers yet — add one below.").formatted(Formatting.GRAY),
-                    x + PADDING, listBodyTop + 6, DIM_COLOR, false);
+                    x + PADDING, listBodyTop + 6, GlassTheme.textDim(), false);
         } else {
             renderRowList(ctx, activeRows, CUSTOM_ROW_H, BuffStacker.compute(List.of(), i -> false), mouseX, mouseY);
         }
@@ -752,9 +732,9 @@ public final class BuffBreakdownScreen extends Screen {
         if (valueField != null) {
             String unit = switch (kindIndex) { case 0 -> "%"; case 1 -> "%"; default -> "+"; };
             ctx.drawText(textRenderer, Text.literal(unit),
-                    valueField.getX() + valueField.getWidth() + 4, valueField.getY() + 5, DIM_COLOR, true);
+                    valueField.getX() + valueField.getWidth() + 4, valueField.getY() + 5, GlassTheme.textDim(), true);
             ctx.drawText(textRenderer, Text.literal("Add modifier:").formatted(Formatting.GRAY),
-                    x + PADDING, valueField.getY() - 11, DIM_COLOR, false);
+                    x + PADDING, valueField.getY() - 11, GlassTheme.textDim(), false);
             if (builderError != null) {
                 ctx.drawText(textRenderer, Text.literal(builderError).formatted(Formatting.RED),
                         x + PADDING + textRenderer.getWidth("Add modifier: ") + 6, valueField.getY() - 11, 0xFFFF6E6E, false);
@@ -765,14 +745,14 @@ public final class BuffBreakdownScreen extends Screen {
     // ── Per-ore yields panel (informational; unchanged behaviour) ──────────────
 
     private void renderOrePanel(DrawContext ctx, int x, int y, int w, int h, int mouseX, int mouseY) {
-        ctx.fillGradient(x, y, x + w, y + h, PANEL_BG_TOP, PANEL_BG_BOT);
-        drawBorder(ctx, x, y, x + w, y + h, BORDER);
+        GlassRender.roundedRectGrad(ctx, x, y, x + w, y + h, GlassRender.RADIUS, GlassTheme.panelTop(), GlassTheme.panelBot());
+        GlassRender.roundedBorder(ctx, x, y, x + w, y + h, GlassRender.RADIUS, GlassTheme.rim());
 
-        ctx.fill(x + 1, y + 1, x + w - 1, y + 1 + HEADER_H, HEADER_BG);
+        ctx.fill(x + GlassRender.RADIUS, y + 1, x + w - GlassRender.RADIUS, y + 1 + HEADER_H, GlassTheme.headerWash());
         ctx.fill(x + 1, y + 1 + HEADER_H, x + w - 1, y + 1 + HEADER_H + 1, HEADER_RULE);
-        ctx.drawText(textRenderer, Text.literal("Per-Ore Yields"), x + PADDING, y + 5, HEADER_TEXT, true);
+        ctx.drawText(textRenderer, Text.literal("Per-Ore Yields"), x + PADDING, y + 5, GlassTheme.ACCENT_SOFT, true);
         ctx.drawText(textRenderer, Text.literal("click any row for the math"),
-                x + PADDING + textRenderer.getWidth("Per-Ore Yields") + 8, y + 5, DIM_COLOR, false);
+                x + PADDING + textRenderer.getWidth("Per-Ore Yields") + 8, y + 5, GlassTheme.textDim(), false);
 
         int bodyY = y + 1 + HEADER_H + 4;
         int bodyH = h - (1 + HEADER_H + 4) - 4;
@@ -786,11 +766,11 @@ public final class BuffBreakdownScreen extends Screen {
         int moneyRight  = x + PADDING + oreColW + colWidth * 3;
         int shardRight  = x + PADDING + oreColW + colWidth * 4;
 
-        ctx.drawText(textRenderer, Text.literal("Ore"), oreX, bodyY, DIM_COLOR, false);
-        drawRightAligned(ctx, "XP",     xpRight - 4,     bodyY, DIM_COLOR);
-        drawRightAligned(ctx, "Energy", energyRight - 4, bodyY, DIM_COLOR);
-        drawRightAligned(ctx, "Money",  moneyRight - 4,  bodyY, DIM_COLOR);
-        drawRightAligned(ctx, "Shard%", shardRight - 4,  bodyY, DIM_COLOR);
+        ctx.drawText(textRenderer, Text.literal("Ore"), oreX, bodyY, GlassTheme.textDim(), false);
+        drawRightAligned(ctx, "XP",     xpRight - 4,     bodyY, GlassTheme.textDim());
+        drawRightAligned(ctx, "Energy", energyRight - 4, bodyY, GlassTheme.textDim());
+        drawRightAligned(ctx, "Money",  moneyRight - 4,  bodyY, GlassTheme.textDim());
+        drawRightAligned(ctx, "Shard%", shardRight - 4,  bodyY, GlassTheme.textDim());
         ctx.fill(x + 2, bodyY + textRenderer.fontHeight + 2, x + w - 2, bodyY + textRenderer.fontHeight + 3, HEADER_RULE);
 
         // Per-channel sandbox scaling: ratio = sandbox/server multiplier change,
@@ -808,14 +788,14 @@ public final class BuffBreakdownScreen extends Screen {
             boolean expanded = (i == expandedOreIndex);
             boolean hovered = mouseY >= rowY && mouseY <= rowY + ROW_H && mouseX >= x + 2 && mouseX <= x + w - 2;
             if (rowY + ROW_H >= rowsStartY && rowY < bodyY + bodyH) {
-                if (hovered) ctx.fill(x + 2, rowY, x + w - 2, rowY + ROW_H, ROW_HOVER);
-                else if (expanded) ctx.fill(x + 2, rowY, x + w - 2, rowY + ROW_H, TAB_ACTIVE_BG);
+                if (hovered) ctx.fill(x + 2, rowY, x + w - 2, rowY + ROW_H, GlassTheme.rowHover());
+                else if (expanded) ctx.fill(x + 2, rowY, x + w - 2, rowY + ROW_H, GlassTheme.withAlpha(GlassTheme.ACCENT, 0x33));
                 else if ((i & 1) == 1) ctx.fill(x + 2, rowY, x + w - 2, rowY + ROW_H, ROW_ALT);
                 int textY = rowY + (ROW_H - textRenderer.fontHeight) / 2;
                 String tri = expanded ? "▼ " : "▶ ";
-                ctx.drawText(textRenderer, Text.literal(tri), oreX, textY, DIM_COLOR, false);
+                ctx.drawText(textRenderer, Text.literal(tri), oreX, textY, GlassTheme.textDim(), false);
                 int nameX = oreX + textRenderer.getWidth(tri);
-                ctx.drawText(textRenderer, Text.literal(o.displayName), nameX, textY, LABEL_COLOR, true);
+                ctx.drawText(textRenderer, Text.literal(o.displayName), nameX, textY, GlassTheme.text(), true);
                 drawTransformCell(ctx, formatYieldXp(o.baseXp), formatYieldXp(sandboxPerOre(o.baseXp, o.xpPerOre, fXp, rXp)), xpRight - 4, textY);
                 drawTransformCell(ctx, formatYieldEnergy(o.baseEnergy), formatYieldEnergy(sandboxPerOre(o.baseEnergy, o.energyPerOre, fEn, rEn)), energyRight - 4, textY);
                 drawTransformCell(ctx, formatYieldMoney(o.baseMoney), formatYieldMoney(sandboxPerOre(o.baseMoney, o.moneyPerOre, fMo, rMo)), moneyRight - 4, textY);
@@ -877,9 +857,9 @@ public final class BuffBreakdownScreen extends Screen {
         sb.append("  =  ").append(formatNum(result));
         String labelText = label + ": ";
         int labelW = textRenderer.getWidth(labelText);
-        ctx.drawText(textRenderer, Text.literal(labelText), x, y, HEADER_TEXT, false);
+        ctx.drawText(textRenderer, Text.literal(labelText), x, y, GlassTheme.ACCENT_SOFT, false);
         String fitted = textRenderer.trimToWidth(sb.toString(), Math.max(0, maxWidth - labelW));
-        ctx.drawText(textRenderer, Text.literal(fitted), x + labelW, y, DIM_COLOR, false);
+        ctx.drawText(textRenderer, Text.literal(fitted), x + labelW, y, GlassTheme.textDim(), false);
     }
 
     private int oreRowAtRelY(int relY) {
@@ -1149,12 +1129,12 @@ public final class BuffBreakdownScreen extends Screen {
         int resultW = textRenderer.getWidth(result);
         int arrowW = textRenderer.getWidth(arrow);
         int baseW = textRenderer.getWidth(base);
-        ctx.drawText(textRenderer, Text.literal(result), rightEdge - resultW, y, VALUE_COLOR, true);
+        ctx.drawText(textRenderer, Text.literal(result), rightEdge - resultW, y, GlassTheme.text(), true);
         int arrowX = rightEdge - resultW - arrowW;
         int baseX = arrowX - baseW;
         if (baseX < 0) return;
-        ctx.drawText(textRenderer, Text.literal(arrow), arrowX, y, DIM_COLOR, false);
-        ctx.drawText(textRenderer, Text.literal(base), baseX, y, DIM_COLOR, false);
+        ctx.drawText(textRenderer, Text.literal(arrow), arrowX, y, GlassTheme.textDim(), false);
+        ctx.drawText(textRenderer, Text.literal(base), baseX, y, GlassTheme.textDim(), false);
     }
 
     private void drawRightAligned(DrawContext ctx, String text, int rightEdge, int y, int color) {
@@ -1204,12 +1184,5 @@ public final class BuffBreakdownScreen extends Screen {
             return String.format(Locale.US, "-%.1f%% (%.1f%% taken)", reductionPct, takenPct);
         }
         return formatX(v);
-    }
-
-    private static void drawBorder(DrawContext ctx, int x, int y, int x2, int y2, int color) {
-        ctx.fill(x, y, x2, y + 1, color);
-        ctx.fill(x, y2 - 1, x2, y2, color);
-        ctx.fill(x, y, x + 1, y2, color);
-        ctx.fill(x2 - 1, y, x2, y2, color);
     }
 }

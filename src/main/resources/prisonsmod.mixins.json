@@ -4,7 +4,6 @@
   "package": "com.aleks.prisonsmod.mixin",
   "compatibilityLevel": "JAVA_21",
   "client": [
-    "client.ClientPlayNetworkHandlerBlockUpdateMixin",
     "client.ClientPlayerItemLockMixin",
     "client.ClientWorldRedstoneUnlitMixin",
     "client.CustomModelDataFloatPropertyMixin",
@@ -15,8 +14,12 @@
     "client.HandledScreenItemLockMixin",
     "client.HandledScreenLockKeyMixin",
     "client.HandledScreenSlotOverlayMixin",
+    "client.HandledScreenTooltipSuppressMixin",
     "client.HoveredTooltipPositionerMixin",
-    "client.LivingEntityRendererMixin"
+    "client.LivingEntityRendererMixin",
+    "client.ParticleManagerMufflerMixin",
+    "client.SimpleOptionGammaMixin",
+    "client.SoundSystemMufflerMixin"
   ],
   "injectors": {
     "defaultRequire": 1
