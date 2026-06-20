@@ -163,6 +163,10 @@ public final class SkillTreeScreen extends Screen {
     private float panX = 0f;
     private float panY = 0f;
     private float zoom = ZOOM_DEFAULT;
+    /** Hard zoom-OUT limit — set per layout in fitCameraToBounds to the
+     *  whole-tree-fit zoom. Past it the tree just shrinks into the middle and
+     *  the dots clamp to a pixel floor (stop scaling), which reads as bad. */
+    private float minZoom = ZOOM_MIN;
 
     // ── Drag state ──────────────────────────────────────────────────────────
     private boolean dragging = false;
@@ -483,7 +487,10 @@ public final class SkillTreeScreen extends Screen {
         // single screen (which is a dense, unreadable blob). The lower clamp is
         // the key — never open more zoomed-out than this; the player scrolls out
         // to see the whole map or pans to explore a wedge (PoE-style).
-        zoom = Math.max(0.55f, Math.min(ZOOM_MAX, Math.min(zx, zy)));
+        // Whole-tree-fit zoom is the hard zoom-OUT limit; the open zoom is more
+        // zoomed-in than that (so you start looking at the heart of the tree).
+        minZoom = Math.max(ZOOM_MIN, Math.min(zx, zy));
+        zoom = Math.max(0.55f, Math.min(ZOOM_MAX, minZoom));
         // Centre on the gate (0,0) — you open looking at the heart of the tree.
         panX = 0f;
         panY = 0f;
@@ -963,7 +970,7 @@ public final class SkillTreeScreen extends Screen {
             //    that ~10k calls/frame was the lag on the 1000+ node tree. State
             //    is encoded by colour; the gem sprites return when you zoom in.
             if (zoom < 0.8f) {
-                int dr = Math.max(2, Math.round(baseRadius * 0.8f * zoom));
+                int dr = Math.max(1, Math.round(baseRadius * zoom));
                 int col;
                 if (n.autoUnlocked)     col = COL_AMETHYST;
                 else if (matchesSearch) col = COL_SEARCH_MATCH;
@@ -1608,7 +1615,7 @@ public final class SkillTreeScreen extends Screen {
     public boolean mouseScrolled(double mouseX, double mouseY, double horiz, double vert) {
         float old = zoom;
         float next = old * (vert > 0 ? 1.15f : 0.87f);
-        next = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, next));
+        next = Math.max(minZoom, Math.min(ZOOM_MAX, next));
         if (Math.abs(next - old) < 0.001f) return true;
         // Zoom around the cursor: keep the world point under the cursor stationary.
         float cx = (float) (mouseX - width * 0.5);
