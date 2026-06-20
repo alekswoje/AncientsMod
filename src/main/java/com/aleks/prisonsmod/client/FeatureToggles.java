@@ -22,11 +22,11 @@ public final class FeatureToggles {
 
     // ── Toggles (defaults below) ─────────────────────────────────────────────
 
-    /** Client-side break-crack prediction. Off by default: on this server the plugin
-     *  already sends its own crack the same tick mining starts, so prediction adds no
-     *  head-start and just renders a second, overlapping crack (the doubled/choppy look).
-     *  On = opt-in A/B comparison; leave off for the smooth single-source server crack. */
-    private static volatile boolean minePredict = false;
+    /** Client-side break-crack prediction. On by default. Note: on this server the plugin
+     *  already sends its own crack the same tick mining starts, so prediction can render a
+     *  second, overlapping crack (a slightly doubled/choppy look) — flip it off under
+     *  Settings → Advanced → Mining if that bothers you. */
+    private static volatile boolean minePredict = true;
 
     /** Collapse marked enchant tooltip lines behind Shift. Off by default — full enchant list always visible. */
     private static volatile boolean enchantCollapse = false;
@@ -119,8 +119,10 @@ public final class FeatureToggles {
     /** When dragging a widget in the HUD editor, snap to positions that make spacing relative to other widgets equal (midpoint between two, or continuing a pattern of three). */
     private static volatile boolean evenSpacingSnap = true;
 
-    /** Auto-rejoin the server after an involuntary disconnect (kick, restart, network drop). Retries every 5s while the disconnect screen is showing. Backend routing + queueing on the way back in is handled by the proxy. */
-    private static volatile boolean autoRejoin = false;
+    /** Auto-rejoin the server after an involuntary disconnect (kick, restart, network drop).
+     *  On by default. Retries every 5s while the disconnect screen is showing. Backend routing +
+     *  queueing on the way back in is handled by the proxy. */
+    private static volatile boolean autoRejoin = true;
 
     /** Item lock — block Q-drop, Ctrl+Q drop-stack, inventory drag-out, and 1-9 hotbar swap on player-inv slots flagged via the lock keybind ({@link KeyBinds#TOGGLE_ITEM_LOCK}). Per-slot state lives in {@link ItemLocks} (separate file). When off, locks are ignored but not forgotten. */
     private static volatile boolean itemLock = true;

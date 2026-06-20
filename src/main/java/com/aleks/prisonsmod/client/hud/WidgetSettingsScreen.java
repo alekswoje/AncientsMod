@@ -66,9 +66,10 @@ public abstract class WidgetSettingsScreen extends Screen {
         scrollY = 0;
 
         // Search box at top — narrower than the row area so the "x to clear" gap reads.
+        int rowW = buttonWidth();
         searchField = new TextFieldWidget(this.textRenderer,
-                this.width / 2 - BUTTON_W / 2, VIEWPORT_TOP - 28,
-                BUTTON_W, BUTTON_H, Text.literal("Search settings"));
+                this.width / 2 - rowW / 2, VIEWPORT_TOP - 28,
+                rowW, BUTTON_H, Text.literal("Search settings"));
         searchField.setPlaceholder(Text.literal("Search…"));
         searchField.setChangedListener(s -> relayout());
         addDrawableChild(searchField);
@@ -86,6 +87,16 @@ public abstract class WidgetSettingsScreen extends Screen {
     /** Subclasses register their toggles / sliders / section headers here. */
     protected abstract void addRows();
 
+    /**
+     * Width of each row / button (and the viewport box) in this screen. Defaults
+     * to {@link #BUTTON_W}; the full-mod settings screens override this wider so
+     * the long F9 list isn't a thin vertical strip. Per-HUD popups keep the
+     * default. Clamped against the screen width by callers' layout maths.
+     */
+    protected int buttonWidth() {
+        return BUTTON_W;
+    }
+
     // ── Public row-building API ─────────────────────────────────────────────
 
     /** Add a non-interactive section header (visual divider with text). */
@@ -99,7 +110,7 @@ public abstract class WidgetSettingsScreen extends Screen {
         Text offText = Text.literal("OFF").formatted(Formatting.RED,   Formatting.BOLD);
         CyclingButtonWidget<Boolean> btn = CyclingButtonWidget
                 .onOffBuilder(onText, offText, getter.getAsBoolean())
-                .build(0, 0, BUTTON_W, BUTTON_H, Text.literal(label),
+                .build(0, 0, buttonWidth(), BUTTON_H, Text.literal(label),
                         (button, value) -> setter.accept(value));
         addDrawableChild(btn);
         rows.add(new WidgetRow(label, btn));
@@ -108,7 +119,7 @@ public abstract class WidgetSettingsScreen extends Screen {
     /** Plain action button (e.g. "Edit HUD positions...") — sits in the same scrollable list as toggles. */
     protected final void addAction(String label, Runnable action) {
         ButtonWidget btn = ButtonWidget.builder(Text.literal(label), b -> action.run())
-                .dimensions(0, 0, BUTTON_W, BUTTON_H)
+                .dimensions(0, 0, buttonWidth(), BUTTON_H)
                 .build();
         addDrawableChild(btn);
         rows.add(new WidgetRow(label, btn));
@@ -118,7 +129,7 @@ public abstract class WidgetSettingsScreen extends Screen {
     protected final void addSlider(String label, int min, int max, IntSupplier getter, IntConsumer setter) {
         int initial = Math.max(min, Math.min(max, getter.getAsInt()));
         double initialNorm = max == min ? 0.0 : (double) (initial - min) / (max - min);
-        SliderWidget slider = new SliderWidget(0, 0, BUTTON_W, BUTTON_H,
+        SliderWidget slider = new SliderWidget(0, 0, buttonWidth(), BUTTON_H,
                 Text.literal(label + ": " + initial), initialNorm) {
             @Override
             protected void updateMessage() {
@@ -175,6 +186,7 @@ public abstract class WidgetSettingsScreen extends Screen {
         if (scrollY > maxScroll) scrollY = maxScroll;
 
         // Second pass: position each row and cull off-screen ones.
+        int rowW = buttonWidth();
         int y = top - scrollY;
         for (Row r : rows) {
             boolean visible = rowMatches(r, query);
@@ -186,7 +198,7 @@ public abstract class WidgetSettingsScreen extends Screen {
             int rowBottom = y + r.height();
             boolean onScreen = rowBottom > top && rowTop < bottom;
             r.setOnScreen(onScreen);
-            r.setY(centerX, rowTop);
+            r.setY(centerX, rowTop, rowW);
             y += r.height();
         }
     }
@@ -201,10 +213,11 @@ public abstract class WidgetSettingsScreen extends Screen {
 
     @Override
     public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
+        int rowW = buttonWidth();
         // Dim the world behind. The viewport gets a softer fill so rows pop.
         ctx.fill(0, 0, this.width, this.height, 0x88000000);
-        ctx.fill(this.width / 2 - BUTTON_W / 2 - 4, VIEWPORT_TOP - 2,
-                 this.width / 2 + BUTTON_W / 2 + 4, viewportBottom() + 2, 0x33000000);
+        ctx.fill(this.width / 2 - rowW / 2 - 4, VIEWPORT_TOP - 2,
+                 this.width / 2 + rowW / 2 + 4, viewportBottom() + 2, 0x33000000);
 
         super.render(ctx, mouseX, mouseY, delta);
 
@@ -228,8 +241,8 @@ public abstract class WidgetSettingsScreen extends Screen {
             if (rowBottom > top && rowTop < bottom && r instanceof HeaderRow h) {
                 int hy = rowTop + (r.height() - this.textRenderer.fontHeight) / 2;
                 // Divider line behind the label so the section reads at a glance.
-                ctx.fill(centerX - BUTTON_W / 2, rowTop + r.height() / 2,
-                         centerX + BUTTON_W / 2, rowTop + r.height() / 2 + 1, 0x33FFFFFF);
+                ctx.fill(centerX - rowW / 2, rowTop + r.height() / 2,
+                         centerX + rowW / 2, rowTop + r.height() / 2 + 1, 0x33FFFFFF);
                 int labelW = this.textRenderer.getWidth(h.text);
                 ctx.fill(centerX - labelW / 2 - 4, hy - 1,
                          centerX + labelW / 2 + 4, hy + this.textRenderer.fontHeight + 1, 0xAA000000);
@@ -243,7 +256,7 @@ public abstract class WidgetSettingsScreen extends Screen {
         // Scrollbar indicator on the right edge of the viewport (only when content overflows).
         int viewportH = bottom - top;
         if (totalContentHeight > viewportH) {
-            int barX = this.width / 2 + BUTTON_W / 2 + 6;
+            int barX = this.width / 2 + rowW / 2 + 6;
             int barH = Math.max(20, (int) ((double) viewportH * viewportH / totalContentHeight));
             int barY = top + (int) ((double) scrollY * (viewportH - barH) / Math.max(1, totalContentHeight - viewportH));
             ctx.fill(barX, top, barX + 3, bottom, 0x44FFFFFF);
@@ -261,8 +274,8 @@ public abstract class WidgetSettingsScreen extends Screen {
     private interface Row {
         String label();
         int height();
-        /** Reposition for display at this center-x and top-y. */
-        void setY(int centerX, int topY);
+        /** Reposition for display at this center-x and top-y, sized to {@code width}. */
+        void setY(int centerX, int topY, int width);
         /** Allow the widget (if any) to be off-screen — hidden = doesn't render or take clicks. */
         void setOnScreen(boolean on);
     }
@@ -272,7 +285,7 @@ public abstract class WidgetSettingsScreen extends Screen {
         HeaderRow(String text) { this.text = text; }
         @Override public String label() { return text; }
         @Override public int height() { return HEADER_HEIGHT; }
-        @Override public void setY(int centerX, int topY) {}
+        @Override public void setY(int centerX, int topY, int width) {}
         @Override public void setOnScreen(boolean on) {}
     }
 
@@ -285,8 +298,9 @@ public abstract class WidgetSettingsScreen extends Screen {
         }
         @Override public String label() { return label; }
         @Override public int height() { return ROW_HEIGHT; }
-        @Override public void setY(int centerX, int topY) {
-            widget.setX(centerX - BUTTON_W / 2);
+        @Override public void setY(int centerX, int topY, int width) {
+            widget.setWidth(width);
+            widget.setX(centerX - width / 2);
             widget.setY(topY + 2);
         }
         @Override public void setOnScreen(boolean on) {
