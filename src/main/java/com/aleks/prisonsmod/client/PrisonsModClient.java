@@ -55,6 +55,7 @@ public final class PrisonsModClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         FeatureToggles.load();
+        com.aleks.prisonsmod.client.muffler.MufflerSettings.load();
         HudPositions.load();
         HudSettings.load();
         com.aleks.prisonsmod.client.buffs.BuffSandboxStore.load();

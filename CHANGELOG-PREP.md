@@ -35,8 +35,11 @@
 - **Loot browser shows drop rates with your luck.** The mod's `/loot` drop list now factors in your **current luck** — on a luck-affected table each entry shows `raw% §7→§a adjusted%` right on the row (with the full breakdown and your luck total on hover), matching the server's own loot GUI. The luck total reflects your live sources (outpost buff, armor trims, Orb of Moros) and updates whenever you reopen the list.
 - **Settings screen decluttered (F9).** The list is now wider and much shorter. The "set-and-forget" toggles almost everyone leaves on — scrollable tooltips, item wiki, pickaxe block breakdown, peaceful mining, mine-crack prediction, the bug-report / PV / loot custom screens, auto-rejoin, and item lock — moved behind a new **Advanced settings…** button at the top, leaving the main screen to the toggles you actually change. Everything still works the same and is one click away.
 - **Auto-rejoin and mine-crack prediction are now on by default** (both still toggleable under Settings → Advanced).
+- **New: Sound & Particle Muffler.** A dedicated screen — Settings → **Audio & Particles → Sound & particle muffler…**, or just `/muffler` — to silence or turn down any sound and switch off any particle in the game, only for you. **Sounds** get a 0–100% volume slider (drag to 0 to fully mute); **particles** are on/off. Browse curated groups (Mining, Combat, Mobs, UI, Ambient, Weather, Music…), or open the **Server FX** tab to mute a whole event's spectacle in one click — Meteor strike, Boss fights, Crate opening, Mining-enchant procs, Portals and more. A **Recent** tab lists everything that's just played so you can mute the exact thing that annoyed you without hunting for it, and an **Advanced** tab exposes every sound / particle ID for power users. The whole thing is searchable and saved between sessions. Purely client-side — it only changes what you hear and see, never gameplay.
 
 ## Input & Keybinds
+
+- **Muffler keybind.** A new *Open Sound & Particle Muffler* keybind (unbound by default) under Options → Controls → PrisonsMod opens the new muffler screen — alongside the `/muffler` command and the Settings → Audio & Particles button.
 
 ## Networking & Server Integration
 

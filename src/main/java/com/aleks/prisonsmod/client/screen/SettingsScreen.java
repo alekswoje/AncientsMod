@@ -41,6 +41,11 @@ public final class SettingsScreen extends WidgetSettingsScreen {
             if (this.client != null) this.client.setScreen(new AdvancedSettingsScreen(this));
         });
 
+        addSection("Audio & Particles");
+        addAction("Sound & particle muffler…", () -> {
+            if (this.client != null) this.client.setScreen(new MufflerScreen(this));
+        });
+
         addSection("Tooltips");
         addToggle("Collapse enchants on gear",
                 FeatureToggles::isEnchantCollapseEnabled, FeatureToggles::setEnchantCollapse);

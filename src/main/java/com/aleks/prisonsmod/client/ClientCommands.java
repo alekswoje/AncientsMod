@@ -1,5 +1,6 @@
 package com.aleks.prisonsmod.client;
 
+import com.aleks.prisonsmod.client.screen.MufflerScreen;
 import com.aleks.prisonsmod.client.screen.SettingsScreen;
 import com.aleks.prisonsmod.client.skilltree.SkillTreeClient;
 import com.aleks.prisonsmod.client.update.UpdateInstaller;
@@ -32,8 +33,15 @@ public final class ClientCommands {
                             .executes(ctx -> openSettings())
                             .then(ClientCommandManager.literal("settings")
                                     .executes(ctx -> openSettings()))
+                            .then(ClientCommandManager.literal("muffler")
+                                    .executes(ctx -> openMuffler()))
                             .then(ClientCommandManager.literal("update")
                                     .executes(ctx -> runUpdate()))
+            );
+            // /muffler — open the sound & particle muffler directly.
+            dispatcher.register(
+                    ClientCommandManager.literal("muffler")
+                            .executes(ctx -> openMuffler())
             );
             // /skilltree — re-open the Tartarus Vision screen without
             // walking back to the Oracle. Requests a fresh layout + state
@@ -70,6 +78,17 @@ public final class ClientCommands {
         client.send(() -> {
             if (client.currentScreen == null) {
                 client.setScreen(new SettingsScreen(null));
+            }
+        });
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private static int openMuffler() {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null) return 0;
+        client.send(() -> {
+            if (client.currentScreen == null) {
+                client.setScreen(new MufflerScreen(null));
             }
         });
         return Command.SINGLE_SUCCESS;

@@ -3,5 +3,6 @@
   "key.prisonsmod.toggleMinePredict": "Toggle Mining-Crack Prediction",
   "key.prisonsmod.gangPing": "Gang Ping (tap = feet, hold = cursor)",
   "key.prisonsmod.openSettings": "Open PrisonsMod Settings",
+  "key.prisonsmod.openMuffler": "Open Sound & Particle Muffler",
   "key.prisonsmod.toggleItemLock": "Toggle Item Lock (hover slot in inventory)"
 }

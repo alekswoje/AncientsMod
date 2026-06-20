@@ -17,7 +17,9 @@
     "client.HandledScreenTooltipSuppressMixin",
     "client.HoveredTooltipPositionerMixin",
     "client.LivingEntityRendererMixin",
-    "client.SimpleOptionGammaMixin"
+    "client.ParticleManagerMufflerMixin",
+    "client.SimpleOptionGammaMixin",
+    "client.SoundSystemMufflerMixin"
   ],
   "injectors": {
     "defaultRequire": 1
