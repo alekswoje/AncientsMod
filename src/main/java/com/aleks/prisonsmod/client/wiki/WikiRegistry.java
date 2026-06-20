@@ -115,6 +115,9 @@ public final class WikiRegistry {
 
         register(new WikiEntry("per_piece", "Each Piece Grants 25%", List.of(
                 "Set bonuses scale with how many matching pieces you wear — 25% per piece, so all four gives the full value shown. Full-set abilities are the exception: they need all four and don't scale.")));
+
+        register(new WikiEntry("death_ward", "Death Ward", List.of(
+                "When a blow would kill you, Death Ward instead leaves you at 1 HP with a short burst of regeneration. Every source of it — armor trims, enchants, and runes — shares one cooldown (180s), so stacking sources only adds redundancy, never extra saves or a faster recharge.")));
     }
 
     private static void register(WikiEntry entry) {
