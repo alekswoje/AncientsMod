@@ -145,6 +145,10 @@ public final class FeatureToggles {
      *  Parsed from the synced lore — no server change needed. */
     private static volatile boolean dustPercentOverlay = true;
 
+    /** Glass GUI theme variant: false = dark smoked glass (default), true = light frosted glass.
+     *  Drives {@link com.aleks.prisonsmod.client.glass.GlassTheme}; affects every mod screen + HUD. */
+    private static volatile boolean glassLightTheme = false;
+
     // Client-side Powerball rendering is always on (no user toggle): the mod draws
     // the ball as a true item-model fire charge that matches the server 1:1, and the
     // server suppresses its per-tick ItemDisplay packet flood in return.
@@ -197,6 +201,7 @@ public final class FeatureToggles {
             gearStatsOverlay = parseBool(props.getProperty("gearStatsOverlay"), gearStatsOverlay);
             boosterInfoOverlay = parseBool(props.getProperty("boosterInfoOverlay"), boosterInfoOverlay);
             dustPercentOverlay = parseBool(props.getProperty("dustPercentOverlay"), dustPercentOverlay);
+            glassLightTheme = parseBool(props.getProperty("glassLightTheme"), glassLightTheme);
         } catch (IOException e) {
             PrisonsMod.LOGGER.warn("failed to load {}: {}", FILE_NAME, e.getMessage());
         }
@@ -236,6 +241,7 @@ public final class FeatureToggles {
         props.setProperty("gearStatsOverlay", Boolean.toString(gearStatsOverlay));
         props.setProperty("boosterInfoOverlay", Boolean.toString(boosterInfoOverlay));
         props.setProperty("dustPercentOverlay", Boolean.toString(dustPercentOverlay));
+        props.setProperty("glassLightTheme", Boolean.toString(glassLightTheme));
         try {
             Files.createDirectories(configPath().getParent());
             try (var out = Files.newOutputStream(configPath())) {
@@ -566,6 +572,14 @@ public final class FeatureToggles {
     public static void setDustPercentOverlay(boolean value) {
         if (dustPercentOverlay == value) return;
         dustPercentOverlay = value;
+        save();
+    }
+
+    public static boolean isGlassLightThemeEnabled() { return glassLightTheme; }
+
+    public static void setGlassLightTheme(boolean value) {
+        if (glassLightTheme == value) return;
+        glassLightTheme = value;
         save();
     }
 

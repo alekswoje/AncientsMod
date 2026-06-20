@@ -1,10 +1,12 @@
 package com.aleks.prisonsmod.client.hud;
 
+import com.aleks.prisonsmod.client.glass.GlassButton;
+import com.aleks.prisonsmod.client.glass.GlassRender;
+import com.aleks.prisonsmod.client.glass.GlassTheme;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.input.KeyInput;
 import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
@@ -32,11 +34,6 @@ import org.lwjgl.glfw.GLFW;
 public final class HudEditScreen extends Screen {
 
     private static final int SNAP_THRESHOLD_PX = 4;
-    private static final int OUTLINE_COLOR_IDLE      = 0x66FFFFFF;
-    private static final int OUTLINE_COLOR_HOVER     = 0xAA8FA3FF;
-    private static final int OUTLINE_COLOR_SELECTED  = 0xFFFFC857;
-    private static final int FILL_COLOR_INVISIBLE    = 0x33000000;
-    private static final int SNAP_GUIDE_COLOR        = 0xFFFFC857;
     private static final int LABEL_COLOR             = 0xFFE0E0E0;
 
     /** Half-size of the corner resize-handle (handle is 2*HANDLE_R + 1 px square). */
@@ -64,29 +61,28 @@ public final class HudEditScreen extends Screen {
     @Override
     protected void init() {
         int btnY = this.height - 28;
-        addDrawableChild(ButtonWidget.builder(Text.literal("Done"), b -> this.close())
-                .dimensions(this.width / 2 + 4, btnY, 100, 20)
-                .build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Reset All"), b -> {
-            HudPositions.resetAll();
-            selected = null;
-        }).dimensions(this.width / 2 - 104, btnY, 100, 20).build());
+        // Confirm/Done stays on the RIGHT (.primary()); Reset All on the LEFT.
+        addDrawableChild(new GlassButton(this.width / 2 + 4, btnY, 100, 20,
+                Text.literal("Done"), this::close).primary());
+        addDrawableChild(new GlassButton(this.width / 2 - 104, btnY, 100, 20,
+                Text.literal("Reset All"), () -> {
+                    HudPositions.resetAll();
+                    selected = null;
+                }));
 
         // Equal-spacing-snap toggle. Sits one row above Done / Reset All so the
         // toggle state is visible while dragging.
-        evenSnapBtn = addDrawableChild(ButtonWidget.builder(
+        evenSnapBtn = addDrawableChild(new GlassButton(this.width / 2 - 104, btnY - 24, 208, 20,
                 Text.literal("Equal spacing: " + (com.aleks.prisonsmod.client.FeatureToggles.isEvenSpacingSnapEnabled() ? "ON" : "OFF")),
-                b -> {
+                () -> {
                     com.aleks.prisonsmod.client.FeatureToggles.setEvenSpacingSnap(
                             !com.aleks.prisonsmod.client.FeatureToggles.isEvenSpacingSnapEnabled());
-                    b.setMessage(Text.literal("Equal spacing: "
+                    evenSnapBtn.setMessage(Text.literal("Equal spacing: "
                             + (com.aleks.prisonsmod.client.FeatureToggles.isEvenSpacingSnapEnabled() ? "ON" : "OFF")));
-                })
-                .dimensions(this.width / 2 - 104, btnY - 24, 208, 20)
-                .build());
+                }));
     }
 
-    private ButtonWidget evenSnapBtn;
+    private GlassButton evenSnapBtn;
 
     @Override
     public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
@@ -98,20 +94,20 @@ public final class HudEditScreen extends Screen {
         if (mc == null) return;
 
         // Header text.
-        ctx.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, 8, 0xFFFFFF);
+        ctx.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, 8, GlassTheme.text());
         ctx.drawCenteredTextWithShadow(this.textRenderer,
                 Text.literal("Drag to move · drag corner to resize · arrows: nudge · R: reset"),
-                this.width / 2, 20, 0xAAAAAA);
+                this.width / 2, 20, GlassTheme.textMuted());
         ctx.drawCenteredTextWithShadow(this.textRenderer,
                 Text.literal("Right-click a widget to open its settings"),
-                this.width / 2, 32, 0xFFFFC857);
+                this.width / 2, 32, GlassTheme.ACCENT_SOFT);
 
         // Snap guides under the elements so a guide line draws across the whole screen.
         if (snapGuideX >= 0) {
-            ctx.fill(snapGuideX, 0, snapGuideX + 1, this.height, SNAP_GUIDE_COLOR);
+            ctx.fill(snapGuideX, 0, snapGuideX + 1, this.height, GlassTheme.ACCENT_SOFT);
         }
         if (snapGuideY >= 0) {
-            ctx.fill(0, snapGuideY, this.width, snapGuideY + 1, SNAP_GUIDE_COLOR);
+            ctx.fill(0, snapGuideY, this.width, snapGuideY + 1, GlassTheme.ACCENT_SOFT);
         }
 
         // Render each widget through the same path as live HUD rendering so
@@ -131,7 +127,7 @@ public final class HudEditScreen extends Screen {
             } else {
                 // Placeholder fill + label so an empty widget still has a
                 // grabbable footprint in the editor.
-                ctx.fill(x, y, x + w, y + h, FILL_COLOR_INVISIBLE);
+                GlassRender.slot(ctx, x, y, x + w, y + h);
                 String placeholder = el.editorPlaceholder() != null ? el.editorPlaceholder() : el.displayName();
                 int textW = this.textRenderer.getWidth(placeholder);
                 ctx.drawText(this.textRenderer, placeholder,
@@ -139,8 +135,8 @@ public final class HudEditScreen extends Screen {
                         LABEL_COLOR, true);
             }
 
-            int outlineColor = isSelected ? OUTLINE_COLOR_SELECTED
-                    : hover ? OUTLINE_COLOR_HOVER : OUTLINE_COLOR_IDLE;
+            int outlineColor = isSelected ? GlassTheme.ACCENT
+                    : hover ? GlassTheme.ACCENT_SOFT : GlassTheme.rimSoft();
             drawOutline(ctx, x, y, w, h, outlineColor);
 
             if (isSelected) {
@@ -148,16 +144,17 @@ public final class HudEditScreen extends Screen {
                 int tagW = this.textRenderer.getWidth(tag);
                 int tagY = y - this.textRenderer.fontHeight - 3;
                 if (tagY < 0) tagY = y + h + 3;
-                ctx.fill(x - 2, tagY - 1, x + tagW + 2, tagY + this.textRenderer.fontHeight + 1, 0xCC000000);
-                ctx.drawText(this.textRenderer, tag, x, tagY, OUTLINE_COLOR_SELECTED, false);
+                GlassRender.roundedRect(ctx, x - 2, tagY - 1, x + tagW + 2, tagY + this.textRenderer.fontHeight + 1, 4, GlassTheme.panelTop());
+                GlassRender.roundedBorder(ctx, x - 2, tagY - 1, x + tagW + 2, tagY + this.textRenderer.fontHeight + 1, 4, GlassTheme.rimSoft());
+                ctx.drawText(this.textRenderer, tag, x, tagY, GlassTheme.ACCENT, false);
 
                 // Bottom-right resize handle.
                 int hx = x + w - 1;
                 int hy = y + h - 1;
                 boolean handleHover = mouseX >= hx - HANDLE_R && mouseX <= hx + HANDLE_R
                         && mouseY >= hy - HANDLE_R && mouseY <= hy + HANDLE_R;
-                int handleColor = (resizing == el || handleHover) ? 0xFFFFFFFF : OUTLINE_COLOR_SELECTED;
-                ctx.fill(hx - HANDLE_R, hy - HANDLE_R, hx + HANDLE_R + 1, hy + HANDLE_R + 1, handleColor);
+                int handleColor = (resizing == el || handleHover) ? 0xFFFFFFFF : GlassTheme.ACCENT;
+                GlassRender.roundedRect(ctx, hx - HANDLE_R, hy - HANDLE_R, hx + HANDLE_R + 1, hy + HANDLE_R + 1, 2, handleColor);
             }
         }
     }

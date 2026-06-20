@@ -15,6 +15,11 @@
 
 ## Rendering & Visuals
 
+### Season 2 glass UI overhaul
+
+- **Every mod menu and HUD has been restyled in a frosted-glass theme** built to match the season 2 server's amethyst look. The settings screens, the HUD position editor, the PV & cell-vault terminals, the loot browser, the bug-report and suggestion screens, `/pickbuffs`, the sound & particle muffler, and **Tartarus Vision** now use rounded translucent panels over a **real blurred backdrop**, with a soft top gloss and **violet / lilac** accents (amber kept for numbers, crimson for warnings; item rarity colours unchanged). The always-on HUDs — boosters, events, cooldowns, outpost — get the same frosted rounded panels and a violet header. Buttons, toggles, sliders, text boxes, list rows and scrollbars share one consistent glass style across the whole mod, so nothing looks out of place.
+- **New: Settings → Appearance → Light glass theme.** Flip the entire mod between **dark smoked glass** (default) and a **light frosted glass** variant in one toggle.
+
 - **Fullbright.** New setting under **World** in the PrisonsMod settings (F9). On by default — replaces the server's removed permanent night vision so dark areas still look bright. The server can disable it in specific worlds via its `prisonsmod.fullbright.blacklist-worlds` config (sent over the prisonsmod channel on join), so atmospheric event worlds can stay dark.
 - **Rift texture pack** now stays loaded across the full event — previously it unloaded on every other round when the server swapped to the alt rift world, causing two extra 5-15s resource reloads per event.
 - **Per-texture hiding from `/toggles`.** You can now hide individual custom item textures (not just all of them) from the server's **/toggles → Custom Textures** menu — with the mod installed, the ones you turn off render as their plain vanilla item just for you, while everyone else still sees the custom art.

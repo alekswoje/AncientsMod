@@ -1,5 +1,8 @@
 package com.aleks.prisonsmod.client.screen;
 
+import com.aleks.prisonsmod.client.glass.GlassRender;
+import com.aleks.prisonsmod.client.glass.GlassTextField;
+import com.aleks.prisonsmod.client.glass.GlassTheme;
 import com.aleks.prisonsmod.client.pv.PvClient;
 import com.aleks.prisonsmod.net.NetworkHandler;
 import com.aleks.prisonsmod.net.payload.PvBundlePayload;
@@ -117,7 +120,7 @@ public final class PvOverviewScreen extends Screen {
         int searchW = panelW - PANEL_PADDING * 2 - SCROLLBAR_W - SCROLLBAR_GAP;
         int searchX = panelX + PANEL_PADDING;
         int searchY = panelY + TITLE_BAR_H + 4;
-        this.searchField = new TextFieldWidget(this.textRenderer, searchX, searchY, searchW, 18,
+        this.searchField = new GlassTextField(this.textRenderer, searchX, searchY, searchW, 18,
                 Text.literal("Search items…"));
         this.searchField.setMaxLength(64);
         this.searchField.setPlaceholder(Text.literal("§7Search items or material id…"));
@@ -412,7 +415,7 @@ public final class PvOverviewScreen extends Screen {
                 String msg = "§7No items match §f\"" + searchQuery + "\"";
                 int msgW = this.textRenderer.getWidth(msg);
                 ctx.drawText(this.textRenderer, Text.literal(msg),
-                        vpX + (vpW - msgW) / 2, vpY + vpH / 2 - 4, 0xFFAAAAAA, false);
+                        vpX + (vpW - msgW) / 2, vpY + vpH / 2 - 4, GlassTheme.textMuted(), false);
             }
             for (int idx = 0; idx < limit; idx++) {
                 PvBundlePayload.Vault vault = visibleVaults.get(idx);
@@ -442,12 +445,11 @@ public final class PvOverviewScreen extends Screen {
             int sbX = vpX + vpW + SCROLLBAR_GAP;
             int sbY = vpY;
             int sbH = vpH;
-            ctx.fill(sbX, sbY, sbX + SCROLLBAR_W, sbY + sbH, 0x80000000);
             double trackRatio = (double) vpH / contentHeight();
             int thumbH = Math.max(20, (int) (sbH * trackRatio));
             int range = sbH - thumbH;
             int thumbY = sbY + (int) (range * (scrollY / maxScroll()));
-            ctx.fill(sbX, thumbY, sbX + SCROLLBAR_W, thumbY + thumbH, 0xFFAAAAAA);
+            GlassRender.scrollbar(ctx, sbX, sbY, sbY + sbH, thumbY, thumbH);
         }
 
         // Render drag ghost on top of everything (outside scissor so it follows
@@ -493,66 +495,65 @@ public final class PvOverviewScreen extends Screen {
     public void renderBackground(DrawContext ctx, int mouseX, int mouseY, float delta) {
         super.renderBackground(ctx, mouseX, mouseY, delta);
 
+        GlassRender.menuBackdrop(ctx, this.width, this.height);
+
         int panelW = panelWidth();
         int panelH = panelHeight();
         int panelX = (this.width - panelW) / 2;
         int panelY = (this.height - panelH) / 2;
 
-        ctx.fill(panelX, panelY, panelX + panelW, panelY + panelH, 0xF0101010);
-        ctx.fill(panelX, panelY, panelX + panelW, panelY + 1, 0xFF555555);
-        ctx.fill(panelX, panelY + panelH - 1, panelX + panelW, panelY + panelH, 0xFF555555);
-        ctx.fill(panelX, panelY, panelX + 1, panelY + panelH, 0xFF555555);
-        ctx.fill(panelX + panelW - 1, panelY, panelX + panelW, panelY + panelH, 0xFF555555);
+        GlassRender.panel(ctx, panelX, panelY, panelW, panelH);
 
-        ctx.fill(panelX, panelY, panelX + panelW, panelY + TITLE_BAR_H, 0xFF1A1A1A);
-        ctx.drawText(this.textRenderer, Text.literal("§ePersonal Vaults"),
-                panelX + 10, panelY + 8, 0xFFFFFFFF, true);
+        // Violet title-bar wash, inset by the panel corner radius.
+        ctx.fill(panelX + GlassRender.RADIUS, panelY + GlassRender.RADIUS,
+                panelX + panelW - GlassRender.RADIUS, panelY + TITLE_BAR_H,
+                GlassTheme.withAlpha(GlassTheme.ACCENT, 0x2E));
+
+        ctx.drawText(this.textRenderer, Text.literal("Personal Vaults"),
+                panelX + 10, panelY + 8, GlassTheme.text(), true);
         String hint = "§7LMB §8open  §7RMB §8affinities  §7Drag §8swap  §7ESC §8close";
         int hintW = this.textRenderer.getWidth(hint);
         ctx.drawText(this.textRenderer, Text.literal(hint),
-                panelX + panelW - hintW - 10, panelY + 8, 0xFFAAAAAA, false);
+                panelX + panelW - hintW - 10, panelY + 8, GlassTheme.textMuted(), false);
     }
 
     private void renderCard(DrawContext ctx, PvBundlePayload.Vault vault, int x, int y,
                             float hoverP, boolean isDragSource, boolean isDropTarget,
                             float flashP, int mouseX, int mouseY) {
         // Background color lerp: base → hover bg via hoverP. Drag source dims
-        // toward dark. Drop target pulses toward yellow.
-        int baseBg = vault.isAccessible() ? 0xFF1E1E1E : 0xFF181010;
-        int hoverBg = 0xFF2A2A2A;
+        // toward a darker recessed glass. Glass endpoints fed into the same lerp.
+        int baseBg = vault.isAccessible() ? GlassTheme.slot() : GlassTheme.withAlpha(GlassTheme.WARN, 0x1A);
+        int hoverBg = GlassTheme.rowHover();
         int bg = vault.isAccessible() ? lerpColor(baseBg, hoverBg, hoverP) : baseBg;
-        if (isDragSource) bg = 0xFF0E0E0E;
+        if (isDragSource) bg = GlassTheme.withAlpha(0xFF000000, 0x55);
 
-        // Border color: base → hover gold via hoverP. Drop target overrides to
-        // a pulsing yellow. Flash overlays a bright yellow that fades out.
-        int baseBorder = vault.isAccessible() ? 0xFF444444 : 0xFF552222;
-        int hoverBorder = 0xFFFFCC33;
+        // Border color: base → hover accent via hoverP. Drop target overrides to
+        // a pulsing lilac. Flash overlays a bright lilac that fades out.
+        int baseBorder = vault.isAccessible() ? GlassTheme.rimSoft() : GlassTheme.withAlpha(GlassTheme.WARN, 0x66);
+        int hoverBorder = GlassTheme.ACCENT_SOFT;
         int border = vault.isAccessible() ? lerpColor(baseBorder, hoverBorder, hoverP) : baseBorder;
         if (isDropTarget) {
             float pulse = 0.55f + 0.45f * (float) Math.sin(System.currentTimeMillis() / 110.0);
-            border = lerpColor(0xFFFFCC33, 0xFFFFFF66, pulse);
+            border = lerpColor(GlassTheme.ACCENT, GlassTheme.ACCENT_SOFT, pulse);
         }
         if (flashP > 0f) {
-            border = lerpColor(border, 0xFFFFEE88, flashP);
+            border = lerpColor(border, GlassTheme.ACCENT_SOFT, flashP);
         }
 
-        ctx.fill(x, y, x + CARD_W, y + CARD_H, bg);
-        ctx.fill(x, y, x + CARD_W, y + 1, border);
-        ctx.fill(x, y + CARD_H - 1, x + CARD_W, y + CARD_H, border);
-        ctx.fill(x, y, x + 1, y + CARD_H, border);
-        ctx.fill(x + CARD_W - 1, y, x + CARD_W, y + CARD_H, border);
+        GlassRender.roundedRect(ctx, x, y, x + CARD_W, y + CARD_H, GlassRender.RADIUS, bg);
+        GlassRender.roundedBorder(ctx, x, y, x + CARD_W, y + CARD_H, GlassRender.RADIUS, border);
 
         if (!vault.isAccessible()) {
             ctx.drawText(this.textRenderer, Text.literal("§cPV " + vault.vaultNumber),
-                    x + 6, y + 6, 0xFFFF6666, false);
+                    x + 6, y + 6, GlassTheme.WARN, false);
             ctx.drawText(this.textRenderer, Text.literal("§8Locked"),
-                    x + 6, y + 18, 0xFF888888, false);
+                    x + 6, y + 18, GlassTheme.textMuted(), false);
             ctx.drawText(this.textRenderer, Text.literal("§7Use a PV"),
-                    x + 6, y + 36, 0xFF999999, false);
+                    x + 6, y + 36, GlassTheme.textDim(), false);
             ctx.drawText(this.textRenderer, Text.literal("§7Expansion to"),
-                    x + 6, y + 46, 0xFF999999, false);
+                    x + 6, y + 46, GlassTheme.textDim(), false);
             ctx.drawText(this.textRenderer, Text.literal("§7unlock."),
-                    x + 6, y + 56, 0xFF999999, false);
+                    x + 6, y + 56, GlassTheme.textDim(), false);
             return;
         }
 
@@ -563,12 +564,12 @@ public final class PvOverviewScreen extends Screen {
                                 int mouseX, int mouseY, boolean dimmed) {
         int totalSlots = vault.slotCount;
         int usedSlots = vault.slots.size();
-        ctx.drawText(this.textRenderer, Text.literal("§ePV " + vault.vaultNumber),
-                x + 6, y + 5, 0xFFFFCC33, false);
-        String counts = "§7" + usedSlots + "§8/§7" + totalSlots;
+        ctx.drawText(this.textRenderer, Text.literal("PV " + vault.vaultNumber),
+                x + 6, y + 5, GlassTheme.ACCENT_SOFT, false);
+        String counts = usedSlots + "§8/" + totalSlots;
         int countsW = this.textRenderer.getWidth(counts);
         ctx.drawText(this.textRenderer, Text.literal(counts),
-                x + CARD_W - countsW - 6, y + 5, 0xFFAAAAAA, false);
+                x + CARD_W - countsW - 6, y + 5, GlassTheme.VALUE, false);
 
         int gridStartX = x + (CARD_W - GRID_COLS * SLOT_PX) / 2;
         int gridStartY = y + 18;
@@ -577,7 +578,7 @@ public final class PvOverviewScreen extends Screen {
             for (int gy = 0; gy < GRID_ROWS; gy++) {
                 int sx = gridStartX + gx * SLOT_PX;
                 int sy = gridStartY + gy * SLOT_PX;
-                ctx.fill(sx, sy, sx + SLOT_PX - 1, sy + SLOT_PX - 1, 0xFF0E0E0E);
+                GlassRender.slot(ctx, sx, sy, sx + SLOT_PX - 1, sy + SLOT_PX - 1);
             }
         }
 
@@ -602,9 +603,10 @@ public final class PvOverviewScreen extends Screen {
 
             boolean dimNonMatch = filtering && !slotMatches(slot, q);
             if (dimNonMatch) {
-                // Heavy semi-transparent overlay over the slot to read as
-                // "filtered out" while still showing the icon underneath.
-                ctx.fill(sx - 1, sy - 1, sx + SLOT_PX - 1, sy + SLOT_PX - 1, 0xC8101010);
+                // Heavy frosted overlay over the slot to read as "filtered out"
+                // while still showing the icon underneath.
+                GlassRender.roundedRect(ctx, sx - 1, sy - 1, sx + SLOT_PX - 1, sy + SLOT_PX - 1, 4,
+                        GlassTheme.withAlpha(0xFF000000, 0xC8));
             }
 
             if (!dimmed
@@ -621,19 +623,17 @@ public final class PvOverviewScreen extends Screen {
         }
 
         if (dimmed) {
-            // Dim the source tile while dragging — half-opacity black overlay.
-            ctx.fill(x + 1, y + 1, x + CARD_W - 1, y + CARD_H - 1, 0x88000000);
+            // Dim the source tile while dragging — frosted scrim overlay.
+            GlassRender.roundedRect(ctx, x + 1, y + 1, x + CARD_W - 1, y + CARD_H - 1, GlassRender.RADIUS,
+                    GlassTheme.withAlpha(0xFF000000, 0x88));
         }
     }
 
     private void renderGhostCard(DrawContext ctx, PvBundlePayload.Vault vault, int x, int y) {
-        // Translucent panel + dashed yellow border.
-        ctx.fill(x, y, x + CARD_W, y + CARD_H, 0xC0181818);
-        int border = 0xFFFFCC33;
-        ctx.fill(x, y, x + CARD_W, y + 1, border);
-        ctx.fill(x, y + CARD_H - 1, x + CARD_W, y + CARD_H, border);
-        ctx.fill(x, y, x + 1, y + CARD_H, border);
-        ctx.fill(x + CARD_W - 1, y, x + CARD_W, y + CARD_H, border);
+        // Translucent frosted panel + accent border.
+        GlassRender.roundedRect(ctx, x, y, x + CARD_W, y + CARD_H, GlassRender.RADIUS,
+                GlassTheme.withAlpha(GlassTheme.panelBot(), 0xC0));
+        GlassRender.roundedBorder(ctx, x, y, x + CARD_W, y + CARD_H, GlassRender.RADIUS, GlassTheme.ACCENT_SOFT);
 
         renderCardBody(ctx, vault, x, y, -1, -1, false);
     }

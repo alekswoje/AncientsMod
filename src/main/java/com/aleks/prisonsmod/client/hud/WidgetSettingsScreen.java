@@ -1,14 +1,15 @@
 package com.aleks.prisonsmod.client.hud;
 
+import com.aleks.prisonsmod.client.glass.GlassButton;
+import com.aleks.prisonsmod.client.glass.GlassRender;
+import com.aleks.prisonsmod.client.glass.GlassSlider;
+import com.aleks.prisonsmod.client.glass.GlassTextField;
+import com.aleks.prisonsmod.client.glass.GlassTheme;
+import com.aleks.prisonsmod.client.glass.GlassToggle;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.ClickableWidget;
-import net.minecraft.client.gui.widget.CyclingButtonWidget;
-import net.minecraft.client.gui.widget.SliderWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -43,7 +44,7 @@ public abstract class WidgetSettingsScreen extends Screen {
     private final Text subtitle;
 
     private final List<Row> rows = new ArrayList<>();
-    private TextFieldWidget searchField;
+    private GlassTextField searchField;
     private int scrollY;
     private int totalContentHeight;
 
@@ -67,7 +68,7 @@ public abstract class WidgetSettingsScreen extends Screen {
 
         // Search box at top — narrower than the row area so the "x to clear" gap reads.
         int rowW = buttonWidth();
-        searchField = new TextFieldWidget(this.textRenderer,
+        searchField = new GlassTextField(this.textRenderer,
                 this.width / 2 - rowW / 2, VIEWPORT_TOP - 28,
                 rowW, BUTTON_H, Text.literal("Search settings"));
         searchField.setPlaceholder(Text.literal("Search…"));
@@ -76,10 +77,9 @@ public abstract class WidgetSettingsScreen extends Screen {
 
         addRows();
 
-        // Done button anchored to the bottom.
-        addDrawableChild(ButtonWidget.builder(Text.translatable("gui.done"), b -> this.close())
-                .dimensions(this.width / 2 - 50, this.height - 28, 100, BUTTON_H)
-                .build());
+        // Done button anchored to the bottom (accent-filled glass).
+        addDrawableChild(new GlassButton(this.width / 2 - 50, this.height - 28, 100, BUTTON_H,
+                Text.translatable("gui.done"), this::close).primary());
 
         relayout();
     }
@@ -106,42 +106,21 @@ public abstract class WidgetSettingsScreen extends Screen {
 
     /** Labeled ON/OFF toggle wired to a getter/setter pair. */
     protected final void addToggle(String label, BooleanSupplier getter, Consumer<Boolean> setter) {
-        Text onText  = Text.literal("ON").formatted(Formatting.GREEN, Formatting.BOLD);
-        Text offText = Text.literal("OFF").formatted(Formatting.RED,   Formatting.BOLD);
-        CyclingButtonWidget<Boolean> btn = CyclingButtonWidget
-                .onOffBuilder(onText, offText, getter.getAsBoolean())
-                .build(0, 0, buttonWidth(), BUTTON_H, Text.literal(label),
-                        (button, value) -> setter.accept(value));
+        GlassToggle btn = new GlassToggle(0, 0, buttonWidth(), BUTTON_H, label, getter.getAsBoolean(), setter);
         addDrawableChild(btn);
         rows.add(new WidgetRow(label, btn));
     }
 
     /** Plain action button (e.g. "Edit HUD positions...") — sits in the same scrollable list as toggles. */
     protected final void addAction(String label, Runnable action) {
-        ButtonWidget btn = ButtonWidget.builder(Text.literal(label), b -> action.run())
-                .dimensions(0, 0, buttonWidth(), BUTTON_H)
-                .build();
+        GlassButton btn = new GlassButton(0, 0, buttonWidth(), BUTTON_H, Text.literal(label), action);
         addDrawableChild(btn);
         rows.add(new WidgetRow(label, btn));
     }
 
     /** Integer slider (min..max) with a labeled message. */
     protected final void addSlider(String label, int min, int max, IntSupplier getter, IntConsumer setter) {
-        int initial = Math.max(min, Math.min(max, getter.getAsInt()));
-        double initialNorm = max == min ? 0.0 : (double) (initial - min) / (max - min);
-        SliderWidget slider = new SliderWidget(0, 0, buttonWidth(), BUTTON_H,
-                Text.literal(label + ": " + initial), initialNorm) {
-            @Override
-            protected void updateMessage() {
-                int v = min + (int) Math.round(this.value * (max - min));
-                this.setMessage(Text.literal(label + ": " + v));
-            }
-            @Override
-            protected void applyValue() {
-                int v = min + (int) Math.round(this.value * (max - min));
-                setter.accept(v);
-            }
-        };
+        GlassSlider slider = new GlassSlider(0, 0, buttonWidth(), BUTTON_H, label, min, max, getter.getAsInt(), setter);
         addDrawableChild(slider);
         rows.add(new WidgetRow(label, slider));
     }
@@ -214,17 +193,16 @@ public abstract class WidgetSettingsScreen extends Screen {
     @Override
     public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
         int rowW = buttonWidth();
-        // Dim the world behind. The viewport gets a softer fill so rows pop.
-        ctx.fill(0, 0, this.width, this.height, 0x88000000);
-        ctx.fill(this.width / 2 - rowW / 2 - 4, VIEWPORT_TOP - 2,
-                 this.width / 2 + rowW / 2 + 4, viewportBottom() + 2, 0x33000000);
+        // Real blurred backdrop, then one frosted glass card behind the whole column.
+        GlassRender.menuBackdrop(ctx, this.width, this.height);
+        GlassRender.panel(ctx, this.width / 2 - rowW / 2 - 12, 6, rowW + 24, this.height - 12);
 
         super.render(ctx, mouseX, mouseY, delta);
 
         // Header titles.
-        ctx.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, 12, 0xFFFFFF);
+        ctx.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, 14, GlassTheme.text());
         if (subtitle != null) {
-            ctx.drawCenteredTextWithShadow(this.textRenderer, subtitle, this.width / 2, 26, 0x888888);
+            ctx.drawCenteredTextWithShadow(this.textRenderer, subtitle, this.width / 2, 28, GlassTheme.textDim());
         }
 
         // Section header text (non-widget rows) inside the viewport.
@@ -239,15 +217,7 @@ public abstract class WidgetSettingsScreen extends Screen {
             int rowTop = y;
             int rowBottom = y + r.height();
             if (rowBottom > top && rowTop < bottom && r instanceof HeaderRow h) {
-                int hy = rowTop + (r.height() - this.textRenderer.fontHeight) / 2;
-                // Divider line behind the label so the section reads at a glance.
-                ctx.fill(centerX - rowW / 2, rowTop + r.height() / 2,
-                         centerX + rowW / 2, rowTop + r.height() / 2 + 1, 0x33FFFFFF);
-                int labelW = this.textRenderer.getWidth(h.text);
-                ctx.fill(centerX - labelW / 2 - 4, hy - 1,
-                         centerX + labelW / 2 + 4, hy + this.textRenderer.fontHeight + 1, 0xAA000000);
-                ctx.drawText(this.textRenderer, h.text,
-                        centerX - labelW / 2, hy, 0xFFFFC857, false);
+                GlassRender.sectionDivider(ctx, this.textRenderer, centerX, rowTop, r.height(), rowW, h.text);
             }
             y += r.height();
         }
@@ -259,8 +229,7 @@ public abstract class WidgetSettingsScreen extends Screen {
             int barX = this.width / 2 + rowW / 2 + 6;
             int barH = Math.max(20, (int) ((double) viewportH * viewportH / totalContentHeight));
             int barY = top + (int) ((double) scrollY * (viewportH - barH) / Math.max(1, totalContentHeight - viewportH));
-            ctx.fill(barX, top, barX + 3, bottom, 0x44FFFFFF);
-            ctx.fill(barX, barY, barX + 3, barY + barH, 0xFFFFC857);
+            GlassRender.scrollbar(ctx, barX, top, bottom, barY, barH);
         }
     }
 

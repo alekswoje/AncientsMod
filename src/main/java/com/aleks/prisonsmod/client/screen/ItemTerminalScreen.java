@@ -1,12 +1,14 @@
 package com.aleks.prisonsmod.client.screen;
 
+import com.aleks.prisonsmod.client.glass.GlassRender;
+import com.aleks.prisonsmod.client.glass.GlassTextField;
+import com.aleks.prisonsmod.client.glass.GlassTheme;
 import com.aleks.prisonsmod.net.Protocol;
 import com.aleks.prisonsmod.net.payload.PvBundlePayload;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.client.input.KeyInput;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.client.util.Window;
@@ -106,7 +108,7 @@ public abstract class ItemTerminalScreen extends Screen {
      *  state is authoritative once it lands). 0 means "this slot is now empty". */
     private final java.util.Map<Long, Integer> optimisticAmounts = new java.util.HashMap<>();
 
-    private TextFieldWidget searchField;
+    private GlassTextField searchField;
     private String searchQuery = "";
 
     /** When true, the player is shift+left-dragging across inventory slots —
@@ -154,7 +156,7 @@ public abstract class ItemTerminalScreen extends Screen {
         int searchW = panelW - PANEL_PADDING * 2 - SCROLLBAR_W - SCROLLBAR_GAP - SORT_BTN_W - SORT_BTN_GAP;
         int searchX = panelX + PANEL_PADDING;
         int searchY = panelY + TITLE_BAR_H + 4;
-        this.searchField = new TextFieldWidget(this.textRenderer, searchX, searchY, searchW, 18,
+        this.searchField = new GlassTextField(this.textRenderer, searchX, searchY, searchW, 18,
                 Text.literal("Search items…"));
         this.searchField.setMaxLength(64);
         this.searchField.setPlaceholder(Text.literal("§7Search items or material id…"));
@@ -489,18 +491,14 @@ public abstract class ItemTerminalScreen extends Screen {
         int bx = sortBtnX();
         int by = sortBtnY();
         boolean hover = overSortButton(mouseX, mouseY);
-        ctx.fill(bx, by, bx + SORT_BTN_W, by + SORT_BTN_H, hover ? 0xFF3A3A3A : 0xFF222222);
-        ctx.fill(bx, by, bx + SORT_BTN_W, by + 1, 0xFF555555);
-        ctx.fill(bx, by + SORT_BTN_H - 1, bx + SORT_BTN_W, by + SORT_BTN_H, 0xFF555555);
-        ctx.fill(bx, by, bx + 1, by + SORT_BTN_H, 0xFF555555);
-        ctx.fill(bx + SORT_BTN_W - 1, by, bx + SORT_BTN_W, by + SORT_BTN_H, 0xFF555555);
+        GlassRender.button(ctx, bx, by, bx + SORT_BTN_W, by + SORT_BTN_H, hover, true, false);
         int mode = getSortMode();
-        String label = "§e" + sortLabel(mode);
+        String label = sortLabel(mode);
         int tw = this.textRenderer.getWidth(label);
         ctx.drawText(this.textRenderer, Text.literal(label),
                 bx + (SORT_BTN_W - tw) / 2,
                 by + (SORT_BTN_H - this.textRenderer.fontHeight) / 2 + 1,
-                0xFFFFFFFF, true);
+                GlassTheme.text(), false);
         if (hover) {
             hoverTooltip = java.util.List.of(
                     Text.literal("§7Sort: §f" + sortLabelFull(mode)),
@@ -827,13 +825,13 @@ public abstract class ItemTerminalScreen extends Screen {
         int panelX = (this.width - panelW) / 2;
         int panelY = (this.height - panelH) / 2;
 
-        ctx.fill(panelX, panelY, panelX + panelW, panelY + panelH, 0xF0101010);
-        ctx.fill(panelX, panelY, panelX + panelW, panelY + 1, 0xFF555555);
-        ctx.fill(panelX, panelY + panelH - 1, panelX + panelW, panelY + panelH, 0xFF555555);
-        ctx.fill(panelX, panelY, panelX + 1, panelY + panelH, 0xFF555555);
-        ctx.fill(panelX + panelW - 1, panelY, panelX + panelW, panelY + panelH, 0xFF555555);
+        GlassRender.menuBackdrop(ctx, this.width, this.height);
+        GlassRender.panel(ctx, panelX, panelY, panelW, panelH);
 
-        ctx.fill(panelX, panelY, panelX + panelW, panelY + TITLE_BAR_H, 0xFF1A1A1A);
+        // Violet title-bar wash (inset by the panel radius so it sits inside the rim).
+        int r = GlassRender.RADIUS;
+        ctx.fill(panelX + r, panelY + r, panelX + panelW - r, panelY + TITLE_BAR_H,
+                GlassTheme.withAlpha(GlassTheme.ACCENT, 0x2E));
         int totalOccupied = occupiedSlots();
         int totalCapacity = capacitySlots();
         int pct = totalCapacity > 0 ? (totalOccupied * 100 / totalCapacity) : 0;
@@ -847,7 +845,7 @@ public abstract class ItemTerminalScreen extends Screen {
             String warn = viewOnlyBadge();
             int warnW = this.textRenderer.getWidth(warn);
             ctx.drawText(this.textRenderer, Text.literal(warn),
-                    panelX + panelW - warnW - 10, panelY + 8, 0xFFFF5555, true);
+                    panelX + panelW - warnW - 10, panelY + 8, GlassTheme.WARN, false);
         }
     }
 
@@ -874,12 +872,12 @@ public abstract class ItemTerminalScreen extends Screen {
         int gridW = gridContentWidth();
         int gridH = gridContentHeight();
 
-        // Grid background — dark slots.
+        // Grid background — frosted glass slots.
         for (int r = 0; r < GRID_ROWS; r++) {
             for (int c = 0; c < GRID_COLS; c++) {
                 int sx = gx + c * SLOT_PX;
                 int sy = gy + r * SLOT_PX;
-                ctx.fill(sx + 1, sy + 1, sx + SLOT_PX - 1, sy + SLOT_PX - 1, 0xFF0E0E0E);
+                GlassRender.slot(ctx, sx + 1, sy + 1, sx + SLOT_PX - 1, sy + SLOT_PX - 1);
             }
         }
 
@@ -914,7 +912,7 @@ public abstract class ItemTerminalScreen extends Screen {
             if (flashAt != null && now - flashAt < FLASH_MS) {
                 float t = 1f - ((now - flashAt) / (float) FLASH_MS);
                 int alpha = (int) (Math.max(0, Math.min(1, t)) * 100);
-                int color = (alpha << 24) | 0xFFCC33;
+                int color = GlassTheme.withAlpha(GlassTheme.ACCENT, alpha);
                 ctx.fill(sx + 1, sy + 1, sx + SLOT_PX - 1, sy + SLOT_PX - 1, color);
             }
 
@@ -932,7 +930,7 @@ public abstract class ItemTerminalScreen extends Screen {
                     : "§7No items match §f\"" + searchQuery + "\"";
             int msgW = this.textRenderer.getWidth(msg);
             ctx.drawText(this.textRenderer, Text.literal(msg),
-                    gx + (gridW - msgW) / 2, gy + gridH / 2 - 4, 0xFFAAAAAA, false);
+                    gx + (gridW - msgW) / 2, gy + gridH / 2 - 4, GlassTheme.textMuted(), false);
         }
 
         // Scrollbar
@@ -941,12 +939,11 @@ public abstract class ItemTerminalScreen extends Screen {
             int sbX = gx + gridW + SCROLLBAR_GAP;
             int sbY = gy;
             int sbH = gridH;
-            ctx.fill(sbX, sbY, sbX + SCROLLBAR_W, sbY + sbH, 0x80000000);
             double trackRatio = (double) GRID_ROWS / totalRows();
             int thumbH = Math.max(20, (int) (sbH * trackRatio));
             int range = sbH - thumbH;
             int thumbY = sbY + (int) (range * ((double) scrollRowOffset / maxOffset));
-            ctx.fill(sbX, thumbY, sbX + SCROLLBAR_W, thumbY + thumbH, 0xFFAAAAAA);
+            GlassRender.scrollbar(ctx, sbX, sbY, sbY + sbH, thumbY, thumbH);
         }
 
         // Blocked-action notice — shown briefly after a take/put attempt while
@@ -956,8 +953,11 @@ public abstract class ItemTerminalScreen extends Screen {
             int msgW = this.textRenderer.getWidth(msg);
             int bx = gx + (gridW - msgW) / 2;
             int by = gy + gridH / 2 - 4;
-            ctx.fill(bx - 6, by - 5, bx + msgW + 6, by + 13, 0xD0200000);
-            ctx.drawText(this.textRenderer, Text.literal(msg), bx, by, 0xFFFF6666, true);
+            GlassRender.roundedRect(ctx, bx - 6, by - 5, bx + msgW + 6, by + 13, 5,
+                    GlassTheme.withAlpha(GlassTheme.WARN, 0xC0));
+            GlassRender.roundedBorder(ctx, bx - 6, by - 5, bx + msgW + 6, by + 13, 5,
+                    GlassTheme.withAlpha(GlassTheme.WARN, 0xFF));
+            ctx.drawText(this.textRenderer, Text.literal(msg), bx, by, GlassTheme.text(), true);
         }
 
         // Sort-mode button (search row, right side).
@@ -1025,8 +1025,8 @@ public abstract class ItemTerminalScreen extends Screen {
         int iy = invY();
         int panelX = (this.width - panelWidth()) / 2;
 
-        ctx.drawText(this.textRenderer, Text.literal("§7Your inventory:"),
-                panelX + 10, iy - 9, 0xFF888888, false);
+        ctx.drawText(this.textRenderer, Text.literal("Your inventory:"),
+                panelX + 10, iy - 9, GlassTheme.textMuted(), false);
 
         // Main inventory rows (slots 9..35) — top to bottom.
         for (int row = 0; row < INV_MAIN_ROWS; row++) {
@@ -1048,8 +1048,7 @@ public abstract class ItemTerminalScreen extends Screen {
 
     private void renderInvSlot(DrawContext ctx, int slotIndex, int sx, int sy,
                                int mouseX, int mouseY) {
-        ctx.fill(sx, sy, sx + INV_SLOT_PX, sy + INV_SLOT_PX, 0xFF2A2A2A);
-        ctx.fill(sx + 1, sy + 1, sx + INV_SLOT_PX - 1, sy + INV_SLOT_PX - 1, 0xFF101010);
+        GlassRender.slot(ctx, sx, sy, sx + INV_SLOT_PX, sy + INV_SLOT_PX);
 
         ItemStack stack = playerInvStack(slotIndex);
         if (stack != null && !stack.isEmpty()) {

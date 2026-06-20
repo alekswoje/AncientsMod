@@ -3,14 +3,15 @@ package com.aleks.prisonsmod.client.screen;
 import com.aleks.prisonsmod.client.muffler.MufflerCapture;
 import com.aleks.prisonsmod.client.muffler.MufflerCatalog;
 import com.aleks.prisonsmod.client.muffler.MufflerSettings;
+import com.aleks.prisonsmod.client.glass.GlassButton;
+import com.aleks.prisonsmod.client.glass.GlassRender;
+import com.aleks.prisonsmod.client.glass.GlassTextField;
+import com.aleks.prisonsmod.client.glass.GlassTheme;
+import com.aleks.prisonsmod.client.glass.GlassToggle;
 import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.CyclingButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
 
 import java.util.ArrayList;
@@ -65,15 +66,15 @@ public final class MufflerScreen extends Screen {
     private static final int TAB_H = 20;
     private static final int HEADER_Y = 56;
 
-    private static final int ACCENT = 0xFFFFC857;
-    private static final int RED = 0xFFFF5555;
-    private static final int GREEN = 0xFF55FF55;
+    private static final int ACCENT = GlassTheme.ACCENT_SOFT;
+    private static final int RED = GlassTheme.WARN;
+    private static final int GREEN = GlassTheme.OK;
 
     private final Screen parent;
 
     private Tab activeTab = Tab.SOUNDS;
     private final List<Row> rows = new ArrayList<>();
-    private TextFieldWidget search;
+    private GlassTextField search;
     private int scrollY;
     private long lastRecentRebuild;
 
@@ -94,33 +95,27 @@ public final class MufflerScreen extends Screen {
         MufflerCapture.setActive(true);
 
         // Master ON/OFF.
-        CyclingButtonWidget<Boolean> master = CyclingButtonWidget
-                .onOffBuilder(
-                        Text.literal("ON").formatted(Formatting.GREEN, Formatting.BOLD),
-                        Text.literal("OFF").formatted(Formatting.RED, Formatting.BOLD),
-                        MufflerSettings.isEnabled())
-                .build(left, HEADER_Y, 120, 20, Text.literal("Muffler"),
-                        (b, v) -> MufflerSettings.setEnabled(v));
-        addDrawableChild(master);
+        addDrawableChild(new GlassToggle(left, HEADER_Y, 120, 20, "Muffler",
+                MufflerSettings.isEnabled(), MufflerSettings::setEnabled));
 
         // Clear-all.
-        addDrawableChild(ButtonWidget.builder(Text.literal("Clear all"), b -> {
+        addDrawableChild(new GlassButton(right - 80, HEADER_Y, 80, 20, Text.literal("Clear all"), () -> {
             MufflerSettings.clearAll();
             rebuildRows();
-        }).dimensions(right - 80, HEADER_Y, 80, 20).build());
+        }));
 
         // Search field (between master and clear).
         int searchX = left + 128;
         int searchW = (right - 84) - searchX;
-        search = new TextFieldWidget(this.textRenderer, searchX, HEADER_Y, Math.max(60, searchW), 20,
+        search = new GlassTextField(this.textRenderer, searchX, HEADER_Y, Math.max(60, searchW), 20,
                 Text.literal("Search"));
         search.setPlaceholder(Text.literal("Search…"));
         search.setChangedListener(s -> { scrollY = 0; rebuildRows(); });
         addDrawableChild(search);
 
         // Done.
-        addDrawableChild(ButtonWidget.builder(Text.translatable("gui.done"), b -> this.close())
-                .dimensions(cx - 50, this.height - 28, 100, 20).build());
+        addDrawableChild(new GlassButton(cx - 50, this.height - 28, 100, 20,
+                Text.translatable("gui.done"), this::close).primary());
 
         rebuildRows();
     }
@@ -308,17 +303,17 @@ public final class MufflerScreen extends Screen {
             clampScroll();
         }
 
-        ctx.fill(0, 0, this.width, this.height, 0x88000000);
-        ctx.fill(left - 4, viewTop - 2, right + 4, viewBottom + 2, 0x33000000);
+        GlassRender.menuBackdrop(ctx, this.width, this.height);
+        GlassRender.panel(ctx, left - 10, 6, (right - left) + 20, this.height - 12);
 
         super.render(ctx, mouseX, mouseY, delta);
 
         // Title + subtitle.
-        ctx.drawCenteredTextWithShadow(this.textRenderer, this.title, cx, 10, 0xFFFFFF);
+        ctx.drawCenteredTextWithShadow(this.textRenderer, this.title, cx, 10, GlassTheme.text());
         ctx.drawCenteredTextWithShadow(this.textRenderer,
                 Text.literal("Muted: " + MufflerSettings.mutedSoundCount() + " sounds · "
                         + MufflerSettings.mutedParticleCount() + " particles"),
-                cx, 21, 0x888888);
+                cx, 21, GlassTheme.textDim());
 
         drawTabs(ctx, mouseX, mouseY);
         drawRows(ctx, mouseX, mouseY);
@@ -332,12 +327,13 @@ public final class MufflerScreen extends Screen {
             int tw = (i == tabs.length - 1) ? (right - tx) : tabW;
             boolean active = tabs[i] == activeTab;
             boolean hover = mouseX >= tx && mouseX < tx + tw && mouseY >= TAB_Y && mouseY < TAB_Y + TAB_H;
-            ctx.fill(tx + 1, TAB_Y, tx + tw - 1, TAB_Y + TAB_H, active ? 0x55FFC857 : (hover ? 0x33FFFFFF : 0x22000000));
+            GlassRender.roundedRect(ctx, tx + 1, TAB_Y, tx + tw - 1, TAB_Y + TAB_H, 5,
+                    active ? GlassTheme.withAlpha(GlassTheme.ACCENT, 0x55) : (hover ? GlassTheme.rowHover() : GlassTheme.slot()));
             if (active) {
-                ctx.fill(tx + 1, TAB_Y + TAB_H - 2, tx + tw - 1, TAB_Y + TAB_H, ACCENT);
+                ctx.fill(tx + 4, TAB_Y + TAB_H - 2, tx + tw - 4, TAB_Y + TAB_H, ACCENT);
             }
             ctx.drawCenteredTextWithShadow(this.textRenderer, Text.literal(tabs[i].label),
-                    tx + tw / 2, TAB_Y + 6, active ? ACCENT : 0xFFCCCCCC);
+                    tx + tw / 2, TAB_Y + 6, active ? ACCENT : GlassTheme.textDim());
         }
     }
 
@@ -353,16 +349,16 @@ public final class MufflerScreen extends Screen {
             boolean hovered = mouseY >= rowTop && mouseY < rowTop + ROW_H
                     && mouseX >= left && mouseX <= right && r.kind != Kind.HEADER;
             if (hovered) {
-                ctx.fill(left, rowTop, right, rowTop + ROW_H, 0x22FFFFFF);
+                GlassRender.row(ctx, left, rowTop + 1, right, rowTop + ROW_H - 1, true);
                 if (r.note != null) hoverNoteRow = r;
             }
             switch (r.kind) {
                 case HEADER -> {
                     int lineY = rowTop + ROW_H / 2;
-                    ctx.fill(left, lineY, right, lineY + 1, 0x33FFFFFF);
+                    ctx.fill(left, lineY, right, lineY + 1, GlassTheme.rimSoft());
                     int w = this.textRenderer.getWidth(r.label);
-                    ctx.fill(left + 6, midY - 1, left + 12 + w, midY + this.textRenderer.fontHeight, 0xAA000000);
-                    ctx.drawText(this.textRenderer, r.label, left + 9, midY, ACCENT, false);
+                    GlassRender.roundedRect(ctx, left + 4, midY - 2, left + 14 + w, midY + this.textRenderer.fontHeight + 1, 4, GlassTheme.panelTop());
+                    ctx.drawText(this.textRenderer, r.label, left + 9, midY, GlassTheme.sectionLabel(), false);
                 }
                 case SOUND -> drawSoundRow(ctx, r, rowTop, midY);
                 case PARTICLE -> drawPillRow(ctx, r, rowTop, midY,
@@ -383,8 +379,7 @@ public final class MufflerScreen extends Screen {
             int barX = right + 6;
             int barH = Math.max(20, viewportH * viewportH / contentHeight());
             int barY = viewTop + (maxScroll() == 0 ? 0 : scrollY * (viewportH - barH) / maxScroll());
-            ctx.fill(barX, viewTop, barX + 3, viewBottom, 0x44FFFFFF);
-            ctx.fill(barX, barY, barX + 3, barY + barH, ACCENT);
+            GlassRender.scrollbar(ctx, barX, viewTop, viewBottom, barY, barH);
         }
 
         // Hover note tooltip (bundle description / exact id).
@@ -403,34 +398,32 @@ public final class MufflerScreen extends Screen {
 
         // Label (left), trimmed so it never runs under the % text.
         String label = this.textRenderer.trimToWidth(r.label, pctX - (left + 6) - 4);
-        ctx.drawText(this.textRenderer, label, left + 6, midY, 0xFFFFFFFF, false);
+        ctx.drawText(this.textRenderer, label, left + 6, midY, GlassTheme.text(), false);
 
         // Percent / Muted.
         boolean muted = factor <= 0f;
         String pct = muted ? "Muted" : (Math.round(factor * 100) + "%");
-        int pctColor = muted ? RED : (factor < 1f ? ACCENT : 0xFFAAAAAA);
+        int pctColor = muted ? RED : (factor < 1f ? GlassTheme.VALUE : GlassTheme.textDim());
         int pw = this.textRenderer.getWidth(pct);
         ctx.drawText(this.textRenderer, pct, pctRight - pw, midY, pctColor, false);
 
         // Track + fill + knob.
-        ctx.fill(trackX, trackMid - 2, trackRight, trackMid + 2, 0x44FFFFFF);
-        int fillW = Math.round(factor * TRACK_W);
-        if (fillW > 0) {
-            ctx.fill(trackX, trackMid - 2, trackX + fillW, trackMid + 2, muted ? RED : ACCENT);
-        }
-        int knobX = trackX + fillW;
-        ctx.fill(knobX - 1, trackMid - 5, knobX + 2, trackMid + 5, 0xFFFFFFFF);
+        GlassRender.sliderTrack(ctx, trackX, trackMid - 2, trackRight, trackMid + 2, factor);
+        int knobX = trackX + Math.round(factor * TRACK_W);
+        GlassRender.roundedRect(ctx, knobX - 2, trackMid - 5, knobX + 3, trackMid + 5, 2, 0xFFFFFFFF);
     }
 
     private void drawPillRow(DrawContext ctx, Row r, int rowTop, int midY, boolean muffled) {
         int pillRight = right - 8;
         int pillX = pillRight - PILL_W;
         String label = this.textRenderer.trimToWidth(r.label, pillX - (left + 6) - 6);
-        ctx.drawText(this.textRenderer, label, left + 6, midY, 0xFFFFFFFF, false);
+        ctx.drawText(this.textRenderer, label, left + 6, midY, GlassTheme.text(), false);
 
         int pillTop = rowTop + 3;
         int pillBot = rowTop + ROW_H - 3;
-        ctx.fill(pillX, pillTop, pillRight, pillBot, muffled ? 0x55FF5555 : 0x5555FF55);
+        GlassRender.roundedRect(ctx, pillX, pillTop, pillRight, pillBot, (pillBot - pillTop) / 2,
+                muffled ? GlassTheme.withAlpha(GlassTheme.WARN, 0x55) : GlassTheme.withAlpha(GlassTheme.OK, 0x55));
+        GlassRender.roundedBorder(ctx, pillX, pillTop, pillRight, pillBot, (pillBot - pillTop) / 2, GlassTheme.rimSoft());
         String txt = muffled ? "OFF" : "ON";
         int color = muffled ? RED : GREEN;
         ctx.drawCenteredTextWithShadow(this.textRenderer, Text.literal(txt),
@@ -442,13 +435,15 @@ public final class MufflerScreen extends Screen {
         int btnX = btnRight - BTN_W;
         String suffix = r.count > 1 ? "  ×" + r.count : "";
         int suffixW = this.textRenderer.getWidth(suffix);
-        ctx.drawText(this.textRenderer, suffix, btnX - 8 - suffixW, midY, 0xFF888888, false);
+        ctx.drawText(this.textRenderer, suffix, btnX - 8 - suffixW, midY, GlassTheme.textMuted(), false);
         String label = this.textRenderer.trimToWidth(r.label, (btnX - 8 - suffixW) - (left + 6) - 4);
-        ctx.drawText(this.textRenderer, label, left + 6, midY, 0xFFFFFFFF, false);
+        ctx.drawText(this.textRenderer, label, left + 6, midY, GlassTheme.text(), false);
 
         int btnTop = rowTop + 3;
         int btnBot = rowTop + ROW_H - 3;
-        ctx.fill(btnX, btnTop, btnRight, btnBot, muted ? 0x5555FF55 : 0x55FF5555);
+        GlassRender.roundedRect(ctx, btnX, btnTop, btnRight, btnBot, (btnBot - btnTop) / 2,
+                muted ? GlassTheme.withAlpha(GlassTheme.OK, 0x55) : GlassTheme.withAlpha(GlassTheme.WARN, 0x55));
+        GlassRender.roundedBorder(ctx, btnX, btnTop, btnRight, btnBot, (btnBot - btnTop) / 2, GlassTheme.rimSoft());
         String txt = muted ? "Unmute" : "Mute";
         ctx.drawCenteredTextWithShadow(this.textRenderer, Text.literal(txt),
                 (btnX + btnRight) / 2, midY, muted ? GREEN : RED);

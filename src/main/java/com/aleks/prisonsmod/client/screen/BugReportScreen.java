@@ -1,13 +1,15 @@
 package com.aleks.prisonsmod.client.screen;
 
 import com.aleks.prisonsmod.client.bugreport.BugReportClient;
+import com.aleks.prisonsmod.client.glass.GlassButton;
+import com.aleks.prisonsmod.client.glass.GlassRender;
+import com.aleks.prisonsmod.client.glass.GlassTextField;
+import com.aleks.prisonsmod.client.glass.GlassTheme;
 import com.aleks.prisonsmod.net.Protocol;
 import com.aleks.prisonsmod.net.payload.BugReportOpenPayload;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.CheckboxWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 
 import java.util.ArrayList;
@@ -69,14 +71,14 @@ public final class BugReportScreen extends Screen {
 
     private final boolean[] checked = new boolean[CATEGORIES.length];
     private final List<CheckboxWidget> catWidgets = new ArrayList<>();
-    private TextFieldWidget descBox;
-    private TextFieldWidget followupBox;
-    private ButtonWidget submitButton;
-    private ButtonWidget cancelButton;
-    private ButtonWidget sendFollowupButton;
-    private ButtonWidget escalateButton;
-    private ButtonWidget resolveButton;
-    private ButtonWidget closeButton;
+    private GlassTextField descBox;
+    private GlassTextField followupBox;
+    private GlassButton submitButton;
+    private GlassButton cancelButton;
+    private GlassButton sendFollowupButton;
+    private GlassButton escalateButton;
+    private GlassButton resolveButton;
+    private GlassButton closeButton;
 
     /** Pixel offset for the snapshot column. Driven by mouse wheel. */
     private int leftScroll = 0;
@@ -115,7 +117,7 @@ public final class BugReportScreen extends Screen {
         // multi-line widget signature, so we use TextFieldWidget for both compose and chat
         // text entry — players can still type ~1KB of description, it just scrolls).
         int descY = catY + CATEGORIES.length * catRowHeight + 8;
-        descBox = new TextFieldWidget(this.textRenderer, rightX, descY, rightW, 20,
+        descBox = new GlassTextField(this.textRenderer, rightX, descY, rightW, 20,
                 Text.literal("Describe what went wrong"));
         descBox.setMaxLength(Protocol.BUGREPORT_MAX_DESCRIPTION_CHARS);
         descBox.setPlaceholder(Text.literal("Describe what went wrong (when, where, what you tried)…"));
@@ -124,47 +126,41 @@ public final class BugReportScreen extends Screen {
         }
         this.addDrawableChild(descBox);
 
-        // Compose-mode buttons.
+        // Compose-mode buttons. Cancel on the LEFT, Submit (.primary) on the RIGHT.
         int btnY = this.height - FOOTER_H + 8;
-        submitButton = ButtonWidget.builder(Text.literal("Submit Report"), b -> doSubmit())
-                .dimensions(rightX, btnY, rightW / 2 - 4, 20)
-                .build();
-        cancelButton = ButtonWidget.builder(Text.literal("Cancel"), b -> {
+        cancelButton = new GlassButton(rightX, btnY, rightW / 2 - 4, 20,
+                Text.literal("Cancel"), () -> {
                     BugReportClient.close(false);
                     this.close();
-                })
-                .dimensions(rightX + rightW / 2 + 4, btnY, rightW / 2 - 4, 20)
-                .build();
+                });
+        submitButton = new GlassButton(rightX + rightW / 2 + 4, btnY, rightW / 2 - 4, 20,
+                Text.literal("Submit Report"), this::doSubmit).primary();
         this.addDrawableChild(submitButton);
         this.addDrawableChild(cancelButton);
 
         // Chat-mode widgets (followup input + buttons). Created up front but
         // toggled visible based on state.
-        followupBox = new TextFieldWidget(this.textRenderer,
+        followupBox = new GlassTextField(this.textRenderer,
                 rightX, this.height - FOOTER_H - CHAT_INPUT_H - 4,
                 rightW, CHAT_INPUT_H,
                 Text.literal("Reply to the bot…"));
         followupBox.setMaxLength(Protocol.BUGREPORT_MAX_FOLLOWUP_CHARS);
         this.addDrawableChild(followupBox);
 
-        sendFollowupButton = ButtonWidget.builder(Text.literal("Send"), b -> doFollowup())
-                .dimensions(rightX, btnY, rightW / 3 - 4, 20)
-                .build();
-        resolveButton = ButtonWidget.builder(Text.literal("Mark Resolved"), b -> {
+        sendFollowupButton = new GlassButton(rightX, btnY, rightW / 3 - 4, 20,
+                Text.literal("Send"), this::doFollowup).primary();
+        resolveButton = new GlassButton(rightX + rightW / 3, btnY, rightW / 3 - 4, 20,
+                Text.literal("Mark Resolved"), () -> {
                     BugReportClient.close(true);
                     this.close();
-                })
-                .dimensions(rightX + rightW / 3, btnY, rightW / 3 - 4, 20)
-                .build();
-        escalateButton = ButtonWidget.builder(Text.literal("Talk to Staff"), b -> BugReportClient.escalate())
-                .dimensions(rightX + 2 * rightW / 3, btnY, rightW / 3, 20)
-                .build();
-        closeButton = ButtonWidget.builder(Text.literal("Close"), b -> {
+                });
+        escalateButton = new GlassButton(rightX + 2 * rightW / 3, btnY, rightW / 3, 20,
+                Text.literal("Talk to Staff"), BugReportClient::escalate);
+        closeButton = new GlassButton(rightX + rightW - 60, btnY - 24, 60, 20,
+                Text.literal("Close"), () -> {
                     BugReportClient.close(false);
                     this.close();
-                })
-                .dimensions(rightX + rightW - 60, btnY - 24, 60, 20)
-                .build();
+                });
         this.addDrawableChild(sendFollowupButton);
         this.addDrawableChild(resolveButton);
         this.addDrawableChild(escalateButton);
@@ -271,8 +267,13 @@ public final class BugReportScreen extends Screen {
     // ── Drawing ──────────────────────────────────────────────────────────────
 
     private void drawHeader(DrawContext ctx) {
-        // Background bar.
-        ctx.fill(0, 0, this.width, HEADER_H, 0xC0000000);
+        // Real blurred backdrop + scrim behind the whole menu (drawn once, first).
+        GlassRender.menuBackdrop(ctx, this.width, this.height);
+
+        // Glass header strip with a violet accent wash.
+        GlassRender.panel(ctx, 0, 0, this.width, HEADER_H);
+        ctx.fill(GlassRender.RADIUS, GlassRender.RADIUS, this.width - GlassRender.RADIUS, HEADER_H,
+                GlassTheme.withAlpha(GlassTheme.ACCENT, 0x2E));
 
         // Title.
         String title = "Bug Report";
@@ -283,18 +284,18 @@ public final class BugReportScreen extends Screen {
         else if (s == BugReportClient.State.ESCALATED) title = "Bug Report — escalated to staff";
         else if (s == BugReportClient.State.SUBMITTING) title = "Bug Report — submitting…";
 
-        ctx.drawText(this.textRenderer, Text.literal(title), MARGIN, (HEADER_H - 9) / 2, 0xFFFFFFFF, true);
+        ctx.drawText(this.textRenderer, Text.literal(title), MARGIN, (HEADER_H - 9) / 2, GlassTheme.text(), false);
 
         String reportId = BugReportClient.currentReportId();
         if (!reportId.isEmpty()) {
             String label = "ID: " + reportId;
             int w = this.textRenderer.getWidth(label);
             ctx.drawText(this.textRenderer, Text.literal(label),
-                    this.width - MARGIN - w, (HEADER_H - 9) / 2, 0xFFFFCC66, true);
+                    this.width - MARGIN - w, (HEADER_H - 9) / 2, GlassTheme.VALUE, false);
         }
 
         // Separator.
-        ctx.fill(0, HEADER_H, this.width, HEADER_H + 1, 0xFF555555);
+        ctx.fill(0, HEADER_H, this.width, HEADER_H + 1, GlassTheme.rimSoft());
     }
 
     private void drawSnapshotColumn(DrawContext ctx, int mouseX, int mouseY) {
@@ -304,10 +305,10 @@ public final class BugReportScreen extends Screen {
         int h = this.height - HEADER_H - FOOTER_H - MARGIN;
 
         // Background.
-        ctx.fill(x, y0, x + w, y0 + h, 0x80101010);
+        GlassRender.panel(ctx, x, y0, w, h);
 
         // Title.
-        ctx.drawText(this.textRenderer, Text.literal("§eCollected stats"), x + 6, y0 + 6, 0xFFFFFFFF, true);
+        ctx.drawText(this.textRenderer, Text.literal("Collected stats"), x + 6, y0 + 6, GlassTheme.text(), false);
 
         // Clipped content area.
         int contentY = y0 + 22;
@@ -319,8 +320,8 @@ public final class BugReportScreen extends Screen {
         List<BugReportOpenPayload.Section> sections = BugReportClient.currentSections();
         if (sections.isEmpty()) {
             ctx.drawText(this.textRenderer,
-                    Text.literal("§7Waiting for snapshot…"),
-                    x + 8, drawY + 4, 0xFFAAAAAA, true);
+                    Text.literal("Waiting for snapshot…"),
+                    x + 8, drawY + 4, GlassTheme.textMuted(), false);
         } else {
             for (BugReportOpenPayload.Section section : sections) {
                 drawY = drawSection(ctx, section, x + 4, drawY, w - 8);
@@ -331,22 +332,22 @@ public final class BugReportScreen extends Screen {
 
         // Show scroll hint at the bottom.
         ctx.drawText(this.textRenderer,
-                Text.literal("§8scroll with mouse wheel"),
-                x + 6, y0 + h - 12, 0x80AAAAAA, false);
+                Text.literal("scroll with mouse wheel"),
+                x + 6, y0 + h - 12, GlassTheme.textMuted(), false);
     }
 
     private int drawSection(DrawContext ctx, BugReportOpenPayload.Section section, int x, int y, int w) {
         int sectionColor = sectionColor(section.sectionId);
-        ctx.fill(x, y, x + 3, y + SECTION_HEADER_H, sectionColor);
-        ctx.drawText(this.textRenderer, Text.literal("§f" + section.title),
-                x + 8, y + 2, 0xFFFFFFFF, true);
+        GlassRender.accentStrip(ctx, x, y, SECTION_HEADER_H, sectionColor);
+        ctx.drawText(this.textRenderer, Text.literal(section.title),
+                x + 8, y + 2, GlassTheme.text(), false);
         int cur = y + SECTION_HEADER_H + 2;
         for (String line : section.lines) {
             // Wrap to multiple visual lines if needed.
             List<String> wrapped = wrap(line, w - 12);
             for (String chunk : wrapped) {
-                ctx.drawText(this.textRenderer, Text.literal("§7" + chunk),
-                        x + 12, cur, 0xFFCCCCCC, false);
+                ctx.drawText(this.textRenderer, Text.literal(chunk),
+                        x + 12, cur, GlassTheme.textDim(), false);
                 cur += LINE_H;
             }
         }
@@ -418,11 +419,11 @@ public final class BugReportScreen extends Screen {
         int h = this.height - y0 - bottomGuard;
 
         // Background.
-        ctx.fill(x, y0, x + w, y0 + h, 0x80101010);
+        GlassRender.panel(ctx, x, y0, w, h);
 
         // Title.
-        ctx.drawText(this.textRenderer, Text.literal("§eConversation"),
-                x + 6, y0 + 6, 0xFFFFFFFF, true);
+        ctx.drawText(this.textRenderer, Text.literal("Conversation"),
+                x + 6, y0 + 6, GlassTheme.text(), false);
 
         int contentY = y0 + 22;
         int contentH = h - 28;
@@ -446,24 +447,24 @@ public final class BugReportScreen extends Screen {
         int bg;
         switch (line.kind) {
             case AI -> {
-                color = 0xFFFFFFFF;
+                color = GlassTheme.text();
                 prefix = "Hermes: ";
-                bg = 0x40224488;
+                bg = GlassTheme.withAlpha(GlassTheme.ACCENT, 0x33);
             }
             case PLAYER -> {
-                color = 0xFFFFFFFF;
+                color = GlassTheme.text();
                 prefix = "You: ";
-                bg = 0x40448822;
+                bg = GlassTheme.withAlpha(GlassTheme.OK, 0x33);
             }
             default -> {
-                color = 0xFFCCCCCC;
+                color = GlassTheme.textDim();
                 prefix = "* ";
-                bg = 0x30AAAAAA;
+                bg = GlassTheme.slot();
             }
         }
         List<String> wrapped = wrap(prefix + line.text, w - 2 * CHAT_LINE_WRAP_PAD);
         int lineHeight = wrapped.size() * LINE_H + 6;
-        ctx.fill(x, y, x + w, y + lineHeight, bg);
+        GlassRender.roundedRect(ctx, x, y, x + w, y + lineHeight, GlassRender.RADIUS, bg);
         int cur = y + 3;
         for (String chunk : wrapped) {
             ctx.drawText(this.textRenderer, Text.literal(chunk),

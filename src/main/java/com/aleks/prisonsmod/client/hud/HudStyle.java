@@ -1,5 +1,7 @@
 package com.aleks.prisonsmod.client.hud;
 
+import com.aleks.prisonsmod.client.glass.GlassRender;
+import com.aleks.prisonsmod.client.glass.GlassTheme;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.text.Text;
@@ -104,21 +106,32 @@ public final class HudStyle {
      */
     public static int drawChrome(DrawContext ctx, TextRenderer fr, String widgetId,
                                  int w, int h, String headerLabel) {
-        int bgTop = applyOpacity(BG_TOP_BASE, widgetId);
-        int bgBot = applyOpacity(BG_BOT_BASE, widgetId);
-        ctx.fillGradient(0, 0, w, h, bgTop, bgBot);
+        int op = bgOpacity(widgetId);
+        int r = Math.min(GlassRender.RADIUS, Math.min(w, h) / 2);
+
+        // Frosted rounded panel. Faux-frost (no real backdrop blur): the always-on
+        // HUDs render every frame with the world live, so we keep the per-frame cost
+        // to plain fills and sell "glass" via translucency + gloss + a soft rim.
+        GlassRender.roundedRectGrad(ctx, 0, 0, w, h, r,
+                GlassTheme.scaleAlpha(GlassTheme.hudTop(), op),
+                GlassTheme.scaleAlpha(GlassTheme.hudBot(), op));
+        int glossH = Math.min(12, h / 3);
+        if (glossH > 0)
+            ctx.fillGradient(r, 1, w - r, 1 + glossH,
+                    GlassTheme.scaleAlpha(GlassTheme.gloss(), op), GlassTheme.withAlpha(0xFFFFFF, 0));
+        ctx.fill(r, 1, w - r, 2, GlassTheme.scaleAlpha(GlassTheme.glossLine(), op));
 
         if (!isBorderHidden(widgetId)) {
-            drawBorder(ctx, 0, 0, w, h, BORDER);
-            ctx.fill(1, 1, w - 1, 2, BORDER_INNER);
+            GlassRender.roundedBorder(ctx, 0, 0, w, h, r, GlassTheme.scaleAlpha(GlassTheme.rim(), op));
         }
 
         if (!isHeaderHidden(widgetId)) {
             int hh = headerH(widgetId);
-            ctx.fill(1, 1, w - 1, hh, HEADER_BG);
-            ctx.fill(1, hh, w - 1, hh + 1, HEADER_RULE);
+            // Violet header wash, inset past the rounded top corners so it doesn't square them off.
+            ctx.fill(r, 1, w - r, hh, GlassTheme.withAlpha(GlassTheme.ACCENT, 0x33 * op / 100));
+            ctx.fill(r, hh, w - r, hh + 1, GlassTheme.scaleAlpha(HEADER_RULE, op));
             ctx.drawText(fr, Text.literal(headerLabel), padX(widgetId),
-                    (hh - fr.fontHeight) / 2 + 1, HEADER_TEXT, true);
+                    (hh - fr.fontHeight) / 2 + 1, GlassTheme.ACCENT_SOFT, true);
             return hh + padY(widgetId);
         }
         // No header: content starts at the top with regular vertical padding.

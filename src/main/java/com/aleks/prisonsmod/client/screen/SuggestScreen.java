@@ -1,11 +1,13 @@
 package com.aleks.prisonsmod.client.screen;
 
+import com.aleks.prisonsmod.client.glass.GlassButton;
+import com.aleks.prisonsmod.client.glass.GlassRender;
+import com.aleks.prisonsmod.client.glass.GlassTextField;
+import com.aleks.prisonsmod.client.glass.GlassTheme;
 import com.aleks.prisonsmod.client.suggest.SuggestClient;
 import com.aleks.prisonsmod.net.Protocol;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 
 /**
@@ -26,11 +28,11 @@ public final class SuggestScreen extends Screen {
     private static final int MARGIN = 14;
 
     private byte category = Protocol.SUGGEST_CAT_SERVER; // default to server-side suggestions
-    private TextFieldWidget bodyField;
-    private ButtonWidget modButton;
-    private ButtonWidget serverButton;
-    private ButtonWidget submitButton;
-    private ButtonWidget cancelButton;
+    private GlassTextField bodyField;
+    private GlassButton modButton;
+    private GlassButton serverButton;
+    private GlassButton submitButton;
+    private GlassButton cancelButton;
 
     public SuggestScreen() {
         super(Text.literal("Suggest"));
@@ -45,23 +47,21 @@ public final class SuggestScreen extends Screen {
 
         int catY = panelY + 40;
         int catW = (contentW - 8) / 2;
-        modButton = ButtonWidget.builder(categoryLabel("Mod", Protocol.SUGGEST_CAT_MOD), b -> {
+        modButton = new GlassButton(contentX, catY, catW, 20,
+                categoryLabel("Mod", Protocol.SUGGEST_CAT_MOD), () -> {
                     category = Protocol.SUGGEST_CAT_MOD;
                     refreshCategoryButtons();
-                })
-                .dimensions(contentX, catY, catW, 20)
-                .build();
-        serverButton = ButtonWidget.builder(categoryLabel("Server", Protocol.SUGGEST_CAT_SERVER), b -> {
+                });
+        serverButton = new GlassButton(contentX + catW + 8, catY, catW, 20,
+                categoryLabel("Server", Protocol.SUGGEST_CAT_SERVER), () -> {
                     category = Protocol.SUGGEST_CAT_SERVER;
                     refreshCategoryButtons();
-                })
-                .dimensions(contentX + catW + 8, catY, catW, 20)
-                .build();
+                });
         this.addDrawableChild(modButton);
         this.addDrawableChild(serverButton);
 
         int bodyY = catY + 50;
-        bodyField = new TextFieldWidget(this.textRenderer, contentX, bodyY, contentW, 20,
+        bodyField = new GlassTextField(this.textRenderer, contentX, bodyY, contentW, 20,
                 Text.literal("Your suggestion"));
         bodyField.setMaxLength(Protocol.SUGGEST_MAX_BODY_CHARS);
         bodyField.setPlaceholder(Text.literal("Describe your suggestion…"));
@@ -70,15 +70,13 @@ public final class SuggestScreen extends Screen {
 
         int btnY = panelY + PANEL_HEIGHT - MARGIN - 20;
         int btnW = (contentW - 8) / 2;
-        submitButton = ButtonWidget.builder(Text.literal("Submit"), b -> doSubmit())
-                .dimensions(contentX, btnY, btnW, 20)
-                .build();
-        cancelButton = ButtonWidget.builder(Text.literal("Cancel"), b -> {
+        // Confirm-right rule: Cancel on the LEFT, Submit (.primary()) on the RIGHT.
+        cancelButton = new GlassButton(contentX, btnY, btnW, 20, Text.literal("Cancel"), () -> {
                     SuggestClient.close();
                     this.close();
-                })
-                .dimensions(contentX + btnW + 8, btnY, btnW, 20)
-                .build();
+                });
+        submitButton = new GlassButton(contentX + btnW + 8, btnY, btnW, 20,
+                Text.literal("Submit"), this::doSubmit).primary();
         this.addDrawableChild(submitButton);
         this.addDrawableChild(cancelButton);
 
@@ -123,22 +121,25 @@ public final class SuggestScreen extends Screen {
         int panelX = (this.width - PANEL_WIDTH) / 2;
         int panelY = (this.height - PANEL_HEIGHT) / 2;
 
-        // Panel background — drawn here (in renderBackground) so the buttons +
-        // text field render ON TOP of it instead of being dimmed by it.
-        ctx.fill(panelX, panelY, panelX + PANEL_WIDTH, panelY + PANEL_HEIGHT, 0xF0101010);
-        ctx.fill(panelX, panelY, panelX + PANEL_WIDTH, panelY + 1, 0xFF555555);
-        ctx.fill(panelX, panelY + PANEL_HEIGHT - 1, panelX + PANEL_WIDTH, panelY + PANEL_HEIGHT, 0xFF555555);
+        // Real blurred backdrop + scrim behind the dialog (once, before the panel).
+        GlassRender.menuBackdrop(ctx, this.width, this.height);
 
-        // Title bar.
-        ctx.fill(panelX, panelY, panelX + PANEL_WIDTH, panelY + 24, 0xFF1A1A1A);
-        ctx.drawText(this.textRenderer, Text.literal("§eSuggest a change"),
-                panelX + MARGIN, panelY + 8, 0xFFFFFFFF, true);
+        // Frosted glass panel — drawn here (in renderBackground) so the buttons +
+        // text field render ON TOP of it instead of being dimmed by it.
+        GlassRender.panel(ctx, panelX, panelY, PANEL_WIDTH, PANEL_HEIGHT);
+
+        // Violet title-bar wash, inset by the panel radius.
+        ctx.fill(panelX + GlassRender.RADIUS, panelY + GlassRender.RADIUS,
+                panelX + PANEL_WIDTH - GlassRender.RADIUS, panelY + 24,
+                GlassTheme.withAlpha(GlassTheme.ACCENT, 0x2E));
+        ctx.drawText(this.textRenderer, Text.literal("Suggest a change"),
+                panelX + MARGIN, panelY + 8, GlassTheme.text(), false);
 
         // Field labels.
-        ctx.drawText(this.textRenderer, Text.literal("§7Category"),
-                panelX + MARGIN, panelY + 30, 0xFFAAAAAA, false);
-        ctx.drawText(this.textRenderer, Text.literal("§7Your suggestion"),
-                panelX + MARGIN, panelY + 80, 0xFFAAAAAA, false);
+        ctx.drawText(this.textRenderer, Text.literal("Category"),
+                panelX + MARGIN, panelY + 30, GlassTheme.textDim(), false);
+        ctx.drawText(this.textRenderer, Text.literal("Your suggestion"),
+                panelX + MARGIN, panelY + 80, GlassTheme.textDim(), false);
     }
 
     @Override
@@ -150,34 +151,30 @@ public final class SuggestScreen extends Screen {
         int panelY = (this.height - PANEL_HEIGHT) / 2;
 
         // Highlight border around the selected category — drawn ON TOP of the button.
-        ButtonWidget selected = (category == Protocol.SUGGEST_CAT_MOD) ? modButton : serverButton;
+        GlassButton selected = (category == Protocol.SUGGEST_CAT_MOD) ? modButton : serverButton;
         int hx = selected.getX();
         int hy = selected.getY();
         int hw = selected.getWidth();
         int hh = selected.getHeight();
-        int hi = 0xFFFFCC33;
-        ctx.fill(hx - 1, hy - 1, hx + hw + 1, hy,           hi); // top
-        ctx.fill(hx - 1, hy + hh, hx + hw + 1, hy + hh + 1, hi); // bottom
-        ctx.fill(hx - 1, hy - 1, hx, hy + hh + 1,           hi); // left
-        ctx.fill(hx + hw, hy - 1, hx + hw + 1, hy + hh + 1, hi); // right
+        GlassRender.roundedBorder(ctx, hx - 1, hy - 1, hx + hw + 1, hy + hh + 1, 6, GlassTheme.ACCENT_SOFT);
 
         // Error line under the body field.
         String err = SuggestClient.lastError();
         if (!err.isEmpty()) {
-            ctx.drawText(this.textRenderer, Text.literal("§c" + err),
-                    panelX + MARGIN, panelY + 124, 0xFFFF6E6E, false);
+            ctx.drawText(this.textRenderer, Text.literal(err),
+                    panelX + MARGIN, panelY + 124, GlassTheme.WARN, false);
         }
 
         // Status hint.
         String hint = switch (SuggestClient.currentState()) {
-            case SUBMITTING -> "§7Submitting…";
-            case OPEN -> "§8ESC or Cancel to dismiss";
+            case SUBMITTING -> "Submitting…";
+            case OPEN -> "ESC or Cancel to dismiss";
             default -> "";
         };
         if (!hint.isEmpty()) {
             int w = this.textRenderer.getWidth(hint);
             ctx.drawText(this.textRenderer, Text.literal(hint),
-                    panelX + PANEL_WIDTH - MARGIN - w, panelY + PANEL_HEIGHT - 12, 0xFFAAAAAA, false);
+                    panelX + PANEL_WIDTH - MARGIN - w, panelY + PANEL_HEIGHT - 12, GlassTheme.textMuted(), false);
         }
     }
 

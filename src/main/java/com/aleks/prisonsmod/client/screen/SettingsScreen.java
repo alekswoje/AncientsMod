@@ -46,6 +46,10 @@ public final class SettingsScreen extends WidgetSettingsScreen {
             if (this.client != null) this.client.setScreen(new MufflerScreen(this));
         });
 
+        addSection("Appearance");
+        addToggle("Light glass theme (off = dark)",
+                FeatureToggles::isGlassLightThemeEnabled, FeatureToggles::setGlassLightTheme);
+
         addSection("Tooltips");
         addToggle("Collapse enchants on gear",
                 FeatureToggles::isEnchantCollapseEnabled, FeatureToggles::setEnchantCollapse);

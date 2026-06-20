@@ -1,6 +1,10 @@
 package com.aleks.prisonsmod.client.screen;
 
 import com.aleks.prisonsmod.PrisonsMod;
+import com.aleks.prisonsmod.client.glass.GlassButton;
+import com.aleks.prisonsmod.client.glass.GlassRender;
+import com.aleks.prisonsmod.client.glass.GlassTextField;
+import com.aleks.prisonsmod.client.glass.GlassTheme;
 import com.aleks.prisonsmod.client.skilltree.SkillTreeClient;
 import com.aleks.prisonsmod.net.Protocol;
 import com.aleks.prisonsmod.net.payload.SkillTreeOpenPayload;
@@ -9,7 +13,6 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
@@ -185,7 +188,7 @@ public final class SkillTreeScreen extends Screen {
     private String searchLower = "";
 
     // ── Respec confirmation ─────────────────────────────────────────────────
-    private ButtonWidget respecButton;
+    private GlassButton respecButton;
     private long respecArmedAtMs = 0L;
     private static final long RESPEC_CONFIRM_WINDOW_MS = 5_000L;
 
@@ -231,18 +234,16 @@ public final class SkillTreeScreen extends Screen {
 
         int searchW = Math.min(220, width / 4);
         int searchX = (width - searchW) / 2;
-        searchField = new TextFieldWidget(this.textRenderer, searchX, 6,
+        searchField = new GlassTextField(this.textRenderer, searchX, 6,
                 searchW, 18, Text.literal("Search…"));
         searchField.setPlaceholder(Text.literal("Search nodes…").formatted(Formatting.DARK_GRAY));
         searchField.setMaxLength(48);
         searchField.setChangedListener(this::onSearchChanged);
         addDrawableChild(searchField);
 
-        respecButton = ButtonWidget.builder(
-                Text.literal("Respec All").formatted(Formatting.LIGHT_PURPLE),
-                btn -> onRespecClicked())
-                .dimensions(width - 130, height - 30, 120, 20)
-                .build();
+        respecButton = new GlassButton(width - 130, height - 30, 120, 20,
+                Text.literal("Respec All"),
+                this::onRespecClicked).primary();
         addDrawableChild(respecButton);
 
         // Reclamp on window resize so a smaller window doesn't leave the
@@ -696,8 +697,10 @@ public final class SkillTreeScreen extends Screen {
         if (respecArmedAtMs > 0 && System.currentTimeMillis() - respecArmedAtMs < RESPEC_CONFIRM_WINDOW_MS) {
             String hint = "Click again to confirm";
             int tw = textRenderer.getWidth(hint);
-            ctx.fill(width - tw - 16, height - 50, width - 6, height - 38, 0xCC1A0A2A);
-            ctx.drawText(textRenderer, hint, width - tw - 11, height - 47, 0xFFFFAA00, false);
+            GlassRender.roundedRectGrad(ctx, width - tw - 16, height - 50, width - 6, height - 38, 5,
+                    GlassTheme.panelTop(), GlassTheme.panelBot());
+            GlassRender.roundedBorder(ctx, width - tw - 16, height - 50, width - 6, height - 38, 5, GlassTheme.rim());
+            ctx.drawText(textRenderer, hint, width - tw - 11, height - 47, GlassTheme.VALUE, false);
         }
 
         // ── DIAG END ──────────────────────────────────────────────────
@@ -1330,11 +1333,9 @@ public final class SkillTreeScreen extends Screen {
         TextRenderer tr = textRenderer;
         int x = 10, y = 30;
         int w = 178, h = 108;
-        ctx.fill(x, y, x + w, y + h, COL_HUD_BG);
-        ctx.fill(x, y, x + w, y + 1, COL_HUD_BORDER);
-        ctx.fill(x, y + h - 1, x + w, y + h, COL_HUD_BORDER);
-        ctx.fill(x, y, x + 1, y + h, COL_HUD_BORDER);
-        ctx.fill(x + w - 1, y, x + w, y + h, COL_HUD_BORDER);
+        GlassRender.roundedRectGrad(ctx, x, y, x + w, y + h, GlassRender.RADIUS,
+                GlassTheme.panelTop(), GlassTheme.panelBot());
+        GlassRender.roundedBorder(ctx, x, y, x + w, y + h, GlassRender.RADIUS, GlassTheme.rim());
 
         ctx.drawText(tr, Text.literal("Tartarus Vision").formatted(Formatting.LIGHT_PURPLE, Formatting.BOLD),
                 x + 8, y + 6, 0xFFFFFFFF, false);
@@ -1346,7 +1347,7 @@ public final class SkillTreeScreen extends Screen {
                 x + 8, y + 58, 0xFFFFFFFF, false);
 
         // Separator + level / XP section
-        ctx.fill(x + 8, y + 68, x + w - 8, y + 69, COL_HUD_BORDER);
+        ctx.fill(x + 8, y + 68, x + w - 8, y + 69, GlassTheme.rimSoft());
 
         ctx.drawText(tr, line("Level", Integer.toString(state.level), 0xFFFFCC44),
                 x + 8, y + 73, 0xFFFFFFFF, false);
@@ -1357,10 +1358,7 @@ public final class SkillTreeScreen extends Screen {
         int barH = 5;
         if (state.xpRequired > 0) {
             float progress = Math.min(1f, (float) state.xp / (float) state.xpRequired);
-            int fillW = Math.max(0, Math.round(progress * barW));
-            ctx.fill(barX, barY, barX + barW, barY + barH, 0x55220033);
-            ctx.fill(barX, barY, barX + fillW, barY + barH, 0xFFB892D9);
-            drawRect(ctx, barX, barY, barX + barW, barY + barH, 1, COL_HUD_BORDER);
+            GlassRender.sliderTrack(ctx, barX, barY, barX + barW, barY + barH, progress);
             String xpText = MONEY_FMT.format(state.xp) + " / " + MONEY_FMT.format(state.xpRequired) + " XP";
             int tw = tr.getWidth(xpText);
             ctx.drawText(tr, xpText, barX + (barW - tw) / 2, barY + barH + 3, 0x88D4B0F0, false);
@@ -1434,11 +1432,9 @@ public final class SkillTreeScreen extends Screen {
         int tx = Math.min(mouseX + 12, width - tipW - 8);
         int ty = Math.max(6, mouseY + 12);
         if (ty + tipH > height - 24) ty = mouseY - tipH - 4;
-        ctx.fill(tx - 4, ty - 4, tx + tipW + 8, ty + tipH, COL_HUD_BG);
-        ctx.fill(tx - 4, ty - 4, tx + tipW + 8, ty - 3, COL_HUD_BORDER);
-        ctx.fill(tx - 4, ty + tipH - 1, tx + tipW + 8, ty + tipH, COL_HUD_BORDER);
-        ctx.fill(tx - 4, ty - 4, tx - 3, ty + tipH, COL_HUD_BORDER);
-        ctx.fill(tx + tipW + 7, ty - 4, tx + tipW + 8, ty + tipH, COL_HUD_BORDER);
+        GlassRender.roundedRectGrad(ctx, tx - 4, ty - 4, tx + tipW + 8, ty + tipH, GlassRender.RADIUS,
+                GlassTheme.panelTop(), GlassTheme.panelBot());
+        GlassRender.roundedBorder(ctx, tx - 4, ty - 4, tx + tipW + 8, ty + tipH, GlassRender.RADIUS, GlassTheme.rim());
         int row = 0;
         for (Text t : lines) {
             ctx.drawText(tr, t, tx, ty + row * (tr.fontHeight + 2), 0xFFFFFFFF, false);
