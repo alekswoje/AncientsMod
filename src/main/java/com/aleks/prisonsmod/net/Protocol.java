@@ -437,6 +437,38 @@ public final class Protocol {
     public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_RESOLUTE_TECHNIQUE = 57;
     public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_RAMPAGE           = 58;
     public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_AEGIS             = 59;
+    // Life-regen rework — % of Maximum HP regenerated per second.
+    public static final byte SKILL_EFFECT_DUNGEON_LIFE_REGEN_PCT             = 60;
+    // ── Keystone expansion (Season 2) — ordinals 61-88, mirror the plugin's
+    //    SkillEffectType. Each renders as a keystone (frame + ks_* gem).
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_BLADEDANCER       = 61;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_VENDETTA          = 62;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_HEADSMAN          = 63;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_WHIRLWIND         = 64;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_EXSANGUINATE      = 65;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_PARRY_MASTER      = 66;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_BERSERKERS_RAGE   = 67;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_BONECRUSHER       = 68;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_AFTERSHOCK        = 69;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_LAST_STAND        = 70;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_WARMONGER         = 71;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_REAVER            = 72;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_OVERCHARGE        = 73;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_RESONANT_CASCADE  = 74;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_PYROCLASM         = 75;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_SPELLBLADE        = 76;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_PRISM             = 77;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_FEEDBACK_LOOP     = 78;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_POINT_BLANK       = 79;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_ARROW_RAIN        = 80;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_DEADEYES_FOCUS    = 81;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_SPLINTER          = 82;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_TAILWIND          = 83;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_VAULT_HUNTER      = 84;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_SANGUINE_PACT     = 85;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_AVATAR_OF_FLAME   = 86;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_UNWAVERING_WILL   = 87;
+    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_GLASS_ACROBAT     = 88;
 
     // Skill tree ACK action codes.
     public static final byte SKILL_ACTION_ALLOCATE = 0;

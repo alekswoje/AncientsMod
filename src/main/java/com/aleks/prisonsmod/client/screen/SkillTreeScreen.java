@@ -5,6 +5,7 @@ import com.aleks.prisonsmod.client.glass.GlassButton;
 import com.aleks.prisonsmod.client.glass.GlassRender;
 import com.aleks.prisonsmod.client.glass.GlassTextField;
 import com.aleks.prisonsmod.client.glass.GlassTheme;
+import com.aleks.prisonsmod.client.skilltree.SkillTreeArt;
 import com.aleks.prisonsmod.client.skilltree.SkillTreeClient;
 import com.aleks.prisonsmod.net.Protocol;
 import com.aleks.prisonsmod.net.payload.SkillTreeOpenPayload;
@@ -149,6 +150,11 @@ public final class SkillTreeScreen extends Screen {
      *  passive node. */
     private static final Identifier SPRITE_RING =
             Identifier.of(PrisonsMod.MOD_ID, "textures/gui/skilltree/node_border.png");
+    /** Soft round radial-glow sprite (white, alpha falloff) used for every halo
+     *  / edge spark. Replaces the old stacked-square fills so glows read as
+     *  circles, not boxes, behind the round gems. */
+    private static final Identifier SPRITE_GLOW =
+            Identifier.of(PrisonsMod.MOD_ID, "textures/gui/skilltree/glow.png");
 
     /** Source texture dimensions. AI Studio originally outputs 1024² but we
      *  ship them downsampled to 256² because the rendered size is never more
@@ -654,18 +660,15 @@ public final class SkillTreeScreen extends Screen {
         // current layout. Cheap no-op if already up-to-date.
         rebuildTransformIfNeeded();
 
-        // Recompute hover + path. BFS is gated on zoom: at low zoom the halo
-        // is too small to read, and the BFS allocates a HashMap + ArrayDeque
-        // every call. Skipping at low zoom is free perf.
+        // Recompute hover + path. Computed at EVERY zoom (only on hover change,
+        // not per frame) so hovering behaves identically zoomed in or out — the
+        // BFS over the tree is cheap and runs once per hover, not each frame.
         String nextHover = pickNodeAt(layout, mouseX, mouseY);
-        boolean pathEligible = zoom >= 0.85f;
         if (!java.util.Objects.equals(nextHover, hoveredNodeId)) {
             hoveredNodeId = nextHover;
-            pathHighlight = pathEligible ? computePathToHere(layout, state, nextHover)
-                                          : java.util.Collections.emptySet();
+            pathHighlight = computePathToHere(layout, state, nextHover);
         } else if (SkillTreeClient.version() != lastSeenVersion) {
-            pathHighlight = pathEligible ? computePathToHere(layout, state, nextHover)
-                                          : java.util.Collections.emptySet();
+            pathHighlight = computePathToHere(layout, state, nextHover);
             lastSeenVersion = SkillTreeClient.version();
         }
 
@@ -690,18 +693,19 @@ public final class SkillTreeScreen extends Screen {
         }
 
         // Search + respec button (also widgets, drawn by super) — render after
-        // our content so they sit on top.
+        // our content so they sit on top. The armed state is shown by the
+        // button text flipping to "Confirm Respec" (see onRespecClicked), so no
+        // separate "click again to confirm" hint is needed.
         super.render(ctx, mouseX, mouseY, delta);
 
-        // Respec arming hint — drawn over the button.
-        if (respecArmedAtMs > 0 && System.currentTimeMillis() - respecArmedAtMs < RESPEC_CONFIRM_WINDOW_MS) {
-            String hint = "Click again to confirm";
-            int tw = textRenderer.getWidth(hint);
-            GlassRender.roundedRectGrad(ctx, width - tw - 16, height - 50, width - 6, height - 38, 5,
-                    GlassTheme.panelTop(), GlassTheme.panelBot());
-            GlassRender.roundedBorder(ctx, width - tw - 16, height - 50, width - 6, height - 38, 5, GlassTheme.rim());
-            ctx.drawText(textRenderer, hint, width - tw - 11, height - 47, GlassTheme.VALUE, false);
-        }
+        // Total respec cost, shown just above the Respec button so the player
+        // sees the full charge before clicking. Right-aligned to the button's
+        // right edge (width - 10), sitting just above its top (height - 30).
+        // Turns red when the player can't afford it.
+        String respecCostLabel = "Respec cost: $" + MONEY_FMT.format(state.respecCost);
+        int rcw = textRenderer.getWidth(respecCostLabel);
+        int respecCostColor = state.canAffordRespec() ? 0xFFFFCC44 : 0xFFFF5555;
+        ctx.drawText(textRenderer, respecCostLabel, (width - 10) - rcw, height - 42, respecCostColor, false);
 
         // ── DIAG END ──────────────────────────────────────────────────
         long diagFrameEndNs = System.nanoTime();
@@ -817,6 +821,18 @@ public final class SkillTreeScreen extends Screen {
                 drawDiagonalLine(ctx, sx1, sy1, sx2, sy2, coreThickness, COL_EDGE_REACHABLE);
             } else {
                 drawDiagonalLine(ctx, sx1, sy1, sx2, sy2, coreThickness, COL_EDGE_LOCKED);
+            }
+
+            // Hover path preview: overdraw the path-to-hover edges in white
+            // (connecting the allocated tree to the hovered node), so hovering
+            // outlines the route the way PoE does.
+            if (!pathHighlight.isEmpty()) {
+                boolean aPath = pathHighlight.contains(a.id);
+                boolean bPath = pathHighlight.contains(b.id);
+                if ((aPath && bPath) || (aPath && bUn) || (bPath && aUn)) {
+                    drawDiagonalLine(ctx, sx1, sy1, sx2, sy2, coreThickness + 2,
+                            withAlpha(0xFFFFFFFF, 0xE6));
+                }
             }
         }
     }
@@ -958,6 +974,9 @@ public final class SkillTreeScreen extends Screen {
             boolean dimmedBySearch = searchActive && !matchesSearch;
             boolean onPath = pathHighlight.contains(n.id);
             boolean isHovered = n.id.equals(hoveredNodeId);
+            // Effect-art nodes carry their own frame for state, so they skip the
+            // square branch-glow halos below (those look boxy behind a round gem).
+            boolean effArt = hasEffectArt(n);
 
             // Bridges are gate-branched on the server but spatially live
             // next to a specific cluster — recolour them to match the
@@ -967,26 +986,69 @@ public final class SkillTreeScreen extends Screen {
             int branchCore = branchColor(effBranch);
             int branchGlow = branchGlowColor(effBranch);
 
-            // ── Fast path: the zoomed-out overview draws ONE flat fill per node.
-            //    The ornate body below is ~10 draw calls per node (fills + two
-            //    gradients + a 4-fill border), and at MC 1.21 draw-call overhead
-            //    that ~10k calls/frame was the lag on the 1000+ node tree. State
-            //    is encoded by colour; the gem sprites return when you zoom in.
+            // ── Fast path: the zoomed-out overview. Still draws the actual gem
+            //    SPRITE per node (tinted) — just ONE sprite quad each, with the
+            //    ~10-calls-per-node halos / ring / body gradients (the old
+            //    scroll-lag culprit) skipped until you zoom in. Base nodes share
+            //    one texture so the quads batch, making this about as cheap as
+            //    the flat fill it replaces — but the tree now reads as gems at
+            //    every zoom instead of flat dots. Falls back to a flat fill only
+            //    if no gem sprite is bundled.
             if (zoom < 0.8f) {
-                int dr = Math.max(1, Math.round(baseRadius * zoom));
-                int col;
-                if (n.autoUnlocked)     col = COL_AMETHYST;
-                else if (matchesSearch) col = COL_SEARCH_MATCH;
-                else if (unlocked)      col = brighten(branchCore, 1.2f);
-                else if (allocatable)   col = branchCore;
-                else                    col = withAlpha(branchCore, 0x99);
-                if (dimmedBySearch)     col = withAlpha(col, 0x33);
-                ctx.fill(sx - dr, sy - dr, sx + dr, sy + dr, col);
+                // Size scales purely proportionally with zoom — the SAME formula
+                // the zoomed-in body uses (spriteR below) — so the gem-to-spacing
+                // ratio stays constant at every zoom (PoE-style). No size floor:
+                // a floor here makes gems stop shrinking while the gaps keep
+                // shrinking, so they bloat and crowd when fully zoomed out.
+                int dr = Math.max(1, Math.round(baseRadius * 1.2f * zoom));
+                // PoE effect-art (frame + per-effect gem). If bundled for this
+                // effect, that's the whole node at this zoom — one frame + one
+                // gem, both batchable.
+                if (drawEffectArt(ctx, n, sx, sy, baseRadius, zoom, unlocked, allocatable, dimmedBySearch, matchesSearch,
+                        (isHovered || onPath))) {
+                    continue;
+                }
+                Identifier lowSprite = null;
+                boolean lowTinted = true;
+                if (n.autoUnlocked && hasGateSprite) {
+                    lowSprite = SPRITE_GATE; lowTinted = false;
+                } else if (n.id.endsWith("_grand") && hasGrandSprite) {
+                    lowSprite = SPRITE_GRAND_TEMPLATE;
+                } else if (n.notable && hasNotableSprite) {
+                    lowSprite = SPRITE_NOTABLE_TEMPLATE;
+                } else if (hasBaseSprite) {
+                    lowSprite = SPRITE_NODE_TEMPLATE;
+                }
+                if (lowSprite != null) {
+                    int tint;
+                    if (matchesSearch) {
+                        tint = COL_SEARCH_MATCH;
+                    } else if (lowTinted) {
+                        tint = branchSpriteTint(effBranch, unlocked, allocatable);
+                        // No halos at this zoom, so encode "locked" by dimming
+                        // the gem itself (kept high enough to stay legible).
+                        if (!unlocked && !allocatable) tint = withAlpha(tint, 0xBB);
+                        if (dimmedBySearch) tint = withAlpha(tint, 0x33);
+                    } else {
+                        int a = dimmedBySearch ? 0x33 : unlocked ? 0xFF : allocatable ? 0xE0 : 0xB0;
+                        tint = withAlpha(0xFFFFFFFF, a);
+                    }
+                    drawSpriteTinted(ctx, lowSprite, sx, sy, dr, tint);
+                } else {
+                    int col;
+                    if (n.autoUnlocked)     col = COL_AMETHYST;
+                    else if (matchesSearch) col = COL_SEARCH_MATCH;
+                    else if (unlocked)      col = brighten(branchCore, 1.2f);
+                    else if (allocatable)   col = branchCore;
+                    else                    col = withAlpha(branchCore, 0x99);
+                    if (dimmedBySearch)     col = withAlpha(col, 0x33);
+                    ctx.fill(sx - dr, sy - dr, sx + dr, sy + dr, col);
+                }
                 continue;
             }
 
             // ── Layer 0: path-to-here amethyst halo (behind everything)
-            if (onPath && !unlocked && !dimmedBySearch) {
+            if (onPath && !unlocked && !dimmedBySearch && !effArt) {
                 int haloR = Math.max(1, Math.round(baseRadius * 1.6f * zoom));
                 drawSoftGlow(ctx, sx, sy, haloR, withAlpha(COL_AMETHYST, 0x70));
             }
@@ -994,7 +1056,7 @@ public final class SkillTreeScreen extends Screen {
             // ── Layer 1: search-match golden halo. Softened from 0x90 →
             //    0x55 alpha and pushed out to 2.4× radius so the glow
             //    reads as a soft bloom rather than a chunky yellow stamp.
-            if (matchesSearch && !unlocked) {
+            if (matchesSearch && !unlocked && !effArt) {
                 int matchR = Math.max(1, Math.round(baseRadius * 2.4f * zoom));
                 drawSoftGlow(ctx, sx, sy, matchR, withAlpha(COL_SEARCH_MATCH_GLOW, 0x55));
             }
@@ -1004,14 +1066,14 @@ public final class SkillTreeScreen extends Screen {
             //    per-frame Math.sin pulse was eating CPU on 50+ unlocked
             //    nodes at once — replaced with a static brightness here and
             //    a single global animation tick at the bottom of the loop.
-            if (allocatable && !dimmedBySearch) {
+            if (allocatable && !dimmedBySearch && !effArt) {
                 int glowR = (int) (r * 1.4f);
                 drawSoftGlow(ctx, sx, sy, glowR, withAlpha(branchGlow, 0x60));
             }
             // Unlocked nodes get a static branch halo only when the player is
             // zoomed in enough to actually see them — at zoom-out it's just
             // overdraw cost with no visible benefit.
-            if (unlocked && !dimmedBySearch && zoom >= 0.85f) {
+            if (unlocked && !dimmedBySearch && zoom >= 0.85f && !effArt) {
                 int glowR = (int) (r * 1.6f);
                 drawSoftGlow(ctx, sx, sy, glowR, withAlpha(branchGlow, 0x60));
             }
@@ -1020,7 +1082,7 @@ public final class SkillTreeScreen extends Screen {
             float upulse  = SkillTreeClient.unlockPulse(n.id);
             float refund  = SkillTreeClient.refundPulse(n.id);
             float pStr    = Math.max(upulse, refund);
-            if (pStr > 0f) {
+            if (pStr > 0f && !effArt) {
                 int pColor = upulse > refund ? COL_AMETHYST : 0xFF7AA5FF;
                 float pulseMult = 1.0f + (0.6f + 1.4f * (1f - pStr)) * 0.6f; // 1.36..2.2x baseRadius
                 int hr = Math.max(1, Math.round(baseRadius * pulseMult * zoom));
@@ -1028,7 +1090,7 @@ public final class SkillTreeScreen extends Screen {
             }
 
             // ── Layer 4: hover ring.
-            if (isHovered && !dimmedBySearch) {
+            if (isHovered && !dimmedBySearch && !effArt) {
                 int hoverR = Math.max(1, Math.round(baseRadius * 1.4f * zoom));
                 drawSoftGlow(ctx, sx, sy, hoverR, withAlpha(COL_AMETHYST, 0x80));
             }
@@ -1040,6 +1102,13 @@ public final class SkillTreeScreen extends Screen {
             //    Tiers: gate → grand cap → notable → base. Each tier has its
             //    own AI-Studio-generated 1024² PNG (gate full-colour amethyst;
             //    others are grayscale templates tinted to the node's branch).
+            // PoE effect-art first: frame + per-effect symbol gem. If it draws,
+            // the legacy template/procedural body below is skipped (the halos
+            // above and search ring below still apply).
+            boolean effectArtDrawn = drawEffectArt(ctx, n, sx, sy, baseRadius, zoom,
+                    unlocked, allocatable, dimmedBySearch, matchesSearch,
+                    (isHovered || onPath));
+
             boolean isGrandCap = n.id.endsWith("_grand");
             // Zoomed-out overview: render cheap procedural dots instead of binding
             // a sprite texture per node — the per-node GPU binds (×2 sprites ×
@@ -1061,7 +1130,7 @@ public final class SkillTreeScreen extends Screen {
                 chosenSprite = SPRITE_NODE_TEMPLATE;
             }
 
-            if (chosenSprite != null) {
+            if (chosenSprite != null && !effectArtDrawn) {
                 // Fully proportional — sprite is 1.2× the conceptual node
                 // radius, ring border is 1.3×. Both shrink with zoom in
                 // lockstep with the inter-node distance so the tree feels
@@ -1095,7 +1164,7 @@ public final class SkillTreeScreen extends Screen {
                     spriteR = Math.round(r * 1.35f); // gate sprite has more aura
                 }
                 drawSpriteTinted(ctx, chosenSprite, sx, sy, spriteR, tint);
-            } else {
+            } else if (!effectArtDrawn) {
                 // ── Procedural fallback path ───────────────────────────────
                 // Drop shadow
                 if (!dimmedBySearch) {
@@ -1168,6 +1237,102 @@ public final class SkillTreeScreen extends Screen {
                 }
             }
         }
+    }
+
+    /**
+     * PoE-style node = a state/tier FRAME drawn behind a per-effect SYMBOL gem.
+     * Draws both and returns true if this node's effect has a bundled symbol
+     * texture. Returns false (and draws nothing) for the gate or for any effect
+     * whose art isn't bundled yet, so the caller falls back to the legacy
+     * template / procedural body. Colour now comes from the effect (the gem),
+     * not the branch — which is what removes the four solid colour blocks.
+     */
+    private boolean drawEffectArt(DrawContext ctx, SkillTreeOpenPayload.Node n,
+                                  int sx, int sy, int baseRadius, float zoom,
+                                  boolean unlocked, boolean allocatable,
+                                  boolean dimmedBySearch, boolean matchesSearch,
+                                  boolean highlight) {
+        if (n.autoUnlocked) return false;            // gate keeps its own sprite
+        Identifier sym = SkillTreeArt.symbolTexture(n.effect);
+        if (sym == null || !textureExists(sym)) return false;
+
+        SkillTreeArt.Tier tier = tierOf(n);
+        Identifier frame = SkillTreeArt.frameFor(tier, unlocked);
+        // Gem-to-frame ratio depends on the frame's hole size: the plain base
+        // ring is thin (big hole), the ornate notable/keystone bands are thicker
+        // (smaller hole), so their gems sit smaller to keep the rim visible.
+        float gemRatio;
+        if (textureExists(frame)) {
+            gemRatio = switch (tier) {
+                case KEYSTONE -> 0.53f;
+                case NOTABLE  -> 0.53f;
+                default       -> 0.68f;
+            };
+        } else {
+            // Tier-specific frame not bundled yet — fall back to the base frame
+            // (thin, big hole) so notables / keystones still get a border.
+            frame = unlocked ? SkillTreeArt.FRAME_BASE_ALLOC : SkillTreeArt.FRAME_BASE;
+            gemRatio = 0.68f;
+        }
+
+        // Frame is the outer element; the gem sits inside its ring band so the
+        // rim reads as a band (PoE-style). Both scale purely with zoom so the
+        // gem-to-spacing ratio stays constant.
+        int frameR = Math.max(2, Math.round(baseRadius * 1.35f * zoom));
+        int gemR   = Math.max(1, Math.round(frameR * gemRatio));
+
+        if (textureExists(frame)) {
+            int frameTint;
+            if (dimmedBySearch)               frameTint = withAlpha(0xFFFFFFFF, 0x40);
+            else if (unlocked || allocatable) frameTint = 0xFFFFFFFF;
+            else                              frameTint = 0xFFAAAAAA;  // locked: dim
+            drawSpriteTinted(ctx, frame, sx, sy, frameR, frameTint);
+        }
+
+        // Full-colour gem — only modulate brightness/alpha for state.
+        int gemTint;
+        if (dimmedBySearch)                gemTint = withAlpha(0xFFFFFFFF, 0x33);
+        else if (unlocked || allocatable)  gemTint = 0xFFFFFFFF;
+        else                               gemTint = 0xFF7E7E7E;       // locked: darken
+        drawSpriteTinted(ctx, sym, sx, sy, gemR, gemTint);
+
+        // Hover/path highlight: lighten the ACTUAL frame border via a white
+        // silhouette overlay (same shape/alpha as the frame), so the real ring
+        // brightens and stays perfectly aligned — and the gem centre is left
+        // untouched (the frame's hole is transparent in the silhouette too).
+        if (highlight && !dimmedBySearch) {
+            Identifier hi = Identifier.of(PrisonsMod.MOD_ID,
+                    frame.getPath().replace(".png", "_hi.png"));
+            if (textureExists(hi)) {
+                drawSpriteTinted(ctx, hi, sx, sy, frameR, withAlpha(0xFFFFFFFF, 0x9C));
+            }
+        }
+        return true;
+    }
+
+    /** True if this node will render via the PoE effect-art system (so the
+     *  caller can skip the legacy square branch-glow halos, which look boxy
+     *  behind a round gem). Mirrors the guard in {@link #drawEffectArt}. */
+    private boolean hasEffectArt(SkillTreeOpenPayload.Node n) {
+        if (n.autoUnlocked) return false;
+        Identifier sym = SkillTreeArt.symbolTexture(n.effect);
+        return sym != null && textureExists(sym);
+    }
+
+    private static SkillTreeArt.Tier tierOf(SkillTreeOpenPayload.Node n) {
+        if (isKeystoneEffect(n.effect)) return SkillTreeArt.Tier.KEYSTONE;
+        if (n.notable)                  return SkillTreeArt.Tier.NOTABLE;
+        return SkillTreeArt.Tier.BASE;
+    }
+
+    private static boolean isKeystoneEffect(byte e) {
+        return (e >= Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_GLASS_CANNON
+                && e <= Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_ATTUNEMENT)
+            || (e >= Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_VOLLEY
+                && e <= Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_AEGIS)
+            // Season-2 keystone expansion (ordinals 61-88).
+            || (e >= Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_BLADEDANCER
+                && e <= Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_GLASS_ACROBAT);
     }
 
     /** Lazy resource-manager check — true if a texture file is actually
@@ -1259,9 +1424,17 @@ public final class SkillTreeScreen extends Screen {
      * 4-layer stack at half the fill cost. Critical for keeping the screen
      * smooth with hundreds of glowing nodes + edges per frame.
      */
-    private static void drawSoftGlow(DrawContext ctx, int cx, int cy, int radius, int color) {
+    private void drawSoftGlow(DrawContext ctx, int cx, int cy, int radius, int color) {
         int alpha = (color >>> 24) & 0xFF;
         if (alpha == 0 || radius < 1) return;
+        // Round soft glow texture instead of stacked squares — the squares read
+        // as "weird boxes" behind round gems and along edges. Drawn slightly
+        // larger than the requested radius so the falloff is soft.
+        if (textureExists(SPRITE_GLOW)) {
+            drawSpriteTinted(ctx, SPRITE_GLOW, cx, cy, Math.max(1, Math.round(radius * 1.25f)), color);
+            return;
+        }
+        // Fallback (texture missing): the old 2-square approximation.
         int rgb = color & 0x00FFFFFF;
         int aOuter = (alpha / 3) & 0xFF;
         int aInner = ((alpha * 4) / 5) & 0xFF;
@@ -1343,7 +1516,8 @@ public final class SkillTreeScreen extends Screen {
         ctx.drawText(tr, line("Available", Integer.toString(state.available), state.available > 0 ? 0xFF55FF55 : 0xFFAAAAAA),
                 x + 8, y + 34, 0xFFFFFFFF, false);
         ctx.drawText(tr, line("Spent",     Integer.toString(state.spent),     0xFFAAAAAA), x + 8, y + 46, 0xFFFFFFFF, false);
-        ctx.drawText(tr, line("Respec",    "$" + MONEY_FMT.format(state.respecCost), 0xFFFFCC44),
+        ctx.drawText(tr, line("Respec",    "$" + MONEY_FMT.format(state.respecCost),
+                        state.canAffordRespec() ? 0xFFFFCC44 : 0xFFFF5555),
                 x + 8, y + 58, 0xFFFFFFFF, false);
 
         // Separator + level / XP section
@@ -1477,6 +1651,7 @@ public final class SkillTreeScreen extends Screen {
             // ── Defense / fortune
             case Protocol.SKILL_EFFECT_DUNGEON_MAX_HP_PCT          -> num + "% increased Maximum HP";
             case Protocol.SKILL_EFFECT_DUNGEON_LIFE_REGEN          -> "+" + num + " Life Regenerated per second";
+            case Protocol.SKILL_EFFECT_DUNGEON_LIFE_REGEN_PCT      -> num + "% of Maximum HP Regenerated per second";
             case Protocol.SKILL_EFFECT_DUNGEON_XP_PCT              -> num + "% increased Dungeon XP";
             case Protocol.SKILL_EFFECT_DUNGEON_DUPLICATE_LOOT_PCT  -> "+" + num + "% chance to Duplicate a loot item";
 
@@ -1539,6 +1714,64 @@ public final class SkillTreeScreen extends Screen {
                     "Rampage: kills grant stacking Attack Speed and Damage";
             case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_AEGIS ->
                     "Aegis: you take 30% less Damage, but deal 20% less Damage";
+
+            // ── Keystone expansion (Season 2) — strong upside + strong downside
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_BLADEDANCER ->
+                    "Bladedancer: landing hits unscathed stacks increased Damage (up to +100%); taking any hit resets it";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_VENDETTA ->
+                    "Vendetta: 60% more Damage to the Boss, but 45% less Damage to other enemies";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_HEADSMAN ->
+                    "Headsman: Culling Strike on non-bosses; 55% less Damage to enemies above 60% HP";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_WHIRLWIND ->
+                    "Whirlwind: your hits splash to enemies around you, but 40% less single-target Damage";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_EXSANGUINATE ->
+                    "Exsanguinate: your Critical hits stack a heavy ramping Bleed; 30% less direct hit Damage";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_PARRY_MASTER ->
+                    "Parry Master: shortly after taking a hit, take less Damage and your next hit is a guaranteed Critical; you cannot Critical otherwise";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_BERSERKERS_RAGE ->
+                    "Berserker's Rage: up to 60% more Damage the lower your Life, with lifesteal; 25% reduced Maximum HP";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_BONECRUSHER ->
+                    "Bonecrusher: hits splash and stack an amplifying Bleed; you can never deal a Critical";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_AFTERSHOCK ->
+                    "Aftershock: each hit triggers a delayed shockwave; 25% less direct Damage";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_LAST_STAND ->
+                    "Last Stand: below 35% Life, 50% less Damage taken and burst regen; 25% reduced Maximum HP";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_WARMONGER ->
+                    "Warmonger: more Damage per nearby enemy (up to +80%); 30% less Damage when alone";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_REAVER ->
+                    "Reaver: kills heal you and stack more Damage; no Life regeneration except from kills";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_OVERCHARGE ->
+                    "Overcharge: hold to charge a far stronger, arcing beam; you deal almost no Damage while charging";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_RESONANT_CASCADE ->
+                    "Resonant Cascade: beam kills arc a free cascading beam; 30% less direct beam Damage";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_PYROCLASM ->
+                    "Pyroclasm: beams Ignite and spread fire; 30% more Damage to Ignited enemies, 20% less to others";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_SPELLBLADE ->
+                    "Spellblade: melee hits while holding a Wand fire a free beam; weaker standalone beam";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_PRISM ->
+                    "Prism: your beam splits to several enemies, but deals much less per beam";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_FEEDBACK_LOOP ->
+                    "Feedback Loop: repeated hits on one target ramp your Damage (up to +60%); a share of the hit recoils to you";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_POINT_BLANK ->
+                    "Point Blank: 40% more Damage up close, 45% less at range";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_ARROW_RAIN ->
+                    "Arrow Rain: arrows deal Area Damage where they land; less single-target Damage";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_DEADEYES_FOCUS ->
+                    "Deadeye's Focus: every shot is a guaranteed Critical, but Critical Multiplier is locked low";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_SPLINTER ->
+                    "Splinter: arrows pierce and stack a Bleed; 30% more Damage to bleeding enemies, 20% less direct";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_TAILWIND ->
+                    "Tailwind: while moving, gain Bow Fire Rate and Move Speed; standing still loses it and deals 20% less";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_VAULT_HUNTER ->
+                    "Vault Hunter: gain an extra Double Jump; airborne arrows pierce and deal 30% more, grounded deal 25% less";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_SANGUINE_PACT ->
+                    "Sanguine Pact: lifesteal above full Life banks into more Damage; you cannot regenerate Life normally";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_AVATAR_OF_FLAME ->
+                    "Avatar of Flame: nearby enemies are Ignited; 30% more Damage to Ignited, 30% less to others";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_UNWAVERING_WILL ->
+                    "Unwavering Will: stationary, you cannot be slowed or knocked back and take 25% less Damage; moving, you take 25% more";
+            case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_GLASS_ACROBAT ->
+                    "Glass Acrobat: gain an extra Double Jump and evasion, but take 30% more Damage when hit";
 
             default -> "+" + num + " (unknown effect)";
         };
