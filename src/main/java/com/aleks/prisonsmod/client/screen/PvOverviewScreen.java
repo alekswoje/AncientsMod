@@ -1,6 +1,7 @@
 package com.aleks.prisonsmod.client.screen;
 
 import com.aleks.prisonsmod.client.glass.GlassRender;
+import com.aleks.prisonsmod.client.glass.GlassScrollbar;
 import com.aleks.prisonsmod.client.glass.GlassTextField;
 import com.aleks.prisonsmod.client.glass.GlassTheme;
 import com.aleks.prisonsmod.client.pv.PvClient;
@@ -71,6 +72,7 @@ public final class PvOverviewScreen extends Screen {
 
     private Text hoverTooltip = null;
     private double scrollY = 0;
+    private final GlassScrollbar scrollbar = new GlassScrollbar();
 
     private TextFieldWidget searchField;
     private String searchQuery = "";
@@ -306,6 +308,14 @@ public final class PvOverviewScreen extends Screen {
         currentMouseX = mouseX;
         currentMouseY = mouseY;
 
+        if (button == 0 && scrollbar.mousePressed(mouseX, mouseY)) {
+            // Grabbing the scrollbar (thumb drag or track jump) takes priority
+            // over starting a card drag.
+            scrollY = scrollbar.scrollFor(mouseY, contentHeight());
+            scrollY = Math.max(0, Math.min(scrollY, maxScroll()));
+            return true;
+        }
+
         if (button == 0) {
             // Left-press starts a potential click or drag. Don't open the
             // vault yet — wait for mouseReleased to disambiguate.
@@ -334,6 +344,11 @@ public final class PvOverviewScreen extends Screen {
 
     @Override
     public boolean mouseDragged(Click click, double offsetX, double offsetY) {
+        if (scrollbar.isDragging()) {
+            scrollY = scrollbar.scrollFor(click.y(), contentHeight());
+            scrollY = Math.max(0, Math.min(scrollY, maxScroll()));
+            return true;
+        }
         if (pressedVault > 0 && click.button() == 0) {
             currentMouseX = click.x();
             currentMouseY = click.y();
@@ -351,6 +366,10 @@ public final class PvOverviewScreen extends Screen {
 
     @Override
     public boolean mouseReleased(Click click) {
+        if (scrollbar.isDragging()) {
+            scrollbar.release();
+            return true;
+        }
         if (pressedVault > 0 && click.button() == 0) {
             double mouseX = click.x();
             double mouseY = click.y();
@@ -441,16 +460,10 @@ public final class PvOverviewScreen extends Screen {
             ctx.disableScissor();
         }
 
-        if (maxScroll() > 0) {
-            int sbX = vpX + vpW + SCROLLBAR_GAP;
-            int sbY = vpY;
-            int sbH = vpH;
-            double trackRatio = (double) vpH / contentHeight();
-            int thumbH = Math.max(20, (int) (sbH * trackRatio));
-            int range = sbH - thumbH;
-            int thumbY = sbY + (int) (range * (scrollY / maxScroll()));
-            GlassRender.scrollbar(ctx, sbX, sbY, sbY + sbH, thumbY, thumbH);
-        }
+        int sbX = vpX + vpW + SCROLLBAR_GAP;
+        int sbY = vpY;
+        int sbH = vpH;
+        scrollbar.render(ctx, sbX, sbY, sbY + sbH, contentHeight(), (int) scrollY);
 
         // Render drag ghost on top of everything (outside scissor so it follows
         // the cursor anywhere on screen).

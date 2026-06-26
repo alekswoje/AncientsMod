@@ -21,10 +21,13 @@ public final class SkillTreeStatePayload {
     public final int level;
     public final long xp;
     public final long xpRequired;
+    /** Player's current money balance, for affording checks. -1 if the
+     *  server didn't send it (older server — treat cost as affordable). */
+    public final double balance;
 
     private SkillTreeStatePayload(Set<String> unlocked, int banked, int available,
                                    int spent, double respecCost,
-                                   int level, long xp, long xpRequired) {
+                                   int level, long xp, long xpRequired, double balance) {
         this.unlocked = unlocked;
         this.banked = banked;
         this.available = available;
@@ -33,6 +36,12 @@ public final class SkillTreeStatePayload {
         this.level = level;
         this.xp = xp;
         this.xpRequired = xpRequired;
+        this.balance = balance;
+    }
+
+    /** True when the player can't afford a full respec (balance known and short). */
+    public boolean canAffordRespec() {
+        return balance < 0 || balance >= respecCost;
     }
 
     public static SkillTreeStatePayload decode(PacketByteBuf buf) {
@@ -51,7 +60,10 @@ public final class SkillTreeStatePayload {
         int level = buf.readInt();
         long xp = buf.readLong();
         long xpRequired = buf.readLong();
+        // Balance is a trailing field — guard so an older server that doesn't
+        // send it decodes cleanly (treated as "affordable", -1).
+        double balance = buf.isReadable(8) ? buf.readDouble() : -1.0;
         return new SkillTreeStatePayload(unlocked, banked, available, spent, respecCost,
-                level, xp, xpRequired);
+                level, xp, xpRequired, balance);
     }
 }

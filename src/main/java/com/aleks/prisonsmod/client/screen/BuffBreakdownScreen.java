@@ -292,10 +292,13 @@ public final class BuffBreakdownScreen extends Screen {
             r.defaultEnabled = defActive;
             r.enabled = structural || BuffSandboxStore.enabled(ch.id, l.label, defActive);
             r.toggleable = !structural;
-            r.sliderable = l.kind == BuffSnapshotPayload.KIND_ADDITIVE
+            // Crit rows toggle on/off but aren't sliderable — their values are small
+            // fractions (a 1.5% chance), so the flat-bonus slider step is meaningless.
+            r.sliderable = (l.kind == BuffSnapshotPayload.KIND_ADDITIVE
                         || l.kind == BuffSnapshotPayload.KIND_MULTIPLICATIVE
                         || l.kind == BuffSnapshotPayload.KIND_FLAT_BONUS
-                        || l.kind == BuffSnapshotPayload.KIND_LUCKY_PROC;
+                        || l.kind == BuffSnapshotPayload.KIND_LUCKY_PROC)
+                        && !isCritChannel(ch.id);
             r.selKey = "L|" + ch.id + "|" + l.label;
             rows.add(r);
         }
@@ -625,6 +628,11 @@ public final class BuffBreakdownScreen extends Screen {
         if (r.kind == BuffSnapshotPayload.KIND_PROC_DAMAGE) {
             double displayed = r.value * sandbox.additivePool * sandbox.multiplicativeProduct * sandbox.luckyProcMult;
             return String.format(Locale.US, "%.2f", displayed);
+        }
+        // Crit channels store fractional chance/multi — show base + per-source rows as %.
+        if (!r.custom && isCritChannel(r.channelId)
+                && (r.kind == BuffSnapshotPayload.KIND_BASE || r.kind == BuffSnapshotPayload.KIND_FLAT_BONUS)) {
+            return formatCritPct(r.channelId, r.value);
         }
         // Custom "more" modifiers read as "X% more"; server multiplicative layers
         // (boosters, fate cards) keep their native ×.
@@ -1183,6 +1191,19 @@ public final class BuffBreakdownScreen extends Screen {
             double takenPct = v * 100.0;
             return String.format(Locale.US, "-%.1f%% (%.1f%% taken)", reductionPct, takenPct);
         }
+        if (chId == BuffSnapshotPayload.CH_CRIT_CHANCE) return String.format(Locale.US, "%.1f%%", v * 100.0);
+        // Crit damage value is the bonus multi (0.50 = +50% → crits hit ×1.50).
+        if (chId == BuffSnapshotPayload.CH_CRIT_DAMAGE) return String.format(Locale.US, "+%.0f%% (x%.2f)", v * 100.0, 1.0 + v);
         return formatX(v);
+    }
+
+    private static boolean isCritChannel(byte id) {
+        return id == BuffSnapshotPayload.CH_CRIT_CHANCE || id == BuffSnapshotPayload.CH_CRIT_DAMAGE;
+    }
+
+    /** Crit rows store fractional values; render them as percentages (chance plain, damage signed). */
+    private static String formatCritPct(byte chId, double v) {
+        if (chId == BuffSnapshotPayload.CH_CRIT_DAMAGE) return String.format(Locale.US, "+%.1f%%", v * 100.0);
+        return String.format(Locale.US, "%.1f%%", v * 100.0);
     }
 }

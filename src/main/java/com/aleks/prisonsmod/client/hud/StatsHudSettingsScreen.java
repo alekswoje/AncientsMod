@@ -56,15 +56,15 @@ public final class StatsHudSettingsScreen extends WidgetSettingsScreen {
         }
 
         addSection("Mining session");
-        addToggle("Show session-average rate (/h)",
+        addToggle("Show session-average rate",
                 stats::sessionShowAvg,
                 v -> HudSettings.setBoolean(stats.id(), StatsHud.KEY_SESSION_SHOW_AVG, v));
-        addToggle("Also show live rolling rate (/h·live)",
+        addToggle("Also show live rolling rate",
                 stats::sessionShowLive,
                 v -> HudSettings.setBoolean(stats.id(), StatsHud.KEY_SESSION_SHOW_LIVE, v));
 
         addSection("Blocks");
-        addToggle("Count mode: session (off = lifetime total on pickaxe)",
+        addToggle("Count blocks this session",
                 stats::blocksSessionMode,
                 v -> HudSettings.setBoolean(stats.id(), StatsHud.KEY_BLOCKS_SESSION, v));
         // Per-ore visibility — curated default set; toggle which ores show.

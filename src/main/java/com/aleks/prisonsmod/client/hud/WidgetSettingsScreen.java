@@ -5,7 +5,9 @@ import com.aleks.prisonsmod.client.glass.GlassRender;
 import com.aleks.prisonsmod.client.glass.GlassSlider;
 import com.aleks.prisonsmod.client.glass.GlassTextField;
 import com.aleks.prisonsmod.client.glass.GlassTheme;
+import com.aleks.prisonsmod.client.glass.GlassScrollbar;
 import com.aleks.prisonsmod.client.glass.GlassToggle;
+import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ClickableWidget;
@@ -44,6 +46,7 @@ public abstract class WidgetSettingsScreen extends Screen {
     private final Text subtitle;
 
     private final List<Row> rows = new ArrayList<>();
+    private final GlassScrollbar scrollbar = new GlassScrollbar();
     private GlassTextField searchField;
     private int scrollY;
     private int totalContentHeight;
@@ -223,14 +226,37 @@ public abstract class WidgetSettingsScreen extends Screen {
         }
         ctx.disableScissor();
 
-        // Scrollbar indicator on the right edge of the viewport (only when content overflows).
-        int viewportH = bottom - top;
-        if (totalContentHeight > viewportH) {
-            int barX = this.width / 2 + rowW / 2 + 6;
-            int barH = Math.max(20, (int) ((double) viewportH * viewportH / totalContentHeight));
-            int barY = top + (int) ((double) scrollY * (viewportH - barH) / Math.max(1, totalContentHeight - viewportH));
-            GlassRender.scrollbar(ctx, barX, top, bottom, barY, barH);
+        // Draggable scrollbar on the right edge of the viewport (only when content overflows).
+        scrollbar.render(ctx, this.width / 2 + rowW / 2 + 6, top, bottom, totalContentHeight, scrollY);
+    }
+
+    @Override
+    public boolean mouseClicked(Click click, boolean doubled) {
+        if (click.button() == 0 && scrollbar.mousePressed(click.x(), click.y())) {
+            scrollY = scrollbar.scrollFor(click.y(), totalContentHeight);
+            relayout();
+            return true;
         }
+        return super.mouseClicked(click, doubled);
+    }
+
+    @Override
+    public boolean mouseDragged(Click click, double offsetX, double offsetY) {
+        if (scrollbar.isDragging()) {
+            scrollY = scrollbar.scrollFor(click.y(), totalContentHeight);
+            relayout();
+            return true;
+        }
+        return super.mouseDragged(click, offsetX, offsetY);
+    }
+
+    @Override
+    public boolean mouseReleased(Click click) {
+        if (scrollbar.isDragging()) {
+            scrollbar.release();
+            return true;
+        }
+        return super.mouseReleased(click);
     }
 
     @Override

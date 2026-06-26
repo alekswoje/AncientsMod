@@ -128,6 +128,13 @@ public final class SkillTreeScreen extends Screen {
     private static final int COL_SEARCH_MATCH       = 0xFFFFD854;
     private static final int COL_SEARCH_MATCH_GLOW  = 0xFFFFAA22;
 
+    // Unified node-ring state colours — one hue ramp used for EVERY node so the
+    // tree reads as a single design (see drawEffectArt). State = colour, tier =
+    // size. The gem still carries the node's own identity/colour.
+    private static final int COL_NODE_ALLOCATED   = 0xFFFFC23D; // gold:   taken
+    private static final int COL_NODE_ALLOCATABLE = 0xFFD7DCEA; // silver: ready to take
+    private static final int COL_NODE_LOCKED      = 0xFF5A5E6E; // slate:  locked
+
     // ── Sprite assets ───────────────────────────────────────────────────────
     /** Grayscale template for SMALL / TRUNK / BRIDGE nodes. Branch colour is
      *  multiplied in at draw time. If missing the renderer silently falls
@@ -1240,12 +1247,15 @@ public final class SkillTreeScreen extends Screen {
     }
 
     /**
-     * PoE-style node = a state/tier FRAME drawn behind a per-effect SYMBOL gem.
-     * Draws both and returns true if this node's effect has a bundled symbol
-     * texture. Returns false (and draws nothing) for the gate or for any effect
-     * whose art isn't bundled yet, so the caller falls back to the legacy
-     * template / procedural body. Colour now comes from the effect (the gem),
-     * not the branch — which is what removes the four solid colour blocks.
+     * Node = a per-effect SYMBOL gem inside ONE shared ring (node_border.png).
+     * The ring's COLOUR encodes state (locked dim slate / allocatable silver /
+     * allocated gold) and its SIZE encodes tier (base &lt; notable &lt; keystone)
+     * — a single design across the whole tree, instead of six different ornate
+     * frames per (tier × state). The gem carries the node's own identity colour.
+     *
+     * <p>Returns true (and draws) when the effect has a bundled symbol texture;
+     * false for the gate or any unmapped effect, so the caller falls back to the
+     * legacy template / procedural body.
      */
     private boolean drawEffectArt(DrawContext ctx, SkillTreeOpenPayload.Node n,
                                   int sx, int sy, int baseRadius, float zoom,
@@ -1256,55 +1266,50 @@ public final class SkillTreeScreen extends Screen {
         Identifier sym = SkillTreeArt.symbolTexture(n.effect);
         if (sym == null || !textureExists(sym)) return false;
 
-        SkillTreeArt.Tier tier = tierOf(n);
-        Identifier frame = SkillTreeArt.frameFor(tier, unlocked);
-        // Gem-to-frame ratio depends on the frame's hole size: the plain base
-        // ring is thin (big hole), the ornate notable/keystone bands are thicker
-        // (smaller hole), so their gems sit smaller to keep the rim visible.
-        float gemRatio;
-        if (textureExists(frame)) {
-            gemRatio = switch (tier) {
-                case KEYSTONE -> 0.53f;
-                case NOTABLE  -> 0.53f;
-                default       -> 0.68f;
-            };
-        } else {
-            // Tier-specific frame not bundled yet — fall back to the base frame
-            // (thin, big hole) so notables / keystones still get a border.
-            frame = unlocked ? SkillTreeArt.FRAME_BASE_ALLOC : SkillTreeArt.FRAME_BASE;
-            gemRatio = 0.68f;
+        // Tier = SIZE. Drive the ring radius off the tier directly (not the
+        // passed baseRadius, which only distinguishes notable from base) so the
+        // ordering base < notable < keystone always holds. Scaling the thin
+        // ring sprite up also thickens it proportionally, so a higher tier reads
+        // as a heavier ring for free — no separate art per tier.
+        float tierRadius = switch (tierOf(n)) {
+            case KEYSTONE -> 15f;                     // biggest, but NOT gate-sized
+            case NOTABLE  -> 10.5f;                   // (kept the spread tight so
+            default       -> 9f;                      //  keystones don't overlap)
+        };
+        int ringR = Math.max(2, Math.round(tierRadius * 1.10f * zoom));
+        // Gem drawn first (under the ring) and sized just past the ring band's
+        // inner edge (the band sits ≈0.90..0.98 of the sprite), so the ring
+        // masks the gem's rim and there is no gap — one ratio for every node.
+        int gemR  = Math.max(1, Math.round(ringR * 0.92f));
+
+        // Allocated nodes get a soft gold disc behind the gem so "taken" reads
+        // as lit, consistently at every tier. Skipped when zoomed far out.
+        if (unlocked && !dimmedBySearch && zoom >= 0.6f) {
+            drawSoftGlow(ctx, sx, sy, Math.round(ringR * 0.95f),
+                    withAlpha(COL_NODE_ALLOCATED, 0x3A));
         }
 
-        // Frame is the outer element; the gem sits inside its ring band so the
-        // rim reads as a band (PoE-style). Both scale purely with zoom so the
-        // gem-to-spacing ratio stays constant.
-        int frameR = Math.max(2, Math.round(baseRadius * 1.35f * zoom));
-        int gemR   = Math.max(1, Math.round(frameR * gemRatio));
-
-        if (textureExists(frame)) {
-            int frameTint;
-            if (dimmedBySearch)               frameTint = withAlpha(0xFFFFFFFF, 0x40);
-            else if (unlocked || allocatable) frameTint = 0xFFFFFFFF;
-            else                              frameTint = 0xFFAAAAAA;  // locked: dim
-            drawSpriteTinted(ctx, frame, sx, sy, frameR, frameTint);
-        }
-
-        // Full-colour gem — only modulate brightness/alpha for state.
+        // Gem (identity) — full colour, darkened when locked.
         int gemTint;
         if (dimmedBySearch)                gemTint = withAlpha(0xFFFFFFFF, 0x33);
         else if (unlocked || allocatable)  gemTint = 0xFFFFFFFF;
         else                               gemTint = 0xFF7E7E7E;       // locked: darken
         drawSpriteTinted(ctx, sym, sx, sy, gemR, gemTint);
 
-        // Hover/path highlight: lighten the ACTUAL frame border via a white
-        // silhouette overlay (same shape/alpha as the frame), so the real ring
-        // brightens and stays perfectly aligned — and the gem centre is left
-        // untouched (the frame's hole is transparent in the silhouette too).
-        if (highlight && !dimmedBySearch) {
-            Identifier hi = Identifier.of(PrisonsMod.MOD_ID,
-                    frame.getPath().replace(".png", "_hi.png"));
-            if (textureExists(hi)) {
-                drawSpriteTinted(ctx, hi, sx, sy, frameR, withAlpha(0xFFFFFFFF, 0x9C));
+        // Ring (state) — the SAME shape on every node; colour encodes state.
+        if (textureExists(SPRITE_RING)) {
+            int ringTint;
+            if (dimmedBySearch)     ringTint = withAlpha(COL_NODE_LOCKED, 0x40);
+            else if (matchesSearch) ringTint = COL_SEARCH_MATCH;
+            else if (unlocked)      ringTint = COL_NODE_ALLOCATED;     // gold
+            else if (allocatable)   ringTint = COL_NODE_ALLOCATABLE;   // silver
+            else                    ringTint = COL_NODE_LOCKED;        // dim slate
+            drawSpriteTinted(ctx, SPRITE_RING, sx, sy, ringR, ringTint);
+
+            // Hover / path highlight: brighten the ring with a white overlay of
+            // the same shape so it stays perfectly aligned.
+            if (highlight && !dimmedBySearch) {
+                drawSpriteTinted(ctx, SPRITE_RING, sx, sy, ringR, withAlpha(0xFFFFFFFF, 0x9C));
             }
         }
         return true;
@@ -1763,7 +1768,7 @@ public final class SkillTreeScreen extends Screen {
             case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_TAILWIND ->
                     "Tailwind: while moving, gain Bow Fire Rate and Move Speed; standing still loses it and deals 20% less";
             case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_VAULT_HUNTER ->
-                    "Vault Hunter: gain an extra Double Jump; airborne arrows pierce and deal 30% more, grounded deal 25% less";
+                    "Eagle Eye: 30% more Damage to enemies more than 8 blocks away, 25% less up close";
             case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_SANGUINE_PACT ->
                     "Sanguine Pact: lifesteal above full Life banks into more Damage; you cannot regenerate Life normally";
             case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_AVATAR_OF_FLAME ->
@@ -1771,7 +1776,7 @@ public final class SkillTreeScreen extends Screen {
             case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_UNWAVERING_WILL ->
                     "Unwavering Will: stationary, you cannot be slowed or knocked back and take 25% less Damage; moving, you take 25% more";
             case Protocol.SKILL_EFFECT_DUNGEON_KEYSTONE_GLASS_ACROBAT ->
-                    "Glass Acrobat: gain an extra Double Jump and evasion, but take 30% more Damage when hit";
+                    "Evasion Dancer: 20% chance to completely dodge an incoming hit, but 25% reduced maximum Life";
 
             default -> "+" + num + " (unknown effect)";
         };

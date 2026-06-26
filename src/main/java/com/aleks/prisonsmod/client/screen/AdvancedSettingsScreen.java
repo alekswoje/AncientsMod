@@ -40,7 +40,7 @@ public final class AdvancedSettingsScreen extends WidgetSettingsScreen {
         addSection("Tooltips");
         addToggle("Scrollable tooltips",
                 FeatureToggles::isScrollableTooltipsEnabled, FeatureToggles::setScrollableTooltips);
-        addToggle("Item wiki (Alt to pin tooltip, click terms)",
+        addToggle("Item wiki",
                 FeatureToggles::isItemWikiEnabled, FeatureToggles::setItemWiki);
         addToggle("Block breakdown on pickaxes",
                 FeatureToggles::isPickaxeBlocksEnabled, FeatureToggles::setPickaxeBlocks);

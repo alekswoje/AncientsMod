@@ -5,6 +5,7 @@ import com.aleks.prisonsmod.client.muffler.MufflerCatalog;
 import com.aleks.prisonsmod.client.muffler.MufflerSettings;
 import com.aleks.prisonsmod.client.glass.GlassButton;
 import com.aleks.prisonsmod.client.glass.GlassRender;
+import com.aleks.prisonsmod.client.glass.GlassScrollbar;
 import com.aleks.prisonsmod.client.glass.GlassTextField;
 import com.aleks.prisonsmod.client.glass.GlassTheme;
 import com.aleks.prisonsmod.client.glass.GlassToggle;
@@ -83,6 +84,7 @@ public final class MufflerScreen extends Screen {
 
     // Active slider drag.
     private Identifier draggingSound;
+    private final GlassScrollbar scrollbar = new GlassScrollbar();
 
     public MufflerScreen(Screen parent) {
         super(Text.literal("Sound & Particle Muffler"));
@@ -375,12 +377,7 @@ public final class MufflerScreen extends Screen {
 
         // Scrollbar.
         int viewportH = viewBottom - viewTop;
-        if (contentHeight() > viewportH) {
-            int barX = right + 6;
-            int barH = Math.max(20, viewportH * viewportH / contentHeight());
-            int barY = viewTop + (maxScroll() == 0 ? 0 : scrollY * (viewportH - barH) / maxScroll());
-            GlassRender.scrollbar(ctx, barX, viewTop, viewBottom, barY, barH);
-        }
+        scrollbar.render(ctx, right + 6, viewTop, viewBottom, contentHeight(), scrollY);
 
         // Hover note tooltip (bundle description / exact id).
         if (hoverNoteRow != null) {
@@ -457,6 +454,12 @@ public final class MufflerScreen extends Screen {
         if (click.button() != 0) return false;
         double mx = click.x();
         double my = click.y();
+
+        if (scrollbar.mousePressed(mx, my)) {
+            scrollY = scrollbar.scrollFor(my, contentHeight());
+            clampScroll();
+            return true;
+        }
 
         // Tab strip.
         if (my >= TAB_Y && my < TAB_Y + TAB_H && mx >= left && mx <= right) {
@@ -539,6 +542,11 @@ public final class MufflerScreen extends Screen {
 
     @Override
     public boolean mouseDragged(Click click, double offsetX, double offsetY) {
+        if (scrollbar.isDragging()) {
+            scrollY = scrollbar.scrollFor(click.y(), contentHeight());
+            clampScroll();
+            return true;
+        }
         if (draggingSound != null && click.button() == 0) {
             setSoundFromMouse(draggingSound, click.x());
             return true;
@@ -548,6 +556,7 @@ public final class MufflerScreen extends Screen {
 
     @Override
     public boolean mouseReleased(Click click) {
+        if (scrollbar.isDragging()) { scrollbar.release(); return true; }
         if (draggingSound != null && click.button() == 0) {
             draggingSound = null;
             MufflerSettings.save();

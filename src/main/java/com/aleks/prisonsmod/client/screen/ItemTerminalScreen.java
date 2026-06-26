@@ -1,6 +1,7 @@
 package com.aleks.prisonsmod.client.screen;
 
 import com.aleks.prisonsmod.client.glass.GlassRender;
+import com.aleks.prisonsmod.client.glass.GlassScrollbar;
 import com.aleks.prisonsmod.client.glass.GlassTextField;
 import com.aleks.prisonsmod.client.glass.GlassTheme;
 import com.aleks.prisonsmod.net.Protocol;
@@ -93,6 +94,11 @@ public abstract class ItemTerminalScreen extends Screen {
     private final List<Entry> entries = new ArrayList<>();
     private int scrollRowOffset = 0;
     private List<Text> hoverTooltip = null;
+
+    /** Draggable right-edge scrollbar. The screen owns {@link #scrollRowOffset}
+     *  (in rows); this helper works in pixels, so we feed it row*SLOT_PX units
+     *  and divide the result back to a row offset. */
+    private final GlassScrollbar scrollbar = new GlassScrollbar();
 
     /** While Shift is held, tile order is frozen to this snapshot of item keys so
      *  repeated shift-click extracts don't reshuffle tiles under the cursor (a
@@ -435,6 +441,22 @@ public abstract class ItemTerminalScreen extends Screen {
     private int gridContentWidth() { return GRID_COLS * SLOT_PX; }
     private int gridContentHeight() { return GRID_ROWS * SLOT_PX; }
 
+    /** Total scrollable content height in the same pixel units as the scrollbar
+     *  viewport ({@code gridContentHeight()}): one row per SLOT_PX. The helper
+     *  no-ops when this is &le; the viewport. */
+    private int scrollbarContentHeight() { return totalRows() * SLOT_PX; }
+
+    /** Convert the scrollbar helper's pixel scrollY into a clamped row offset and
+     *  apply it. The helper already clamps to [0, maxScroll]; we round to the
+     *  nearest row and clamp again (belt-and-suspenders). */
+    private void applyScrollbarPixels(int pixelScrollY) {
+        int maxOffset = Math.max(0, totalRows() - GRID_ROWS);
+        int row = (int) Math.round((double) pixelScrollY / SLOT_PX);
+        if (row < 0) row = 0;
+        if (row > maxOffset) row = maxOffset;
+        scrollRowOffset = row;
+    }
+
     private int panelWidth() {
         return gridContentWidth() + PANEL_PADDING * 2 + SCROLLBAR_W + SCROLLBAR_GAP;
     }
@@ -567,6 +589,15 @@ public abstract class ItemTerminalScreen extends Screen {
         // in the same frame as the keypress) so even the first pull doesn't move.
         if (isShiftDown() && frozenOrder == null) {
             frozenOrder = captureOrder();
+        }
+
+        // ── Draggable scrollbar — grab the thumb (drag) or click the track (jump).
+        // Checked before any grid/slot/sort hit-testing; the helper's hit zone is
+        // confined to the bar's x, so a grid click never lands here. Left-click only.
+        if (button == 0 && scrollbar.mousePressed(mx, my)) {
+            defocusSearch();
+            applyScrollbarPixels(scrollbar.scrollFor(my, scrollbarContentHeight()));
+            return true;
         }
 
         boolean holdingCursor = !cursorStack().isEmpty();
@@ -749,6 +780,11 @@ public abstract class ItemTerminalScreen extends Screen {
 
     @Override
     public boolean mouseDragged(Click click, double offsetX, double offsetY) {
+        // Scrollbar drag wins over everything else while the thumb is grabbed.
+        if (scrollbar.isDragging()) {
+            applyScrollbarPixels(scrollbar.scrollFor(click.y(), scrollbarContentHeight()));
+            return true;
+        }
         // Shift+drag across inventory slots → deposit each new slot.
         if (shiftDragging && click.button() == 0) {
             if (!isShiftDown()) {
@@ -773,6 +809,10 @@ public abstract class ItemTerminalScreen extends Screen {
 
     @Override
     public boolean mouseReleased(Click click) {
+        if (scrollbar.isDragging()) {
+            scrollbar.release();
+            return true;
+        }
         if (shiftDragging && click.button() == 0) {
             shiftDragging = false;
             shiftDragDeposited.clear();
@@ -933,18 +973,13 @@ public abstract class ItemTerminalScreen extends Screen {
                     gx + (gridW - msgW) / 2, gy + gridH / 2 - 4, GlassTheme.textMuted(), false);
         }
 
-        // Scrollbar
-        int maxOffset = Math.max(0, totalRows() - GRID_ROWS);
-        if (maxOffset > 0) {
-            int sbX = gx + gridW + SCROLLBAR_GAP;
-            int sbY = gy;
-            int sbH = gridH;
-            double trackRatio = (double) GRID_ROWS / totalRows();
-            int thumbH = Math.max(20, (int) (sbH * trackRatio));
-            int range = sbH - thumbH;
-            int thumbY = sbY + (int) (range * ((double) scrollRowOffset / maxOffset));
-            GlassRender.scrollbar(ctx, sbX, sbY, sbY + sbH, thumbY, thumbH);
-        }
+        // Scrollbar (draggable — see scrollbarContentHeight()). Content/scroll are
+        // expressed in pixels (rows * SLOT_PX) so the pixel-based helper matches the
+        // grid's row-based scrolling; it no-ops when everything fits.
+        int sbX = gx + gridW + SCROLLBAR_GAP;
+        int sbY = gy;
+        int sbH = gridH;
+        scrollbar.render(ctx, sbX, sbY, sbY + sbH, scrollbarContentHeight(), scrollRowOffset * SLOT_PX);
 
         // Blocked-action notice — shown briefly after a take/put attempt while
         // view-only. Drawn over the grid, under the cursor.

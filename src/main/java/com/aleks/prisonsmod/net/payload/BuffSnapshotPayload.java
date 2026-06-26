@@ -42,6 +42,8 @@ public final class BuffSnapshotPayload {
     public static final byte CH_COMBAT_IN      = 8;
     public static final byte CH_BOSS_OUT       = 9;
     public static final byte CH_BOSS_IN        = 10;
+    public static final byte CH_CRIT_CHANCE    = 11;
+    public static final byte CH_CRIT_DAMAGE    = 12;
 
     // Layer categories.
     public static final byte CAT_BASE      = 0;
@@ -253,6 +255,8 @@ public final class BuffSnapshotPayload {
             case CH_MINING_METEOR -> "Meteorite Ore";
             case CH_COMBAT_OUT    -> "Damage Dealt";
             case CH_COMBAT_IN     -> "Damage Taken";
+            case CH_CRIT_CHANCE   -> "Crit Chance";
+            case CH_CRIT_DAMAGE   -> "Crit Damage";
             case CH_BOSS_OUT      -> "Boss Damage Dealt";
             case CH_BOSS_IN       -> "Boss Damage Taken";
             default -> "?";

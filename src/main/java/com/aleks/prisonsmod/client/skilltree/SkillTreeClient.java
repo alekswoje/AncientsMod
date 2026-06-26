@@ -182,19 +182,22 @@ public final class SkillTreeClient {
         // Failure — surface as a chat toast (kept simple; no separate UI layer).
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc == null || mc.player == null) return;
-        String reason = reasonFor(payload.result);
+        String reason = reasonFor(payload.result, payload.action);
         mc.player.sendMessage(Text.literal("✦ " + reason).formatted(Formatting.RED), true);
         mc.player.playSound(SoundEvents.ENTITY_VILLAGER_NO, 0.6f, 1.0f);
     }
 
-    private static String reasonFor(byte result) {
+    private static String reasonFor(byte result, byte action) {
         return switch (result) {
             case Protocol.SKILL_RESULT_ALREADY_UNLOCKED  -> "Already allocated.";
             case Protocol.SKILL_RESULT_PREREQ_MISSING    -> "Allocate an adjacent node first.";
             case Protocol.SKILL_RESULT_NOT_ENOUGH_POINTS -> "Not enough skill points.";
             case Protocol.SKILL_RESULT_NOT_UNLOCKED      -> "That node isn't allocated.";
             case Protocol.SKILL_RESULT_HAS_DEPENDENTS    -> "Refund leaf nodes first.";
-            case Protocol.SKILL_RESULT_NOT_ENOUGH_MONEY  -> "Not enough money to respec.";
+            case Protocol.SKILL_RESULT_NOT_ENOUGH_MONEY  ->
+                    action == Protocol.SKILL_ACTION_REFUND
+                            ? "Not enough money to refund."
+                            : "Not enough money to respec.";
             case Protocol.SKILL_RESULT_NOTHING_TO_RESPEC -> "Nothing to respec.";
             case Protocol.SKILL_RESULT_ECONOMY_ERROR     -> "Economy error — try again.";
             case Protocol.SKILL_RESULT_INVALID           -> "That can't be done.";

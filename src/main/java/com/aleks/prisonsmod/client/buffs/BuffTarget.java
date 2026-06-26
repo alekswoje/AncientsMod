@@ -117,6 +117,8 @@ public final class BuffTarget {
     }
 
     private static boolean isCombat(byte id) {
-        return id >= BuffSnapshotPayload.CH_COMBAT_OUT && id <= BuffSnapshotPayload.CH_BOSS_IN;
+        // Combat group spans Damage Dealt/Taken, Boss Dealt/Taken (7–10) and the
+        // crit channels (11–12) — every combat-side channel id.
+        return id >= BuffSnapshotPayload.CH_COMBAT_OUT && id <= BuffSnapshotPayload.CH_CRIT_DAMAGE;
     }
 }

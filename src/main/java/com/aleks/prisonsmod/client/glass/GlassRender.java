@@ -68,9 +68,22 @@ public final class GlassRender {
 
     // ── Composite glass surfaces ─────────────────────────────────────────────
 
-    /** Real blurred backdrop + scrim behind a full-screen menu. Call before drawing panels. */
+    /**
+     * Real blurred backdrop + scrim behind a full-screen menu. Call before drawing panels.
+     *
+     * <p>Minecraft enforces at most ONE blur per frame ({@code DrawContext.applyBlur}
+     * throws {@code IllegalStateException} otherwise). Vanilla {@code Screen.renderBackground}
+     * already blurs when the player's menu-blur video setting is ≥1, so we attempt our own
+     * blur and swallow the "already blurred" exception — either way the backdrop ends up
+     * blurred and we draw the scrim on top. This also means the frost shows even when the
+     * player has menu blur turned off.
+     */
     public static void menuBackdrop(DrawContext c, int width, int height) {
-        c.applyBlur();
+        try {
+            c.applyBlur();
+        } catch (IllegalStateException alreadyBlurredThisFrame) {
+            // Vanilla renderBackground already blurred this frame — fine, just add the scrim.
+        }
         c.fill(0, 0, width, height, GlassTheme.scrim());
     }
 

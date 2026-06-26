@@ -47,7 +47,7 @@ public final class SettingsScreen extends WidgetSettingsScreen {
         });
 
         addSection("Appearance");
-        addToggle("Light glass theme (off = dark)",
+        addToggle("Light glass theme",
                 FeatureToggles::isGlassLightThemeEnabled, FeatureToggles::setGlassLightTheme);
 
         addSection("Tooltips");
@@ -86,11 +86,11 @@ public final class SettingsScreen extends WidgetSettingsScreen {
         });
 
         addSection("World");
-        addToggle("Fullbright (max gamma, disabled in server-blacklisted worlds)",
+        addToggle("Fullbright",
                 FeatureToggles::isFullbrightEnabled, FeatureToggles::setFullbright);
         addToggle("Mining rush pings",
                 FeatureToggles::isMiningRushPingsEnabled, FeatureToggles::setMiningRushPings);
-        addToggle("Rift texture pack (tints stone + ores white)",
+        addToggle("Rift texture pack",
                 FeatureToggles::isRiftTexturePackEnabled, FeatureToggles::setRiftTexturePack);
 
         addSection("Custom Screens");

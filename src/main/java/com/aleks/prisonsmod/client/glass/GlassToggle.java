@@ -44,17 +44,23 @@ public class GlassToggle extends PressableWidget {
 
         TextRenderer fr = MinecraftClient.getInstance().textRenderer;
         int midV = y1 + (getHeight() - fr.fontHeight) / 2;
-        ctx.drawText(fr, Text.literal(labelText), x1 + 10, midV,
-                this.active ? GlassTheme.text() : GlassTheme.textMuted(), false);
 
         int sw = 32, sh = 16;
         int tx2 = x2 - 10, tx1 = tx2 - sw;
         int ty1 = y1 + (getHeight() - sh) / 2, ty2 = ty1 + sh;
-        GlassRender.glassSwitch(ctx, tx1, ty1, tx2, ty2, value);
 
         Text state = Text.literal(value ? "ON" : "OFF");
+        int stateX = tx1 - 6 - fr.getWidth(state);
+
+        // Clip the label so it can never run under the ON/OFF text or the switch.
+        int labelMax = stateX - 8 - (x1 + 10);
+        String label = labelMax > 8 ? fr.trimToWidth(labelText, labelMax) : "";
+        ctx.drawText(fr, Text.literal(label), x1 + 10, midV,
+                this.active ? GlassTheme.text() : GlassTheme.textMuted(), false);
+
+        GlassRender.glassSwitch(ctx, tx1, ty1, tx2, ty2, value);
         int sc = value ? GlassTheme.ACCENT_SOFT : GlassTheme.textMuted();
-        ctx.drawText(fr, state, tx1 - 6 - fr.getWidth(state), midV, sc, false);
+        ctx.drawText(fr, state, stateX, midV, sc, false);
     }
 
     @Override
