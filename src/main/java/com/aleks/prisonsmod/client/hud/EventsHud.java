@@ -29,13 +29,13 @@ public final class EventsHud extends HudElement {
     public static final String KEY_ENABLED = "enabled";
 
     public static final List<String> ALL_KEYS = List.of(
-            "koth", "bah", "meteor", "heroic_meteor", "rift", "mining_comp",
+            "koth", "bah", "meteor", "mining_comp",
             "meteorite", "meteorite_shower", "mining_rush", "hot_zone",
-            "oracle", "outpost", "chat_games"
+            "oracle", "outpost"
     );
 
     public static final Set<String> DEFAULT_ENABLED = new LinkedHashSet<>(List.of(
-            "koth", "bah", "meteor", "heroic_meteor", "rift", "mining_comp", "outpost"
+            "koth", "bah", "meteor", "mining_comp", "outpost"
     ));
 
     private static final int MIN_WIDTH    = 158;
@@ -140,13 +140,6 @@ public final class EventsHud extends HudElement {
         List<Row> out = new ArrayList<>();
         for (String key : ALL_KEYS) {
             if (!enabled.contains(key)) continue;
-            // The rift is per-player now (PKT_RIFT_BUDGET), not part of the shared
-            // event-timer snapshot — source its row from RiftBudgetState instead.
-            if (key.equals("rift")) {
-                Row r = riftRow();
-                if (r != null) out.add(r);
-                continue;
-            }
             EventTimersPayload.Entry e = byKey.get(key);
             if (e == null) continue;
             if (e.state() == Protocol.EVENT_STATE_UNKNOWN) continue;
@@ -168,15 +161,12 @@ public final class EventsHud extends HudElement {
         if (id == Protocol.EVENT_KOTH)              return "koth";
         if (id == Protocol.EVENT_BAH)               return "bah";
         if (id == Protocol.EVENT_METEOR)            return "meteor";
-        if (id == Protocol.EVENT_RIFT)              return "rift";
         if (id == Protocol.EVENT_MINING_COMP)       return "mining_comp";
         if (id == Protocol.EVENT_METEORITE)         return "meteorite";
         if (id == Protocol.EVENT_MINING_RUSH)       return "mining_rush";
         if (id == Protocol.EVENT_HOT_ZONE)          return "hot_zone";
-        if (id == Protocol.EVENT_HEROIC_METEOR)     return "heroic_meteor";
         if (id == Protocol.EVENT_ORACLE)            return "oracle";
         if (id == Protocol.EVENT_OUTPOST)           return "outpost";
-        if (id == Protocol.EVENT_CHAT_GAMES)        return "chat_games";
         if (id == Protocol.EVENT_METEORITE_SHOWER)  return "meteorite_shower";
         return null;
     }
@@ -186,8 +176,6 @@ public final class EventsHud extends HudElement {
             case "koth"              -> "KOTH";
             case "bah"               -> "BAH";
             case "meteor"            -> "Meteor";
-            case "heroic_meteor"     -> "Heroic Meteor";
-            case "rift"              -> "Tartarus Rift";
             case "mining_comp"       -> "Mining Comp";
             case "meteorite"         -> "Meteorite";
             case "meteorite_shower"  -> "Meteorite Shower";
@@ -205,8 +193,6 @@ public final class EventsHud extends HudElement {
             case "koth"              -> 0xFFFF8A66;
             case "bah"               -> 0xFF6FE8C9;
             case "meteor"            -> 0xFFFFC857;
-            case "heroic_meteor"     -> 0xFFFFA0FF; // pink-magenta to stand apart from regular meteor
-            case "rift"              -> 0xFFD37CFF;
             case "mining_comp"       -> 0xFF8AE08A;
             case "meteorite"         -> 0xFFE6B05A;
             case "meteorite_shower"  -> 0xFFFFB070;
@@ -214,7 +200,6 @@ public final class EventsHud extends HudElement {
             case "hot_zone"          -> 0xFFFF7070;
             case "oracle"            -> 0xFFC6A0FF;
             case "outpost"           -> 0xFF87BFFF;
-            case "chat_games"        -> 0xFFE6E68A;
             default                  -> LABEL_FALLBACK;
         };
     }
@@ -227,27 +212,6 @@ public final class EventsHud extends HudElement {
         int h = m / 60;
         int rm = m % 60;
         return String.format(Locale.US, "%d:%02d:%02d", h, rm, s);
-    }
-
-    /** Rift row sourced from the per-player daily-time packet (e.g. "12:30 · 4h"). */
-    private static Row riftRow() {
-        if (!RiftBudgetState.isFresh()) return null;
-        if (!RiftBudgetState.isAvailable()) {
-            return new Row(displayNameFor("rift"), "OFF", STATE_OFF, accentFor("rift"));
-        }
-        String right = formatDuration(RiftBudgetState.liveRemaining())
-                + " · " + formatShort(RiftBudgetState.liveUntilReset());
-        return new Row(displayNameFor("rift"), right, HudStyle.TIME_COLOR, accentFor("rift"));
-    }
-
-    /** Compact single-unit duration (e.g. "4h", "12m", "30s") for the reset countdown. */
-    private static String formatShort(int seconds) {
-        if (seconds <= 0) return "0s";
-        int h = seconds / 3600;
-        int m = (seconds % 3600) / 60;
-        if (h > 0) return h + "h";
-        if (m > 0) return m + "m";
-        return seconds + "s";
     }
 
     private static TextRenderer textRenderer() {
