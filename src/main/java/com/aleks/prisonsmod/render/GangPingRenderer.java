@@ -68,6 +68,11 @@ public final class GangPingRenderer {
     /** Floor so the label stays readable instead of dwindling to nothing far out. */
     private static final float LABEL_SCALE_FLOOR = 0.4f;
 
+    /** Meteor-ping countdown colour while the meteor is still falling (yellow). */
+    private static final int COUNTDOWN_COLOR = 0xFFFF55;
+    /** Meteor-ping count-up colour after it has landed (green). */
+    private static final int COUNTUP_COLOR = 0x55FF55;
+
     private static final RenderLayer BEAM_LAYER = RenderLayer.of(
             "prisonsmod_gang_ping_beam",
             RenderSetup.builder(RenderPipelines.BEACON_BEAM_TRANSLUCENT)
@@ -174,10 +179,26 @@ public final class GangPingRenderer {
                     + (ping.z - playerPos.z) * (ping.z - playerPos.z);
             if (distSqToPlayer < LABEL_MIN_DISTANCE * LABEL_MIN_DISTANCE) continue;
 
+            // Meteor pings carry a landing time → render a countdown that flips
+            // to a count-up at impact (yellow before, green after).
+            String countdownText = null;
+            int countdownColor = 0;
+            if (ping.hasCountdown) {
+                long remaining = ping.landingAtMs - now;
+                if (remaining > 0) {
+                    countdownText = "Lands in " + formatDuration((remaining + 999L) / 1000L);
+                    countdownColor = COUNTDOWN_COLOR;
+                } else {
+                    countdownText = "Landed +" + formatDuration((now - ping.landingAtMs) / 1000L);
+                    countdownColor = COUNTUP_COLOR;
+                }
+            }
+
             drawProjectedLabel(context, client, ping.senderName, ping.worldName,
                     ping.colorRgb, alpha,
                     ping.x, ping.y + LABEL_WORLD_Y_OFFSET, ping.z,
-                    playerPos, camPos, viewProj, sw, sh, zoomFactor);
+                    playerPos, camPos, viewProj, sw, sh, zoomFactor,
+                    countdownText, countdownColor);
         }
 
         if (GangPingInput.isPreviewActive()) {
@@ -189,7 +210,8 @@ public final class GangPingRenderer {
                         client.player.getName().getString(), world,
                         0xFFFFFF, 0.45f,
                         target.x, target.y + LABEL_WORLD_Y_OFFSET, target.z,
-                        playerPos, camPos, viewProj, sw, sh, zoomFactor);
+                        playerPos, camPos, viewProj, sw, sh, zoomFactor,
+                        null, 0);
             }
         }
     }
@@ -205,7 +227,8 @@ public final class GangPingRenderer {
                                            double wx, double wy, double wz,
                                            Vec3d playerPos, Vec3d camPos,
                                            Matrix4f viewProj,
-                                           int sw, int sh, float zoomFactor) {
+                                           int sw, int sh, float zoomFactor,
+                                           String countdownText, int countdownColor) {
         if (senderName == null || senderName.isEmpty()) return;
 
         // Pre-translate to camera-relative — the view matrix doesn't carry
@@ -237,6 +260,9 @@ public final class GangPingRenderer {
         int aByte = Math.max(0, Math.min(255, Math.round(alpha * 255.0f)));
         int senderColor = (aByte << 24) | (colorRgb & 0xFFFFFF);
         int subColor = (aByte << 24) | 0xCCCCCC;
+        boolean hasCountdown = countdownText != null && !countdownText.isEmpty();
+        Text countdownLine = hasCountdown ? Text.literal(countdownText) : null;
+        int cdColor = (aByte << 24) | (countdownColor & 0xFFFFFF);
 
         // Distance-based scale: full size up to LABEL_SCALE_REFERENCE_DISTANCE,
         // then 1/distance falloff (matches how vanilla entity nameplates shrink
@@ -257,11 +283,20 @@ public final class GangPingRenderer {
         hudMatrices.translate(screenX, screenY);
         hudMatrices.scale(scale, scale);
 
-        drawCenteredLine(context, tr, senderLine, 0, -lineHeight * 2, senderColor);
-        drawCenteredLine(context, tr, distanceLine, 0, -lineHeight, subColor);
+        // Stack bottom-up so the lowest line anchors at the ping point: world
+        // (bottom) → distance → countdown → sender name (top).
+        int line = 0;
         if (worldLine != null) {
-            drawCenteredLine(context, tr, worldLine, 0, 0, subColor);
+            drawCenteredLine(context, tr, worldLine, 0, -lineHeight * line, subColor);
+            line++;
         }
+        drawCenteredLine(context, tr, distanceLine, 0, -lineHeight * line, subColor);
+        line++;
+        if (countdownLine != null) {
+            drawCenteredLine(context, tr, countdownLine, 0, -lineHeight * line, cdColor);
+            line++;
+        }
+        drawCenteredLine(context, tr, senderLine, 0, -lineHeight * line, senderColor);
 
         hudMatrices.popMatrix();
     }
@@ -270,6 +305,15 @@ public final class GangPingRenderer {
                                          Text text, int cx, int y, int color) {
         int w = tr.getWidth(text);
         context.drawText(tr, text, cx - w / 2, y, color, true);
+    }
+
+    /** Format a whole-second count as {@code M:SS} at/above a minute, else {@code Ns}. */
+    private static String formatDuration(long seconds) {
+        if (seconds < 0) seconds = 0;
+        if (seconds >= 60) {
+            return (seconds / 60) + ":" + String.format("%02d", seconds % 60);
+        }
+        return seconds + "s";
     }
 
     private static int distanceMeters(Vec3d playerPos, double x, double y, double z) {

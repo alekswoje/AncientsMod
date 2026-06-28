@@ -44,6 +44,7 @@ public final class BuffSnapshotPayload {
     public static final byte CH_BOSS_IN        = 10;
     public static final byte CH_CRIT_CHANCE    = 11;
     public static final byte CH_CRIT_DAMAGE    = 12;
+    public static final byte CH_MINING_SPEED   = 13;  // pickaxe break-speed multiplier (×N)
 
     // Layer categories.
     public static final byte CAT_BASE      = 0;
@@ -169,6 +170,20 @@ public final class BuffSnapshotPayload {
                         xp, energy, money, shard));
             }
         }
+
+        // Per-ore break times — a second trailing block, aligned by index with
+        // oreYields. Older servers don't write it, so guard on remaining bytes.
+        if (buf.readableBytes() > 0) {
+            int breakCount = buf.readVarInt();
+            if (breakCount < 0 || breakCount > MAX_ORE_YIELDS) {
+                throw new IllegalArgumentException("buff snapshot: too many ore break times (" + breakCount + ")");
+            }
+            for (int i = 0; i < breakCount; i++) {
+                double bms = buf.readDouble();
+                if (!Double.isFinite(bms)) bms = -1.0;
+                if (i < oreYields.size()) oreYields.get(i).breakMs = bms;
+            }
+        }
         return new BuffSnapshotPayload(inMines, inTutorial, atCap, channels, oreYields);
     }
 
@@ -212,6 +227,8 @@ public final class BuffSnapshotPayload {
         public final double energyPerOre;
         public final double moneyPerOre;
         public final double shardChancePerOre;
+        /** Predicted break time for this ore in ms (incl. tier-up penalty + floor); -1 if the server didn't send it. */
+        public double breakMs = -1.0;
         public OreYield(String displayName,
                         double baseXp, double baseEnergy, double baseMoney, double baseShard,
                         double xpPerOre, double energyPerOre, double moneyPerOre, double shardChancePerOre) {
@@ -259,6 +276,7 @@ public final class BuffSnapshotPayload {
             case CH_CRIT_DAMAGE   -> "Crit Damage";
             case CH_BOSS_OUT      -> "Boss Damage Dealt";
             case CH_BOSS_IN       -> "Boss Damage Taken";
+            case CH_MINING_SPEED  -> "Mining Speed";
             default -> "?";
         };
     }

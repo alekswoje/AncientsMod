@@ -47,8 +47,9 @@ import java.util.Locale;
  * <ul>
  *   <li>L-click tile → extract 1 ({@link Protocol#PV_EXTRACT_ONE}).</li>
  *   <li>R-click tile → extract half ({@link Protocol#PV_EXTRACT_HALF}).</li>
- *   <li>Shift+L-click tile → extract the tile's first source stack into the
- *       inventory ({@link Protocol#PV_EXTRACT_ALL}); repeat to pull more.</li>
+ *   <li>Shift+L-click tile → extract a full stack summed across all of the tile's
+ *       source slots/vaults into the inventory ({@link Protocol#PV_EXTRACT_STACK});
+ *       repeat to pull the next stack.</li>
  *   <li>L-press inventory slot, drag onto grid, release → deposit that slot
  *       via {@link #sendDeposit(int)} (server picks the destination).</li>
  * </ul>
@@ -666,11 +667,13 @@ public abstract class ItemTerminalScreen extends Screen {
                 flashBlocked();
                 return true;
             }
-            // A tile may aggregate the same item across several source slots, but
-            // each click pulls from ONE source stack (the first), so the optimistic
-            // amount is exact (we know that stack's size) and there's no overshoot
-            // when the server's view differs (e.g. unique-id boosters). Shift-click
-            // takes one stack; repeating walks through the tile's source stacks.
+            // A tile may aggregate the same item across several source slots/vaults.
+            // The cursor pulls (L / R) act on ONE source stack (the first), so their
+            // optimistic amount is exact (we know that stack's size) with no overshoot
+            // when the server's view differs (e.g. unique-id boosters). Shift+L instead
+            // pulls a full stack summed across ALL sources in one atomic server op, so
+            // a tile spread over multiple vaults extracts the whole stack — not just
+            // the first source — the way a vanilla shift-click would.
             Source ref = e.sources.get(0);
             int srcAmt = ref.amount;
             int maxStack = Math.max(1, e.icon.getMaxCount());
@@ -681,10 +684,14 @@ public abstract class ItemTerminalScreen extends Screen {
                 predictPickupToCursor(e.rep, take);
                 sendExtract(ref, Protocol.PV_EXTRACT_HALF, Protocol.PV_TARGET_CURSOR);
             } else if (button == 0 && isShiftDown()) {
-                // Shift+left → that whole source stack into the inventory
-                // (repeat to pull the item's next stack).
-                applyOptimisticGroupExtract(e, srcAmt);
-                sendExtract(ref, Protocol.PV_EXTRACT_ALL, Protocol.PV_TARGET_INV);
+                // Shift+left → a full stack of this item summed across EVERY source
+                // slot/vault, into the inventory (repeat to pull the next stack). The
+                // aggregated server op drains matching stacks in order, so a tile
+                // split over multiple vaults comes out whole instead of yielding only
+                // the first source stack.
+                int take = Math.min(maxStack, e.total);
+                applyOptimisticGroupExtract(e, take);
+                sendExtractItem(ref, Protocol.PV_EXTRACT_STACK, Protocol.PV_TARGET_INV);
             } else if (button == 0) {
                 // Left-click → one onto the cursor.
                 applyOptimisticGroupExtract(e, 1);

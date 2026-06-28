@@ -59,6 +59,9 @@ public final class FeatureToggles {
     /** Show a world-space beam + label pinging where a mining rush spawned in your tier's mine (same look as meteor pings). Off = no beam; the chat announcement still fires. */
     private static volatile boolean miningRushPings = true;
 
+    /** Show a world-space beam + label marking the active hot zone in your tier's mine (same look as mining-rush pings). Off = no beam; the chat announcement still fires. */
+    private static volatile boolean hotZoneIndicator = true;
+
     /** Show the draggable Events HUD (KOTH / BAH / Meteor / Rift / etc. countdowns). */
     private static volatile boolean eventsHud = true;
 
@@ -179,6 +182,7 @@ public final class FeatureToggles {
             boosterHud = parseBool(props.getProperty("boosterHud"), boosterHud);
             meteoriteHud = parseBool(props.getProperty("meteoriteHud"), meteoriteHud);
             miningRushPings = parseBool(props.getProperty("miningRushPings"), miningRushPings);
+            hotZoneIndicator = parseBool(props.getProperty("hotZoneIndicator"), hotZoneIndicator);
             eventsHud = parseBool(props.getProperty("eventsHud"), eventsHud);
             cooldownsHud = parseBool(props.getProperty("cooldownsHud"), cooldownsHud);
             statsHud   = parseBool(props.getProperty("statsHud"),   statsHud);
@@ -219,6 +223,7 @@ public final class FeatureToggles {
         props.setProperty("boosterHud", Boolean.toString(boosterHud));
         props.setProperty("meteoriteHud", Boolean.toString(meteoriteHud));
         props.setProperty("miningRushPings", Boolean.toString(miningRushPings));
+        props.setProperty("hotZoneIndicator", Boolean.toString(hotZoneIndicator));
         props.setProperty("eventsHud", Boolean.toString(eventsHud));
         props.setProperty("cooldownsHud", Boolean.toString(cooldownsHud));
         props.setProperty("statsHud",   Boolean.toString(statsHud));
@@ -368,6 +373,14 @@ public final class FeatureToggles {
     public static void setMiningRushPings(boolean value) {
         if (miningRushPings == value) return;
         miningRushPings = value;
+        save();
+    }
+
+    public static boolean isHotZoneIndicatorEnabled() { return hotZoneIndicator; }
+
+    public static void setHotZoneIndicator(boolean value) {
+        if (hotZoneIndicator == value) return;
+        hotZoneIndicator = value;
         save();
     }
 

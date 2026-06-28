@@ -4,6 +4,8 @@ import com.aleks.prisonsmod.client.FeatureToggles;
 import com.aleks.prisonsmod.net.payload.GangPingPayload;
 import com.aleks.prisonsmod.net.payload.MeteorPingPayload;
 import com.aleks.prisonsmod.net.payload.MiningRushPingPayload;
+import com.aleks.prisonsmod.net.payload.MiningRushPingClearPayload;
+import com.aleks.prisonsmod.net.payload.HotZonePingPayload;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.sound.SoundEvents;
 
@@ -57,6 +59,12 @@ public final class GangPingManager {
             if (pings.size() >= MAX_ACTIVE) return;
         }
         boolean refresh = pings.containsKey(key);
+        long now = System.currentTimeMillis();
+        // Each (re-)announce carries the server's current time-to-impact, so the
+        // predicted landing time re-syncs in place and stays accurate. Absent /
+        // sentinel value (older plugin) → no countdown, plain lifetime fade.
+        boolean hasCountdown = payload.msUntilLanding() >= 0;
+        long landingAtMs = hasCountdown ? now + payload.msUntilLanding() : 0L;
         pings.put(key, new GangPing(
                 payload.label(),
                 payload.colorRgb(),
@@ -64,8 +72,10 @@ public final class GangPingManager {
                 payload.y(),
                 payload.z(),
                 payload.worldName(),
-                System.currentTimeMillis(),
-                payload.lifetimeMs()));
+                now,
+                payload.lifetimeMs(),
+                hasCountdown,
+                landingAtMs));
         if (!refresh) playPingSound();
     }
 
@@ -103,6 +113,65 @@ public final class GangPingManager {
         long by = (long) Math.floor(p.y());
         long bz = (long) Math.floor(p.z());
         return "mining_rush:" + p.label() + '@' + p.worldName() + ':' + bx + ',' + by + ',' + bz;
+    }
+
+    /**
+     * Drop the mining-rush beam(s) anchored to the cleared block. The server
+     * sends this the moment a rush ends (mined out / expired / replaced by the
+     * next spawn), so the beam vanishes immediately instead of lingering for
+     * the rest of its expiry-window lifetime. Matches on world + block coords
+     * only (not the tier label) so label formatting can never desync the
+     * removal. Silent no-op when no matching marker is present.
+     */
+    public static void clearMiningRushPing(MiningRushPingClearPayload payload) {
+        if (payload == null) return;
+        long bx = (long) Math.floor(payload.x());
+        long by = (long) Math.floor(payload.y());
+        long bz = (long) Math.floor(payload.z());
+        String world = payload.worldName();
+        pings.entrySet().removeIf(e -> {
+            if (!e.getKey().startsWith("mining_rush:")) return false;
+            GangPing g = e.getValue();
+            return g.worldName.equals(world)
+                    && (long) Math.floor(g.x) == bx
+                    && (long) Math.floor(g.y) == by
+                    && (long) Math.floor(g.z) == bz;
+        });
+    }
+
+    /**
+     * Handle an incoming hot-zone ping. Identical render path to mining-rush
+     * pings — only keying and the gating toggle differ. Gated at intake: when
+     * the "Hot zone indicator" toggle is off we drop the packet entirely (no
+     * sound, no marker). Key is label+world+block-coords so a re-sent zone
+     * refreshes in place and distinct tier zones coexist.
+     */
+    public static void onHotZonePing(HotZonePingPayload payload) {
+        if (payload == null) return;
+        if (!FeatureToggles.isHotZoneIndicatorEnabled()) return;
+        String key = hotZoneKey(payload);
+        if (pings.size() >= MAX_ACTIVE && !pings.containsKey(key)) {
+            pings.entrySet().removeIf(e -> e.getValue().expired(System.currentTimeMillis()));
+            if (pings.size() >= MAX_ACTIVE) return;
+        }
+        boolean refresh = pings.containsKey(key);
+        pings.put(key, new GangPing(
+                payload.label(),
+                payload.colorRgb(),
+                payload.x(),
+                payload.y(),
+                payload.z(),
+                payload.worldName(),
+                System.currentTimeMillis(),
+                payload.lifetimeMs()));
+        if (!refresh) playPingSound();
+    }
+
+    private static String hotZoneKey(HotZonePingPayload p) {
+        long bx = (long) Math.floor(p.x());
+        long by = (long) Math.floor(p.y());
+        long bz = (long) Math.floor(p.z());
+        return "hot_zone:" + p.label() + '@' + p.worldName() + ':' + bx + ',' + by + ',' + bz;
     }
 
     private static String meteorKey(MeteorPingPayload p) {

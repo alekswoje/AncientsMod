@@ -7,12 +7,18 @@ import net.minecraft.network.PacketByteBuf;
  * Decoded form of {@link Protocol#PKT_METEOR_PING}.
  *
  * <p>Wire format mirrors gang ping but carries an extra {@code lifetimeMs}
- * so the server can size each beam to the meteor's actual fall window. All
- * fields are bounds-checked at decode time.
+ * so the server can size each beam to the meteor's actual fall window, plus a
+ * trailing {@code msUntilLanding} (time-to-impact at send time) that drives the
+ * client-side countdown. All fields are bounds-checked at decode time.
+ *
+ * <p>{@code msUntilLanding} is optional on the wire — a plugin that predates the
+ * countdown field simply doesn't append it, and decode falls back to
+ * {@link Protocol#METEOR_PING_NO_COUNTDOWN} (no countdown shown).
  */
 public record MeteorPingPayload(String label, int colorRgb,
                                 double x, double y, double z,
-                                String worldName, int lifetimeMs) {
+                                String worldName, int lifetimeMs,
+                                int msUntilLanding) {
 
     public static MeteorPingPayload decode(PacketByteBuf buf) {
         String rawLabel = buf.readString(Protocol.GANG_PING_MAX_NAME_CHARS * 4);
@@ -36,6 +42,14 @@ public record MeteorPingPayload(String label, int colorRgb,
         int rawLifetime = buf.readInt();
         int lifetime = Math.max(Protocol.METEOR_PING_MIN_LIFETIME_MS,
                 Math.min(Protocol.METEOR_PING_MAX_LIFETIME_MS, rawLifetime));
-        return new MeteorPingPayload(label, rgb, x, y, z, world, lifetime);
+        // Optional trailing field. Absent on older plugins → no countdown.
+        // A negative value from the server is also treated as "unknown".
+        int msUntilLanding = Protocol.METEOR_PING_NO_COUNTDOWN;
+        if (buf.isReadable(4)) {
+            int raw = buf.readInt();
+            msUntilLanding = raw < 0 ? Protocol.METEOR_PING_NO_COUNTDOWN
+                    : Math.min(raw, Protocol.METEOR_PING_MAX_LIFETIME_MS);
+        }
+        return new MeteorPingPayload(label, rgb, x, y, z, world, lifetime, msUntilLanding);
     }
 }

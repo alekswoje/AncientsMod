@@ -17,6 +17,7 @@
     "client.HandledScreenTooltipSuppressMixin",
     "client.HoveredTooltipPositionerMixin",
     "client.LivingEntityRendererMixin",
+    "client.MiningResumeMixin",
     "client.ParticleManagerMufflerMixin",
     "client.SimpleOptionGammaMixin",
     "client.SoundSystemMufflerMixin"

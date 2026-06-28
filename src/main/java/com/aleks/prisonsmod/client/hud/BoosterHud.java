@@ -246,7 +246,10 @@ public final class BoosterHud extends HudElement {
 
     private static String formatMult(double mult) {
         if (mult == Math.floor(mult)) return "x" + (int) mult;
-        return String.format(Locale.US, "x%.1f", mult);
+        String s = String.format(Locale.US, "%.2f", mult);
+        s = s.replaceAll("0+$", "");
+        if (s.endsWith(".")) s = s.substring(0, s.length() - 1);
+        return "x" + s;
     }
 
     private static String formatDuration(int seconds) {

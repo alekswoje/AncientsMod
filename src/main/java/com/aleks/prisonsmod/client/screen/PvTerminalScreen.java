@@ -23,8 +23,8 @@ import net.minecraft.text.Text;
  * <ul>
  *   <li>L-click tile → extract 1 ({@link Protocol#PV_EXTRACT_ONE}).</li>
  *   <li>R-click tile → extract half ({@link Protocol#PV_EXTRACT_HALF}).</li>
- *   <li>Shift+L-click tile → extract entire stack
- *       ({@link Protocol#PV_EXTRACT_ALL}).</li>
+ *   <li>Shift+L-click tile → extract a full stack summed across all vaults
+ *       ({@link Protocol#PV_EXTRACT_STACK}); repeat to pull the next stack.</li>
  *   <li>L-press hotbar slot, drag onto grid, release → deposit that hotbar
  *       slot via {@link NetworkHandler#sendPvShiftClick(int)} (server fills the
  *       first vault with space).</li>

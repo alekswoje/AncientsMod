@@ -767,18 +767,20 @@ public final class BuffBreakdownScreen extends Screen {
         int rightPad = 6;
         int oreColW = 72;
         int dataW = w - PADDING - oreColW - rightPad;
-        int colWidth = dataW / 4;
+        int colWidth = dataW / 5;
         int oreX = x + PADDING;
         int xpRight     = x + PADDING + oreColW + colWidth;
         int energyRight = x + PADDING + oreColW + colWidth * 2;
         int moneyRight  = x + PADDING + oreColW + colWidth * 3;
         int shardRight  = x + PADDING + oreColW + colWidth * 4;
+        int breakRight  = x + PADDING + oreColW + colWidth * 5;
 
         ctx.drawText(textRenderer, Text.literal("Ore"), oreX, bodyY, GlassTheme.textDim(), false);
         drawRightAligned(ctx, "XP",     xpRight - 4,     bodyY, GlassTheme.textDim());
         drawRightAligned(ctx, "Energy", energyRight - 4, bodyY, GlassTheme.textDim());
         drawRightAligned(ctx, "Money",  moneyRight - 4,  bodyY, GlassTheme.textDim());
         drawRightAligned(ctx, "Shard%", shardRight - 4,  bodyY, GlassTheme.textDim());
+        drawRightAligned(ctx, "Break",  breakRight - 4,  bodyY, GlassTheme.textDim());
         ctx.fill(x + 2, bodyY + textRenderer.fontHeight + 2, x + w - 2, bodyY + textRenderer.fontHeight + 3, HEADER_RULE);
 
         // Per-channel sandbox scaling: ratio = sandbox/server multiplier change,
@@ -808,6 +810,7 @@ public final class BuffBreakdownScreen extends Screen {
                 drawTransformCell(ctx, formatYieldEnergy(o.baseEnergy), formatYieldEnergy(sandboxPerOre(o.baseEnergy, o.energyPerOre, fEn, rEn)), energyRight - 4, textY);
                 drawTransformCell(ctx, formatYieldMoney(o.baseMoney), formatYieldMoney(sandboxPerOre(o.baseMoney, o.moneyPerOre, fMo, rMo)), moneyRight - 4, textY);
                 drawTransformCell(ctx, formatYieldShard(o.baseShard), formatYieldShard(sandboxPerOre(o.baseShard, o.shardChancePerOre, fSh, rSh)), shardRight - 4, textY);
+                drawRightAligned(ctx, formatBreakShort(o.breakMs), breakRight - 4, textY, GlassTheme.text());
             }
             rowY += ROW_H;
             if (expanded) rowY += renderOreBreakdownRows(ctx, x, rowY, w, o);
@@ -1173,6 +1176,13 @@ public final class BuffBreakdownScreen extends Screen {
         if (v <= 0) return "—";
         if (v >= 0.01) return String.format(Locale.US, "%.2f%%", v * 100.0);
         return String.format(Locale.US, "%.3f%%", v * 100.0);
+    }
+
+    /** Per-ore break time: seconds for ≥1s, else milliseconds. "—" when unknown (old server). */
+    private static String formatBreakShort(double ms) {
+        if (ms <= 0) return "—";
+        if (ms >= 1000.0) return String.format(Locale.US, "%.2fs", ms / 1000.0);
+        return String.format(Locale.US, "%.0fms", ms);
     }
 
     private static String formatX(double v) {

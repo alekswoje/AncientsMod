@@ -322,6 +322,47 @@ public final class Protocol {
     public static final byte PKT_RIFT_BUDGET = 26;
 
     /**
+     * S2C — "start loading the rift texture pack now." Sent the moment the player
+     * requests rift entry (before any teleport/transfer) so the pack reload happens
+     * while they wait at spawn instead of eating into round 1. The client replies
+     * {@link #PKT_RIFT_READY} with the same {@code int requestId} once the pack is
+     * applied (or immediately if the rift-pack toggle is off). Wire after the type
+     * byte: {@code int requestId}. Byte 47 is free on dev/master and season2 alike.
+     */
+    public static final byte PKT_RIFT_PRELOAD = 47;
+
+    /**
+     * S2C — Hot Zone beam ping: "the {tier} hot zone is here". Same wire format
+     * and renderer path as {@link #PKT_MINING_RUSH_PING} — a world-space beam +
+     * HUD label with a fiery colour and a payload-carried lifetime sized to the
+     * zone's duration. The server only sends it to players of the zone's tier, so
+     * each player sees the beam for the mine they can actually bonus-mine.
+     * Client-gated by the "Hot zone indicator" toggle (dropped at intake when off).
+     *
+     * <p>Byte 48 is free on BOTH the master/dev scheme and the season2 scheme
+     * (both top out at 47), so it needs no renumber when merging dev→season2 —
+     * same anchor strategy as {@link #PKT_MINING_RUSH_PING}. Keep it that way.
+     */
+    public static final byte PKT_HOT_ZONE_PING = 48;
+
+    /**
+     * S2C — clear an active mining-rush beam. Sent the moment a rush ends
+     * (completed by mining, idle-expired, or replaced by the next spawn cycle)
+     * so the beam disappears immediately instead of lingering for the rest of
+     * its expiry-window lifetime. Carries the rush block's world + coords; the
+     * client drops any {@link #PKT_MINING_RUSH_PING} marker keyed to that
+     * world+block. Silent no-op if the client never had that marker.
+     *
+     * <p>Wire after the type byte: {@code varint+string worldName; double x,y,z}.
+     *
+     * <p>Byte 49 is free on BOTH the master/dev scheme and the season2 scheme
+     * (both top out at 48 = hot-zone), so it needs no renumber when merging
+     * dev→season2 — same anchor strategy as {@link #PKT_HOT_ZONE_PING}. Keep it
+     * that way.
+     */
+    public static final byte PKT_MINING_RUSH_PING_CLEAR = 49;
+
+    /**
      * S2C — full dungeon skill tree layout. Pushed when a player clicks
      * "Tartarus Vision" on the Oracle NPC. Bounded by
      * {@link #MAX_SKILLTREE_PAYLOAD_BYTES}. The mod's screen opens on receipt
@@ -763,8 +804,11 @@ public final class Protocol {
      *  server→client packet additively. Minor 1 = can reassemble {@link #PKT_PV_BUNDLE_CHUNK}.
      *  Minor 2 = client understands the cell-terminal packets (S2C 41-44, C2S 137-144).
      *  Minor 3 = client parses the "#t<pattern>.<material>" trim suffix in a bundle icon key
-     *  and renders the armor-trim overlay on terminal icons (PV + cell terminal). */
-    public static final int PROTOCOL_MINOR = 3;
+     *  and renders the armor-trim overlay on terminal icons (PV + cell terminal).
+     *  Minor 4 = client handles the rift-preload handshake ({@link #PKT_RIFT_PRELOAD}
+     *  S2C / {@link #PKT_RIFT_READY} C2S) so the server can pre-load the rift texture
+     *  pack before entry instead of stalling round 1. */
+    public static final int PROTOCOL_MINOR = 4;
     /**
      * Client request: "I want to ping this world-space point for my gang."
      * Payload carries only coordinates + a hold-flag. Server authenticates the
@@ -1109,6 +1153,11 @@ public final class Protocol {
      */
     public static final byte PKT_CELLTERM_STATE = (byte) 144;
 
+    /** C2S — "rift texture pack is ready (or wasn't needed); drop me in now." Reply
+     *  to {@link #PKT_RIFT_PRELOAD}, echoing its {@code int requestId}. Byte 145 is
+     *  free on dev/master and season2 alike. Wire: {@code int requestId}. */
+    public static final byte PKT_RIFT_READY = (byte) 145;
+
     // --- Hard size caps (wire-level) ---
     /** Maximum bytes for any single cosmetic S2C payload. Larger packets are dropped. */
     public static final int MAX_PAYLOAD_BYTES = 256;
@@ -1200,6 +1249,10 @@ public final class Protocol {
     public static final int RATE_METEOR_PING_PER_SEC = 5;
     /** Max inbound mining-rush pings per second. At most one per tier per spawn cycle. */
     public static final int RATE_MINING_RUSH_PING_PER_SEC = 5;
+    /** Max inbound hot-zone pings per second. At most one per tier per spawn cycle. */
+    public static final int RATE_HOT_ZONE_PING_PER_SEC = 5;
+    /** Max inbound mining-rush clears per second. At most one per rush end. */
+    public static final int RATE_MINING_RUSH_PING_CLEAR_PER_SEC = 5;
     /** Roster + duel state are low-frequency keepalives — a handful per second is the ceiling. */
     public static final int RATE_GANG_ROSTER_PER_SEC = 4;
     public static final int RATE_DUEL_STATE_PER_SEC = 4;
@@ -1289,6 +1342,18 @@ public final class Protocol {
     /** Server-provided lifetime is clamped to this range on decode. */
     public static final int METEOR_PING_MIN_LIFETIME_MS = 1_000;
     public static final int METEOR_PING_MAX_LIFETIME_MS = 600_000;
+    /**
+     * Sentinel {@code msUntilLanding} meaning the server didn't send a landing
+     * time (older plugin that predates the countdown field). The meteor ping
+     * then falls back to its plain lifetime with no countdown line.
+     */
+    public static final int METEOR_PING_NO_COUNTDOWN = -1;
+    /**
+     * After a meteor lands, the ping flips to a "landed +Ns" count-up and stays
+     * on screen for this long before fading out (independent of the server's
+     * lifetime, which would otherwise expire at a variable time around impact).
+     */
+    public static final long METEOR_COUNTUP_WINDOW_MS = 60_000L;
 
     // --- Renderer caps (memory bounds) ---
     public static final int MAX_FLOATING_NUMBERS_ON_SCREEN = 200;

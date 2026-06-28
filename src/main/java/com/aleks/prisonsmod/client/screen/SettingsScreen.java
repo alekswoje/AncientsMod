@@ -90,6 +90,8 @@ public final class SettingsScreen extends WidgetSettingsScreen {
                 FeatureToggles::isFullbrightEnabled, FeatureToggles::setFullbright);
         addToggle("Mining rush pings",
                 FeatureToggles::isMiningRushPingsEnabled, FeatureToggles::setMiningRushPings);
+        addToggle("Hot zone indicator",
+                FeatureToggles::isHotZoneIndicatorEnabled, FeatureToggles::setHotZoneIndicator);
         addToggle("Rift texture pack",
                 FeatureToggles::isRiftTexturePackEnabled, FeatureToggles::setRiftTexturePack);
 

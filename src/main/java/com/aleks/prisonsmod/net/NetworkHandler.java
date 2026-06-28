@@ -4,6 +4,7 @@ import com.aleks.prisonsmod.PrisonsMod;
 import com.aleks.prisonsmod.client.DuelState;
 import com.aleks.prisonsmod.client.Fullbright;
 import com.aleks.prisonsmod.client.GangRoster;
+import com.aleks.prisonsmod.client.RiftTexturePackManager;
 import com.aleks.prisonsmod.client.ServerAllowlist;
 import com.aleks.prisonsmod.client.bugreport.BugReportClient;
 import com.aleks.prisonsmod.client.cellterm.CellTermClient;
@@ -41,6 +42,8 @@ import com.aleks.prisonsmod.net.payload.GangRosterPayload;
 import com.aleks.prisonsmod.net.payload.HudUpdatePayload;
 import com.aleks.prisonsmod.net.payload.MeteorPingPayload;
 import com.aleks.prisonsmod.net.payload.MiningRushPingPayload;
+import com.aleks.prisonsmod.net.payload.MiningRushPingClearPayload;
+import com.aleks.prisonsmod.net.payload.HotZonePingPayload;
 import com.aleks.prisonsmod.net.payload.MineCancelPayload;
 import com.aleks.prisonsmod.net.payload.MineStartPayload;
 import com.aleks.prisonsmod.net.payload.CellTermBundlePayload;
@@ -138,6 +141,16 @@ public final class NetworkHandler {
                     MiningRushPingPayload p = MiningRushPingPayload.decode(buf);
                     GangPingManager.onMiningRushPing(p);
                 }
+                case Protocol.PKT_MINING_RUSH_PING_CLEAR -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.MINING_RUSH_PING_CLEAR)) return;
+                    MiningRushPingClearPayload p = MiningRushPingClearPayload.decode(buf);
+                    GangPingManager.clearMiningRushPing(p);
+                }
+                case Protocol.PKT_HOT_ZONE_PING -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.HOT_ZONE_PING)) return;
+                    HotZonePingPayload p = HotZonePingPayload.decode(buf);
+                    GangPingManager.onHotZonePing(p);
+                }
                 case Protocol.PKT_GANG_ROSTER -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.GANG_ROSTER)) return;
                     GangRosterPayload p = GangRosterPayload.decode(buf);
@@ -162,6 +175,11 @@ public final class NetworkHandler {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.RIFT_BUDGET)) return;
                     RiftBudgetPayload p = RiftBudgetPayload.decode(buf);
                     RiftBudgetState.update(p);
+                }
+                case Protocol.PKT_RIFT_PRELOAD -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.RIFT_BUDGET)) return;
+                    int requestId = buf.readInt();
+                    RiftTexturePackManager.onPreloadRequested(requestId);
                 }
                 case Protocol.PKT_METEORITE_HUD -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.METEORITE_HUD)) return;
@@ -493,6 +511,24 @@ public final class NetworkHandler {
             }));
         } catch (Throwable t) {
             PrisonsMod.LOGGER.debug("send powerball state failed", t);
+        }
+    }
+
+    /**
+     * Reply to {@link Protocol#PKT_RIFT_PRELOAD}: the rift texture pack is loaded
+     * (or wasn't needed), so the server can drop us into the rift now. Echoes the
+     * request id so a stale reply from a superseded request is ignored server-side.
+     */
+    public static void sendRiftReady(int requestId) {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer(8));
+            buf.writeByte(Protocol.PKT_RIFT_READY);
+            buf.writeInt(requestId);
+            sendBuf(buf);
+        } catch (Throwable t) {
+            PrisonsMod.LOGGER.debug("send rift ready failed", t);
         }
     }
 
