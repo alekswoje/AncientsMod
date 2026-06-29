@@ -14,9 +14,6 @@
 
 ## UI & Screens
 
-- Loot browser search now splits results into **two sections** — **Loot Tables** (matching tables you can click to open, e.g. searching a boss name like "Lamia") and **Items** (matching drops across every table).
-- Fixed PV terminal tiles for **non-stacking items** (like boosters) shuffling out from under your cursor while shift-clicking to extract; they now stay locked in place like stackable items.
-
 ## Input & Keybinds
 
 ## Networking & Server Integration
