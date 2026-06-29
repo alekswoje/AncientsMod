@@ -270,8 +270,19 @@ public abstract class ItemTerminalScreen extends Screen {
         entries.sort(cmp);
     }
 
-    /** Stable per-item key for freeze ordering — same identity used for merging. */
+    /** Stable per-tile key for freeze ordering. Stackable items merge into one
+     *  tile per identity, so {@link #identityKey} uniquely names them. But each
+     *  non-stackable item (boosters, gear — maxCount 1) gets its OWN tile while
+     *  sharing an identityKey with its siblings; keying those by identity alone
+     *  collapses every sibling onto the first one's frozen slot, so extracting
+     *  one makes the rest shuffle under the cursor. Key each non-stackable tile
+     *  by its unique source (vault + slot) instead, so every booster tile
+     *  freezes in its own place and repeated shift-pulls land on the same spot. */
     private static String entryKey(Entry e) {
+        if (e.icon != null && e.icon.getMaxCount() == 1 && !e.sources.isEmpty()) {
+            Source s0 = e.sources.get(0);
+            return "src" + s0.group + "" + s0.slotIndex;
+        }
         return identityKey(e.rep);
     }
 

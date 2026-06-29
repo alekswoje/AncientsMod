@@ -24,10 +24,14 @@ import java.util.Locale;
 /**
  * Landing screen for the mod loot browser. With an empty search box it lists
  * every loot table grouped under its category (click a table → its drop list).
- * Typing in the search box switches to a global item search across all tables:
- * each match shows the item, the table it drops from, and the chance — so the
- * same item appearing in several tables reads as a reverse-lookup. Clicking a
- * result opens that table's drops.
+ * Typing in the search box switches to a search view split into two sections:
+ * <ul>
+ *   <li><b>Loot Tables</b> — tables whose name matches the query (e.g. typing a
+ *       boss name like "Lamia" surfaces the Lamia table; click → its drops).</li>
+ *   <li><b>Items</b> — a global reverse-lookup of items whose name matches: each
+ *       row shows the item, the table it drops from, and the chance, so the same
+ *       item across several tables reads as multiple rows. Click → that table.</li>
+ * </ul>
  */
 public final class LootTablesScreen extends Screen {
 
@@ -48,8 +52,12 @@ public final class LootTablesScreen extends Screen {
 
     /** Browse mode: each row is either a {@code String} (category header) or a {@link LootSnapshotPayload.Table}. */
     private final List<Object> browseRows = new ArrayList<>();
-    /** Search mode: flat list of (table, entry) matches. */
-    private final List<Hit> searchHits = new ArrayList<>();
+    /**
+     * Search mode: heterogeneous rows — a {@code String} section header
+     * ("Loot Tables" / "Items"), a {@link LootSnapshotPayload.Table} (table-name
+     * match), or a {@link Hit} (item-name match).
+     */
+    private final List<Object> searchRows = new ArrayList<>();
     private boolean searchMode = false;
 
     private int scrollOffset = 0;
@@ -98,27 +106,44 @@ public final class LootTablesScreen extends Screen {
 
     private void recompute() {
         browseRows.clear();
-        searchHits.clear();
+        searchRows.clear();
         if (snapshot == null) return;
         String q = searchQuery.trim().toLowerCase(Locale.ROOT);
         searchMode = !q.isEmpty();
 
         if (searchMode) {
+            // Section 1 — loot tables whose name matches (boss/table name lookup).
+            List<LootSnapshotPayload.Table> tableMatches = new ArrayList<>();
             for (LootSnapshotPayload.Table t : snapshot.tables) {
-                boolean tableNameMatches = t.name.toLowerCase(Locale.ROOT).contains(q);
+                if (t.name.toLowerCase(Locale.ROOT).contains(q)) tableMatches.add(t);
+            }
+            tableMatches.sort((a, b) -> a.name.compareToIgnoreCase(b.name));
+
+            // Section 2 — items whose own name matches, across every table.
+            List<Hit> itemMatches = new ArrayList<>();
+            for (LootSnapshotPayload.Table t : snapshot.tables) {
                 for (LootSnapshotPayload.Entry e : t.entries) {
                     if (e.masked || e.name == null) continue;
-                    if (tableNameMatches || e.name.toLowerCase(Locale.ROOT).contains(q)) {
-                        searchHits.add(new Hit(t, e));
+                    if (e.name.toLowerCase(Locale.ROOT).contains(q)) {
+                        itemMatches.add(new Hit(t, e));
                     }
                 }
             }
             // Group by item name (reverse-lookup feel), strongest drop first.
-            searchHits.sort((a, b) -> {
+            itemMatches.sort((a, b) -> {
                 int c = a.entry.name.compareToIgnoreCase(b.entry.name);
                 if (c != 0) return c;
                 return Double.compare(b.entry.chancePct(), a.entry.chancePct());
             });
+
+            if (!tableMatches.isEmpty()) {
+                searchRows.add("Loot Tables");
+                searchRows.addAll(tableMatches);
+            }
+            if (!itemMatches.isEmpty()) {
+                searchRows.add("Items");
+                searchRows.addAll(itemMatches);
+            }
         } else {
             // Group tables under their category, in category order.
             for (int ci = 0; ci < snapshot.categories.size(); ci++) {
@@ -143,7 +168,13 @@ public final class LootTablesScreen extends Screen {
     }
 
     private int rowCount() {
-        return searchMode ? searchHits.size() : browseRows.size();
+        return (searchMode ? searchRows : browseRows).size();
+    }
+
+    /** The row object at an absolute index in the active mode's list, or {@code null}. */
+    private Object rowAt(int idx) {
+        List<Object> rows = searchMode ? searchRows : browseRows;
+        return (idx >= 0 && idx < rows.size()) ? rows.get(idx) : null;
     }
 
     private void clampScroll() {
@@ -184,17 +215,14 @@ public final class LootTablesScreen extends Screen {
             }
             int idx = rowUnderCursor(click.x(), click.y());
             if (idx >= 0) {
-                if (searchMode) {
-                    if (idx < searchHits.size()) {
-                        openDetail(searchHits.get(idx).table.tableId);
-                        return true;
-                    }
-                } else if (idx < browseRows.size()) {
-                    Object row = browseRows.get(idx);
-                    if (row instanceof LootSnapshotPayload.Table t) {
-                        openDetail(t.tableId);
-                        return true;
-                    }
+                Object row = rowAt(idx);
+                if (row instanceof LootSnapshotPayload.Table t) {
+                    openDetail(t.tableId);
+                    return true;
+                }
+                if (row instanceof Hit h) {
+                    openDetail(h.table.tableId);
+                    return true;
                 }
             }
         }
@@ -260,16 +288,17 @@ public final class LootTablesScreen extends Screen {
         for (int i = first; i < last; i++) {
             int rel = i - first;
             int ry = ly + rel * ROW_H;
-            if (searchMode) {
-                renderHitRow(ctx, searchHits.get(i), lx, ry, lw, mouseX, mouseY);
+            Object row = rowAt(i);
+            if (row instanceof Hit h) {
+                renderHitRow(ctx, h, lx, ry, lw, mouseX, mouseY);
             } else {
-                renderBrowseRow(ctx, browseRows.get(i), lx, ry, lw, mouseX, mouseY);
+                renderBrowseRow(ctx, row, lx, ry, lw, mouseX, mouseY);
             }
         }
 
         if (rowCount() == 0) {
             String msg = searchMode
-                    ? "§7No items match §f\"" + searchQuery + "\""
+                    ? "§7Nothing matches §f\"" + searchQuery + "\""
                     : "§7No loot tables available.";
             ctx.drawText(this.textRenderer, Text.literal(msg), lx + 4, ly + 4, GlassTheme.textDim(), false);
         }
