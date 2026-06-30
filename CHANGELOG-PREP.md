@@ -14,6 +14,12 @@
 
 ## UI & Screens
 
+- Fixed shift-clicking items out of the PV terminal flickering or briefly reappearing before they left.
+- Fixed rapid shift-clicking in the PV terminal dropping clicks, so spam-clicking now reliably pulls **every** item.
+- Fixed shift-depositing into the PV terminal flashing the item back into its inventory slot for a moment.
+- Emptying a stack in the PV terminal now closes its slot instead of leaving a locked empty gap, while tiles still hold their place while you hold shift.
+- All of these PV terminal fixes apply to the cell vault terminal too.
+
 ## Input & Keybinds
 
 ## Networking & Server Integration

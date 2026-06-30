@@ -125,6 +125,16 @@ public abstract class ItemTerminalScreen extends Screen {
      *  the cursor still sits on the same slot. Reset on mouseRelease. */
     private final java.util.Set<Integer> shiftDragDeposited = new java.util.HashSet<>();
 
+    /** Slots the player just shift-deposited: kept visually empty until the
+     *  server confirms (or a short window lapses). The player inventory is
+     *  server-authoritative, so a routine inventory re-sync sent BEFORE our
+     *  deposit packet commits restores the item; without this guard it flashes
+     *  back into the slot for a frame or two (~0.25s) before the deposit lands.
+     *  slot → deposited-item snapshot, plus a parallel expiry map. */
+    private final java.util.Map<Integer, ItemStack> pendingDepositSnap = new java.util.HashMap<>();
+    private final java.util.Map<Integer, Long> pendingDepositUntil = new java.util.HashMap<>();
+    private static final long DEPOSIT_PREDICT_MS = 400L;
+
     /** Visible flash on a group after the bundle reflects an op there.
      *  Tracked by start-time ms; expires after FLASH_MS. */
     private final java.util.Map<Integer, Long> recentGroupFlash = new java.util.HashMap<>();
@@ -140,12 +150,34 @@ public abstract class ItemTerminalScreen extends Screen {
 
     /**
      * Common bundle-refresh tail, called by the subclass's
-     * {@code onBundleUpdated} after it swapped in the new bundle: server state
-     * is authoritative, so discard all optimistic overrides, rebuild the grid
+     * {@code onBundleUpdated} after it swapped in the new bundle: RECONCILE the
+     * optimistic overrides against the new authoritative bundle, rebuild the grid
      * (keeping scroll/search where possible), and flash the changed groups.
+     *
+     * <p>We deliberately do NOT blanket-clear the overrides. During a fast
+     * shift-click burst the server's bundle lags the clicks — a bundle that
+     * reflects only the first few extracts would wipe the predictions for the
+     * ones still in flight, snapping the tile count back UP (a 3→2→3 bounce) and
+     * making the next click re-target a slot the server already emptied (which it
+     * no-ops, so some clicks silently "fail" and 9 clicks net 6–7). Instead keep
+     * an override while the server still shows MORE than we predicted (our op
+     * hasn't landed yet) and drop it once the server has caught up. The server
+     * preserves slot indices when it empties a slot (no compaction), so a
+     * per-slot amount comparison is valid across bundles.
      */
     protected final void applyBundleRefresh(java.util.Set<Integer> changedGroups) {
-        optimisticAmounts.clear();
+        if (!optimisticAmounts.isEmpty()) {
+            java.util.Map<Long, Integer> actual = new java.util.HashMap<>();
+            forEachVisibleSlot((groupId, s) -> {
+                long key = (((long) groupId) << 16) | (s.slotIndex & 0xFFFFL);
+                actual.put(key, s.amount);
+            });
+            // Drop an override once the server has caught up (shows <= what we
+            // predicted, including a now-absent slot → 0); keep it while the
+            // server still shows more (op in flight) so the prediction holds.
+            optimisticAmounts.entrySet().removeIf(e ->
+                    actual.getOrDefault(e.getKey(), 0) <= e.getValue());
+        }
         recomputeEntries();
         int maxOffset = Math.max(0, totalRows() - GRID_ROWS);
         if (scrollRowOffset > maxOffset) scrollRowOffset = maxOffset;
@@ -252,10 +284,16 @@ public abstract class ItemTerminalScreen extends Screen {
         java.util.Comparator<Entry> byName =
                 java.util.Comparator.comparing((Entry e) -> e.sortName, String.CASE_INSENSITIVE_ORDER);
         if (frozenOrder != null) {
+            // Keep tiles in the order they had when Shift was pressed so a drain
+            // doesn't re-sort them by quantity under the cursor. The list stays
+            // DENSE — a tile that empties out is simply dropped, NOT held as a
+            // reserved gap — so pulling the last item of a stack closes its slot
+            // instead of leaving a locked hole; the survivors keep their relative
+            // order. Anything new (e.g. a just-deposited item) sorts to the end by
+            // name. Keyed by item identity (see entryKey), which matches the
+            // identity snapshot captureOrder() takes.
             java.util.Map<String, Integer> idx = new java.util.HashMap<>();
             for (int i = 0; i < frozenOrder.size(); i++) idx.putIfAbsent(frozenOrder.get(i), i);
-            // Frozen tiles keep their snapshot position; anything new (e.g. just
-            // deposited) falls to the end in name order.
             entries.sort(java.util.Comparator
                     .comparingInt((Entry e) -> idx.getOrDefault(entryKey(e), Integer.MAX_VALUE))
                     .thenComparing(byName));
@@ -270,19 +308,11 @@ public abstract class ItemTerminalScreen extends Screen {
         entries.sort(cmp);
     }
 
-    /** Stable per-tile key for freeze ordering. Stackable items merge into one
-     *  tile per identity, so {@link #identityKey} uniquely names them. But each
-     *  non-stackable item (boosters, gear — maxCount 1) gets its OWN tile while
-     *  sharing an identityKey with its siblings; keying those by identity alone
-     *  collapses every sibling onto the first one's frozen slot, so extracting
-     *  one makes the rest shuffle under the cursor. Key each non-stackable tile
-     *  by its unique source (vault + slot) instead, so every booster tile
-     *  freezes in its own place and repeated shift-pulls land on the same spot. */
+    /** Freeze-order key for a tile: its item identity. Used to hold tile order
+     *  steady while Shift is held (see {@link #sortEntries}). Keyed by identity
+     *  rather than physical slot so the server renumbering its slots on a pull
+     *  can't reshuffle the frozen order. */
     private static String entryKey(Entry e) {
-        if (e.icon != null && e.icon.getMaxCount() == 1 && !e.sources.isEmpty()) {
-            Source s0 = e.sources.get(0);
-            return "src" + s0.group + "" + s0.slotIndex;
-        }
         return identityKey(e.rep);
     }
 
@@ -644,8 +674,7 @@ public abstract class ItemTerminalScreen extends Screen {
                 shiftDragDeposited.add(invSlot);
                 ItemStack inSlot = playerInvStack(invSlot);
                 if (inSlot != null && !inSlot.isEmpty()) {
-                    setClientInvSlot(invSlot, ItemStack.EMPTY); // optimistic
-                    sendDeposit(invSlot);
+                    optimisticDeposit(invSlot, inSlot);
                 }
                 return true;
             }
@@ -695,14 +724,30 @@ public abstract class ItemTerminalScreen extends Screen {
                 predictPickupToCursor(e.rep, take);
                 sendExtract(ref, Protocol.PV_EXTRACT_HALF, Protocol.PV_TARGET_CURSOR);
             } else if (button == 0 && isShiftDown()) {
-                // Shift+left → a full stack of this item summed across EVERY source
-                // slot/vault, into the inventory (repeat to pull the next stack). The
-                // aggregated server op drains matching stacks in order, so a tile
-                // split over multiple vaults comes out whole instead of yielding only
-                // the first source stack.
-                int take = Math.min(maxStack, e.total);
+                // Shift+left → pull a full stack of this item into the inventory. The
+                // server drains its isSimilar group (a tile split across vaults comes
+                // out whole). CRITICAL: optimistically remove only the REF source's
+                // amount, NOT e.total. A tile merges every DISPLAY-identical source,
+                // but the server merges by isSimilar — and items that look identical
+                // can differ by hidden PDC (e.g. booster boxes carry an acquisition-
+                // source tag, so boxes from different drops aren't isSimilar). The
+                // server then extracts far fewer than the merged total; removing
+                // e.total optimistically overshoots, so the tile vanishes and snaps
+                // back to the remainder when the bundle lands (the ~0.25s flicker).
+                // The ref amount is the floor the server is guaranteed to take, so it
+                // never overshoots — same exact-amount reasoning the L/R pulls use.
+                int take = Math.min(maxStack, srcAmt);
                 applyOptimisticGroupExtract(e, take);
-                sendExtractItem(ref, Protocol.PV_EXTRACT_STACK, Protocol.PV_TARGET_INV);
+                if (maxStack == 1) {
+                    // Non-stackable: every copy is its OWN tile, so there is nothing
+                    // to aggregate — and the aggregated pull drains the lowest-indexed
+                    // matching slot cluster-wide, which may not be the clicked one.
+                    // Extract the EXACT clicked slot instead so the server removes
+                    // precisely what we optimistically removed.
+                    sendExtract(ref, Protocol.PV_EXTRACT_ALL, Protocol.PV_TARGET_INV);
+                } else {
+                    sendExtractItem(ref, Protocol.PV_EXTRACT_STACK, Protocol.PV_TARGET_INV);
+                }
             } else if (button == 0) {
                 // Left-click → one onto the cursor.
                 applyOptimisticGroupExtract(e, 1);
@@ -796,6 +841,41 @@ public abstract class ItemTerminalScreen extends Screen {
         }
     }
 
+    /** Optimistically clear a player-inventory slot for a shift-deposit and mark
+     *  it pending so {@link #reconcilePendingDeposits} re-hides it if the server
+     *  momentarily re-asserts the item before the deposit commits. */
+    private void optimisticDeposit(int invSlot, ItemStack snap) {
+        setClientInvSlot(invSlot, ItemStack.EMPTY);
+        pendingDepositSnap.put(invSlot, snap.copy());
+        pendingDepositUntil.put(invSlot, System.currentTimeMillis() + DEPOSIT_PREDICT_MS);
+        sendDeposit(invSlot);
+    }
+
+    /** Re-hide just-deposited slots that the server momentarily re-asserted. The
+     *  player inventory is server-authoritative, so a sync sent before our deposit
+     *  packet is processed restores the item; without this it flashes back for a
+     *  frame or two (~0.25s). Runs each frame BEFORE the inventory is drawn, so the
+     *  restored item is never actually shown. Self-expiring: if a deposit truly
+     *  failed (e.g. PVs full) the item legitimately returns once the window lapses. */
+    private void reconcilePendingDeposits() {
+        if (pendingDepositUntil.isEmpty()) return;
+        long now = System.currentTimeMillis();
+        java.util.Iterator<java.util.Map.Entry<Integer, Long>> it = pendingDepositUntil.entrySet().iterator();
+        while (it.hasNext()) {
+            java.util.Map.Entry<Integer, Long> en = it.next();
+            int slot = en.getKey();
+            if (now > en.getValue()) { it.remove(); pendingDepositSnap.remove(slot); continue; }
+            ItemStack live = playerInvStack(slot);
+            if (live == null || live.isEmpty()) continue; // already empty as predicted
+            ItemStack snap = pendingDepositSnap.get(slot);
+            if (snap != null && ItemStack.areItemsAndComponentsEqual(live, snap)) {
+                setClientInvSlot(slot, ItemStack.EMPTY); // server re-asserted it — hide again
+            } else {
+                it.remove(); pendingDepositSnap.remove(slot); // a different item now occupies it — leave it
+            }
+        }
+    }
+
     @Override
     public boolean mouseDragged(Click click, double offsetX, double offsetY) {
         // Scrollbar drag wins over everything else while the thumb is grabbed.
@@ -815,8 +895,7 @@ public abstract class ItemTerminalScreen extends Screen {
                     ItemStack stack = playerInvStack(invSlot);
                     if (stack != null && !stack.isEmpty()) {
                         shiftDragDeposited.add(invSlot);
-                        setClientInvSlot(invSlot, ItemStack.EMPTY); // optimistic
-                        sendDeposit(invSlot);
+                        optimisticDeposit(invSlot, stack);
                     }
                 }
                 return true;
@@ -912,6 +991,10 @@ public abstract class ItemTerminalScreen extends Screen {
         super.render(ctx, mouseX, mouseY, delta);
         hoverTooltip = null;
         long now = System.currentTimeMillis();
+
+        // Re-hide any just-deposited slot the server briefly re-asserted, before
+        // the player-inventory strip is drawn below — kills the deposit flash-back.
+        reconcilePendingDeposits();
 
         // Freeze tile order while Shift is held so repeated shift-click extracts
         // don't reshuffle the grid under the cursor; restore the active sort the
