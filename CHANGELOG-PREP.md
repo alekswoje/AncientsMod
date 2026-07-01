@@ -11,6 +11,7 @@
 ## HUDs
 
 ## Rendering & Visuals
+- Fixed booster item overlays covering the stack count number on stacked boosters.
 
 ## UI & Screens
 
