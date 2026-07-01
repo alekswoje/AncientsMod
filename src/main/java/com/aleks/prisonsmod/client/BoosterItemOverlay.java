@@ -96,17 +96,16 @@ public final class BoosterItemOverlay {
         }
 
         // Duration — bottom-right, right-aligned, shrunk to fit the cell width.
-        // Boosters can now stack, so a count > 1 puts vanilla's stack-count number
-        // in that same corner; shift up a full line when stacked so the duration
-        // sits directly above the count instead of contending for the same row.
-        if (dur != null) {
+        // Boosters can now stack, and there's no way to fit both the duration
+        // text and vanilla's stack-count number in that one corner without
+        // crowding it — so skip the duration entirely once stacked. The
+        // multiplier badge (the more useful glance-info) still shows, and the
+        // duration is still readable from the tooltip lore on hover.
+        if (dur != null && stack.getCount() <= 1) {
             int w = tr.getWidth(dur);
             float scale = Math.min(DUR_SCALE, DUR_MAX_WIDTH / (float) Math.max(1, w));
-            boolean stacked = stack.getCount() > 1;
-            float lineHeight = scale * tr.fontHeight;
-            float originY = y + 16f - lineHeight - (stacked ? lineHeight : 0f);
             m.pushMatrix();
-            m.translate(x + 16f, originY);
+            m.translate(x + 16f, y + 16f - scale * tr.fontHeight);
             m.scale(scale, scale);
             context.drawText(tr, Text.literal(dur), -w, 0, boost.color, true);
             m.popMatrix();
