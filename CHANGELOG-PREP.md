@@ -10,6 +10,8 @@
 
 ## HUDs
 
+- Comp boosters in the Boosters HUD now show as **"X% increased"** instead of a **"x1.#"** multiplier, matching how they actually stack.
+
 ## Rendering & Visuals
 
 ## UI & Screens

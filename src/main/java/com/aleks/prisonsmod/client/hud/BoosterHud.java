@@ -71,7 +71,7 @@ public final class BoosterHud extends HudElement {
         int widest = fr.getWidth("BOOSTERS");
         for (Row r : computeRows()) {
             int labelW = fr.getWidth(r.label);
-            int multW  = fr.getWidth(formatMult(r.multiplier));
+            int multW  = fr.getWidth(formatMultForSource(r.source, r.multiplier));
             int timeW  = fr.getWidth(formatDuration(r.secondsRemaining));
             int pausedW = r.paused ? colGap + fr.getWidth("II") : 0;
             int rowW = labelW + colGap + multW + colGap + timeW + pausedW;
@@ -111,7 +111,7 @@ public final class BoosterHud extends HudElement {
             int textX = padX + stripW + stripGap;
             int textY = rowY + 2;
 
-            String mult = formatMult(r.multiplier);
+            String mult = formatMultForSource(r.source, r.multiplier);
             String time = formatDuration(r.secondsRemaining);
 
             int timeW = fr.getWidth(time);
@@ -164,7 +164,8 @@ public final class BoosterHud extends HudElement {
                         first.multiplier(),
                         longest,
                         first.paused(),
-                        collapsedColorFor(source)
+                        collapsedColorFor(source),
+                        source
                 ));
             } else {
                 for (BoosterUpdatePayload.Entry e : group) out.add(rowFromEntry(e));
@@ -189,7 +190,8 @@ public final class BoosterHud extends HudElement {
                 e.multiplier(),
                 BoosterState.liveSecondsRemaining(e),
                 e.paused(),
-                colorFor(e)
+                colorFor(e),
+                e.source()
         );
     }
 
@@ -209,7 +211,7 @@ public final class BoosterHud extends HudElement {
         return 0xFFFFFFFF;
     }
 
-    private record Row(String label, double multiplier, int secondsRemaining, boolean paused, int accent) {}
+    private record Row(String label, double multiplier, int secondsRemaining, boolean paused, int accent, byte source) {}
 
     private static String formatLabel(BoosterUpdatePayload.Entry e) {
         String src = sourcePrefix(e.source());
@@ -250,6 +252,15 @@ public final class BoosterHud extends HudElement {
         s = s.replaceAll("0+$", "");
         if (s.endsWith(".")) s = s.substring(0, s.length() - 1);
         return "x" + s;
+    }
+
+    // Comp boosters are an additive-pool boost (server-side comp layer), not their own 1.#x multiplier
+    private static String formatMultForSource(byte source, double mult) {
+        if (source == Protocol.BOOSTER_SRC_COMP) {
+            long pct = Math.round((mult - 1.0) * 100);
+            return pct + "% increased";
+        }
+        return formatMult(mult);
     }
 
     private static String formatDuration(int seconds) {
