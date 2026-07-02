@@ -16,8 +16,14 @@
 
 ## Input & Keybinds
 
+- Custom keybinds reset to defaults **once** after the rename. Rebind them under Options > Controls > AncientsMod if you had changed any.
+
 ## Networking & Server Integration
 
 ## Updates & Installation
+
+- **PrisonsMod is now AncientsMod.** One mod for the whole Ancients network. The jar is now `ancientsmod-x.y.z.jar` and the in-game command is `/ancientsmod`.
+- **One-time manual step if you update by hand:** delete the old `prisonsmod-*.jar` from your `mods` folder before adding the new jar. The game refuses to launch while both are installed. The in-game auto-updater does the swap for you.
+- All your settings carry over automatically: feature toggles, HUD layout, HUD settings, muffler, item locks and pick buffs.
 
 ## Quality of Life

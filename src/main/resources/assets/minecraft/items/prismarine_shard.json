@@ -9,56 +9,56 @@
         "threshold": 2200,
         "model": {
           "type": "minecraft:model",
-          "model": "prisonsmod:item/shard_simple"
+          "model": "ancientsmod:item/shard_simple"
         }
       },
       {
         "threshold": 2201,
         "model": {
           "type": "minecraft:model",
-          "model": "prisonsmod:item/shard_uncommon"
+          "model": "ancientsmod:item/shard_uncommon"
         }
       },
       {
         "threshold": 2202,
         "model": {
           "type": "minecraft:model",
-          "model": "prisonsmod:item/shard_elite"
+          "model": "ancientsmod:item/shard_elite"
         }
       },
       {
         "threshold": 2203,
         "model": {
           "type": "minecraft:model",
-          "model": "prisonsmod:item/shard_ultimate"
+          "model": "ancientsmod:item/shard_ultimate"
         }
       },
       {
         "threshold": 2204,
         "model": {
           "type": "minecraft:model",
-          "model": "prisonsmod:item/shard_legendary"
+          "model": "ancientsmod:item/shard_legendary"
         }
       },
       {
         "threshold": 2205,
         "model": {
           "type": "minecraft:model",
-          "model": "prisonsmod:item/shard_godly"
+          "model": "ancientsmod:item/shard_godly"
         }
       },
       {
         "threshold": 2206,
         "model": {
           "type": "minecraft:model",
-          "model": "prisonsmod:item/shard_divine"
+          "model": "ancientsmod:item/shard_divine"
         }
       },
       {
         "threshold": 2207,
         "model": {
           "type": "minecraft:model",
-          "model": "prisonsmod:item/shard_exceptional"
+          "model": "ancientsmod:item/shard_exceptional"
         }
       },
       {

@@ -9,7 +9,7 @@
         "threshold": 2100,
         "model": {
           "type": "minecraft:model",
-          "model": "prisonsmod:item/money_note"
+          "model": "ancientsmod:item/money_note"
         }
       },
       {

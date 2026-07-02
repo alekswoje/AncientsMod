@@ -1,29 +1,32 @@
 {
   "schemaVersion": 1,
-  "id": "prisonsmod",
+  "id": "ancientsmod",
   "version": "${version}",
-  "name": "PrisonsMod",
-  "description": "Client-side companion mod for the RooPrisons Minecraft server. Renders HUD and floating point numbers for the Tartarus Rift event. Purely cosmetic — server remains authoritative for all gameplay.",
+  "name": "AncientsMod",
+  "description": "Client-side companion mod for the Ancients Minecraft network (ancients.gg). Renders HUDs, floating point numbers, pings, and other visuals. Purely cosmetic — server remains authoritative for all gameplay.",
   "authors": ["Aleks"],
   "contact": {
-    "homepage": "https://rooprisons.com",
-    "sources": "https://github.com/alekswoje/PrisonsMod",
-    "issues": "https://github.com/alekswoje/PrisonsMod/issues"
+    "homepage": "https://ancients.gg",
+    "sources": "https://github.com/alekswoje/AncientsMod",
+    "issues": "https://github.com/alekswoje/AncientsMod/issues"
   },
   "license": "MIT",
   "environment": "client",
   "entrypoints": {
     "client": [
-      "com.aleks.prisonsmod.client.PrisonsModClient"
+      "com.aleks.ancientsmod.client.AncientsModClient"
     ]
   },
   "mixins": [
-    "prisonsmod.mixins.json"
+    "ancientsmod.mixins.json"
   ],
   "depends": {
     "fabricloader": ">=0.16.0",
     "minecraft": "~1.21.11",
     "java": ">=21",
     "fabric-api": "*"
+  },
+  "breaks": {
+    "prisonsmod": "*"
   }
 }

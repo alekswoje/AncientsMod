@@ -9,56 +9,56 @@
         "threshold": 2300,
         "model": {
           "type": "minecraft:model",
-          "model": "prisonsmod:item/contraband_simple"
+          "model": "ancientsmod:item/contraband_simple"
         }
       },
       {
         "threshold": 2301,
         "model": {
           "type": "minecraft:model",
-          "model": "prisonsmod:item/contraband_uncommon"
+          "model": "ancientsmod:item/contraband_uncommon"
         }
       },
       {
         "threshold": 2302,
         "model": {
           "type": "minecraft:model",
-          "model": "prisonsmod:item/contraband_elite"
+          "model": "ancientsmod:item/contraband_elite"
         }
       },
       {
         "threshold": 2303,
         "model": {
           "type": "minecraft:model",
-          "model": "prisonsmod:item/contraband_ultimate"
+          "model": "ancientsmod:item/contraband_ultimate"
         }
       },
       {
         "threshold": 2304,
         "model": {
           "type": "minecraft:model",
-          "model": "prisonsmod:item/contraband_legendary"
+          "model": "ancientsmod:item/contraband_legendary"
         }
       },
       {
         "threshold": 2305,
         "model": {
           "type": "minecraft:model",
-          "model": "prisonsmod:item/contraband_godly"
+          "model": "ancientsmod:item/contraband_godly"
         }
       },
       {
         "threshold": 2306,
         "model": {
           "type": "minecraft:model",
-          "model": "prisonsmod:item/contraband_divine"
+          "model": "ancientsmod:item/contraband_divine"
         }
       },
       {
         "threshold": 2307,
         "model": {
           "type": "minecraft:model",
-          "model": "prisonsmod:item/contraband_exceptional"
+          "model": "ancientsmod:item/contraband_exceptional"
         }
       },
       {

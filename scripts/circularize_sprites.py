@@ -20,7 +20,7 @@ import numpy as np
 from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
 
-ASSETS = "src/main/resources/assets/prisonsmod/textures/gui/skilltree"
+ASSETS = "src/main/resources/assets/ancientsmod/textures/gui/skilltree"
 SIZE = 256
 
 

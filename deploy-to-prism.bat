@@ -1,5 +1,5 @@
 @echo off
-REM Deploy the freshly-built PrisonsMod jar into the Prism instance's mods folder.
+REM Deploy the freshly-built AncientsMod jar into the Prism instance's mods folder.
 REM Run this AFTER closing Minecraft (the old jar is file-locked while MC is open).
 REM
 REM Pauses at the end so a double-clicked window doesn't vanish before you can read
@@ -19,16 +19,16 @@ if defined CI set "NOPAUSE=1"
 set "MODS_DIR=%APPDATA%\PrismLauncher\instances\1.21.11\minecraft\mods"
 set "BUILD_DIR=%~dp0build\libs"
 
-REM Pick the newest non-sources prisonsmod jar in build/libs so we don't depend on
+REM Pick the newest non-sources ancientsmod jar in build/libs so we don't depend on
 REM the version string staying in sync with this script. Older 0.x -> 0.1.0 churn
 REM previously caused us to deploy a stale jar by hardcoding the file name.
 set "BUILD_JAR="
-for /f "delims=" %%f in ('dir /b /o-d "%BUILD_DIR%\prisonsmod-*.jar" 2^>nul ^| findstr /v "sources"') do (
+for /f "delims=" %%f in ('dir /b /o-d "%BUILD_DIR%\ancientsmod-*.jar" 2^>nul ^| findstr /v "sources"') do (
     if not defined BUILD_JAR set "BUILD_JAR=%BUILD_DIR%\%%f"
 )
 
 if not defined BUILD_JAR (
-    echo [ERROR] No prisonsmod-*.jar found in %BUILD_DIR%
+    echo [ERROR] No ancientsmod-*.jar found in %BUILD_DIR%
     echo Run: gradlew build  first.
     goto :fail
 )
@@ -44,10 +44,19 @@ if not exist "%MODS_DIR%" (
     goto :fail
 )
 
-echo Removing old prisonsmod-*.jar from %MODS_DIR%...
+echo Removing old ancientsmod-*.jar from %MODS_DIR%...
+del /f /q "%MODS_DIR%\ancientsmod-*.jar" 2>nul
+if exist "%MODS_DIR%\ancientsmod-*.jar" (
+    echo [ERROR] Old jar still present after delete -- Minecraft is holding a file lock.
+    echo Close Minecraft and re-run this script.
+    goto :fail
+)
+
+REM Legacy cleanup (PrisonsMod -> AncientsMod rename, 2026-07): a pre-rename jar
+REM would load alongside the new one and break the client, so sweep it too.
 del /f /q "%MODS_DIR%\prisonsmod-*.jar" 2>nul
 if exist "%MODS_DIR%\prisonsmod-*.jar" (
-    echo [ERROR] Old jar still present after delete -- Minecraft is holding a file lock.
+    echo [ERROR] Legacy prisonsmod jar still present after delete -- Minecraft is holding a file lock.
     echo Close Minecraft and re-run this script.
     goto :fail
 )

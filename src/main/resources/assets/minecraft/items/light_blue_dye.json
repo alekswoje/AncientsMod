@@ -11,7 +11,7 @@
         "threshold": 2110,
         "model": {
           "type": "minecraft:model",
-          "model": "prisonsmod:item/ancient_energy"
+          "model": "ancientsmod:item/ancient_energy"
         }
       }
     ]

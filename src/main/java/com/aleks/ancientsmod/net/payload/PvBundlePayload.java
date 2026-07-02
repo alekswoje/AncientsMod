@@ -1,0 +1,145 @@
+package com.aleks.ancientsmod.net.payload;
+
+import com.aleks.ancientsmod.net.Protocol;
+import net.minecraft.network.PacketByteBuf;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Decoded {@code PKT_PV_BUNDLE}: a snapshot of every PV's contents, used by
+ * the mod's custom {@code /pv} overview screen.
+ *
+ * <p>Bundles {@link Vault} entries each containing slot count, affinity csv,
+ * and a list of {@link Slot} stubs. Each stub holds the material id, the
+ * custom display name (or empty for vanilla), and the stack amount — no NBT,
+ * so the screen renders vanilla item icons.
+ */
+public final class PvBundlePayload {
+
+    public final List<Vault> vaults;
+    /** Whether the player may currently take/put items (in a safe zone, or OP).
+     *  When false, the terminal renders view-only and blocks extract/deposit.
+     *  Defaults to true when an older server omits the trailing flag — the
+     *  server still enforces the real gate, so a stale-true here only means the
+     *  deny message comes from a rejected packet instead of a greyed button. */
+    public final boolean safe;
+
+    private PvBundlePayload(List<Vault> vaults, boolean safe) {
+        this.vaults = vaults;
+        this.safe = safe;
+    }
+
+    public static PvBundlePayload decode(PacketByteBuf buf) {
+        int pvCount = buf.readByte() & 0xFF;
+        if (pvCount > Protocol.PV_MAX_VAULTS) {
+            throw new IllegalArgumentException("pv bundle: vault count " + pvCount + " > max");
+        }
+        List<Vault> vaults = new ArrayList<>(pvCount);
+        for (int v = 0; v < pvCount; v++) {
+            int vaultNumber = buf.readByte() & 0xFF;
+            int slotCount = buf.readShort() & 0xFFFF;
+            if (slotCount > Protocol.PV_MAX_SLOTS) {
+                throw new IllegalArgumentException("pv bundle: slot count " + slotCount + " > max");
+            }
+            int nonEmptyCount = buf.readShort() & 0xFFFF;
+            if (nonEmptyCount > slotCount) {
+                throw new IllegalArgumentException("pv bundle: non-empty " + nonEmptyCount + " > slotCount " + slotCount);
+            }
+            List<Slot> slots = new ArrayList<>(nonEmptyCount);
+            for (int i = 0; i < nonEmptyCount; i++) {
+                slots.add(readSlot(buf, slotCount));
+            }
+            String affinityCsv = clamp(buf.readString(Protocol.PV_MAX_AFFINITY_CSV_CHARS),
+                    Protocol.PV_MAX_AFFINITY_CSV_CHARS);
+            vaults.add(new Vault(vaultNumber, slotCount, slots, affinityCsv));
+        }
+        // Trailing safe-zone flag, appended after the vault list. Older servers
+        // don't send it — default to true (don't grey the UI; the server still
+        // rejects + messages if the player is actually outside a safe zone).
+        boolean safe = true;
+        if (buf.readableBytes() >= 1) {
+            safe = buf.readByte() != 0;
+        }
+        return new PvBundlePayload(vaults, safe);
+    }
+
+    /**
+     * Shared per-slot codec: decode one non-empty slot stub ({@code short
+     * slotIndex; varint+string materialKey; varint+string displayName; int
+     * amount; byte loreCount; per lore line varint+string}) with the PV hard
+     * caps applied. Used byte-for-byte identically by both this PV bundle and
+     * {@link CellTermBundlePayload} (the cell-terminal wire spec mandates the
+     * same slot codec). Throws {@link IllegalArgumentException} on any bounds
+     * violation so the caller drops the whole bundle.
+     *
+     * @param slotCount the declared container/vault size — {@code slotIndex}
+     *                  must be strictly below it.
+     */
+    public static Slot readSlot(PacketByteBuf buf, int slotCount) {
+        int slotIndex = buf.readShort() & 0xFFFF;
+        if (slotIndex >= slotCount) {
+            throw new IllegalArgumentException("pv bundle: slotIndex " + slotIndex + " >= slotCount " + slotCount);
+        }
+        String materialKey = clamp(buf.readString(Protocol.PV_MAX_MATERIAL_KEY_CHARS),
+                Protocol.PV_MAX_MATERIAL_KEY_CHARS);
+        String displayName = clamp(buf.readString(Protocol.PV_MAX_DISPLAY_NAME_CHARS),
+                Protocol.PV_MAX_DISPLAY_NAME_CHARS);
+        int amount = buf.readInt();
+        if (amount < 0) amount = 0;
+        int loreCount = buf.readByte() & 0xFF;
+        if (loreCount > Protocol.PV_MAX_LORE_LINES) {
+            throw new IllegalArgumentException("pv bundle: lore lines " + loreCount + " > max");
+        }
+        java.util.List<String> lore = loreCount > 0 ? new ArrayList<>(loreCount) : java.util.List.of();
+        for (int li = 0; li < loreCount; li++) {
+            lore.add(clamp(buf.readString(Protocol.PV_MAX_LORE_LINE_CHARS),
+                    Protocol.PV_MAX_LORE_LINE_CHARS));
+        }
+        return new Slot(slotIndex, materialKey, displayName, amount, lore);
+    }
+
+    private static String clamp(String s, int max) {
+        if (s == null) return "";
+        if (s.length() <= max) return s;
+        return s.substring(0, max);
+    }
+
+    public static final class Vault {
+        public final int vaultNumber;
+        public final int slotCount;
+        public final List<Slot> slots;
+        public final String affinityCsv;
+
+        public Vault(int vaultNumber, int slotCount, List<Slot> slots, String affinityCsv) {
+            this.vaultNumber = vaultNumber;
+            this.slotCount = slotCount;
+            this.slots = slots;
+            this.affinityCsv = affinityCsv;
+        }
+
+        public boolean isAccessible() {
+            return slotCount > 0;
+        }
+    }
+
+    public static final class Slot {
+        public final int slotIndex;
+        public final String materialKey;
+        public final String displayName;
+        public final int amount;
+        /** Item lore lines as the server sees them. May be empty. Length capped
+         *  at {@link Protocol#PV_MAX_LORE_LINES}, each line at
+         *  {@link Protocol#PV_MAX_LORE_LINE_CHARS}. */
+        public final java.util.List<String> lore;
+
+        public Slot(int slotIndex, String materialKey, String displayName, int amount,
+                    java.util.List<String> lore) {
+            this.slotIndex = slotIndex;
+            this.materialKey = materialKey;
+            this.displayName = displayName;
+            this.amount = amount;
+            this.lore = lore == null ? java.util.List.of() : lore;
+        }
+    }
+}
