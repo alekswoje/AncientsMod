@@ -32,6 +32,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  *   <li>{@code THROW} (Q hover / Ctrl+Q hover) — drops the slot's stack.</li>
  *   <li>{@code PICKUP_ALL} (double-left-click) — would vacuum the slot when
  *       the cursor matches.</li>
+ *   <li>{@code QUICK_CRAFT} (click-drag "paint") — its per-slot add phase
+ *       would deposit part of the cursor stack into the locked slot. Blocking
+ *       the add drops just the locked slot from the drag; the rest of the
+ *       drag distributes normally.</li>
  * </ul>
  *
  * <p>And, separately, blocked when the lock is on a hotbar/offhand source of
@@ -98,14 +102,19 @@ public abstract class HandledScreenItemLockMixin {
 
         // From here on the targeted slot is locked. Block any mutation.
         switch (actionType) {
-            case PICKUP, QUICK_MOVE, THROW, PICKUP_ALL, SWAP -> {
+            case PICKUP, QUICK_MOVE, THROW, PICKUP_ALL, SWAP, QUICK_CRAFT -> {
+                // QUICK_CRAFT is the click-drag "paint" that distributes the
+                // cursor stack across the dragged-over slots. Its stage-1
+                // "add slot" phase passes the dragged-over slot here (the
+                // stage-0 begin / stage-2 commit phases pass slot == null and
+                // returned above). Cancelling this add drops the locked slot
+                // from the drag set, so a drag can't deposit into it, while the
+                // rest of the drag still distributes across the unlocked slots.
                 ItemLockUi.notifyBlocked("locked " + ItemLockUi.describeSlot(playerInvSlot));
                 ci.cancel();
             }
             default -> {
-                // QUICK_CRAFT / CLONE / etc. — fall through. CLONE is creative-
-                // only and we don't care about quick-craft drag interactions on
-                // a single locked slot.
+                // CLONE (creative middle-click) etc. — fall through.
             }
         }
     }

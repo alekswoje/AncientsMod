@@ -16,6 +16,8 @@
 
 ## Input & Keybinds
 
+- Fixed **locked inventory slots** being alterable with a click-drag inside container menus like the Personal Vault. Dragging can no longer deposit into a locked slot.
+
 ## Networking & Server Integration
 
 ## Updates & Installation
