@@ -73,6 +73,9 @@ public final class FeatureToggles {
     /** Show the draggable Outpost HUD (name, gang, capture % for all 5 outposts). */
     private static volatile boolean outpostHud = true;
 
+    /** Show the draggable Dungeon Timer HUD (live run clock, frozen on end). */
+    private static volatile boolean dungeonTimerHud = true;
+
     /** Check GitHub for a newer mod release on server join and alert (chat + toast + sound) once per session if one's out. */
     private static volatile boolean updateAlert = true;
 
@@ -114,6 +117,12 @@ public final class FeatureToggles {
 
     /** Intercept {@code /loottables} (and its {@code /loot} alias) and open the mod's searchable loot browser instead of the server chest GUI. Off = vanilla server menu. */
     private static volatile boolean lootBrowser = true;
+
+    /** Hold-to-zoom on the {@link KeyBinds#ZOOM} key. Client-only, works on any server. */
+    private static volatile boolean zoom = true;
+
+    /** Zoomed FOV as a percent of normal FOV (lower = stronger zoom). */
+    private static volatile int zoomFovPercent = 23;
 
     /** Auto-load the bundled rift texture pack (tints stone + ores white so the four special blocks pop) while in {@code tartarus_rift}. Drives {@link RiftTexturePackManager}. */
     private static volatile boolean riftTexturePack = false;
@@ -186,6 +195,7 @@ public final class FeatureToggles {
             cooldownsHud = parseBool(props.getProperty("cooldownsHud"), cooldownsHud);
             statsHud   = parseBool(props.getProperty("statsHud"),   statsHud);
             outpostHud = parseBool(props.getProperty("outpostHud"), outpostHud);
+            dungeonTimerHud = parseBool(props.getProperty("dungeonTimerHud"), dungeonTimerHud);
             updateAlert = parseBool(props.getProperty("updateAlert"), updateAlert);
             bugReportUi = parseBool(props.getProperty("bugReportUi"), bugReportUi);
             suggestUi = parseBool(props.getProperty("suggestUi"), suggestUi);
@@ -195,6 +205,8 @@ public final class FeatureToggles {
             cellTerminal = parseBool(props.getProperty("cellTerminal"), cellTerminal);
             cellTermSortMode = clampSortMode(parseInt(props.getProperty("cellTermSortMode"), cellTermSortMode));
             lootBrowser = parseBool(props.getProperty("lootBrowser"), lootBrowser);
+            zoom = parseBool(props.getProperty("zoom"), zoom);
+            zoomFovPercent = clampZoomFovPercent(parseInt(props.getProperty("zoomFovPercent"), zoomFovPercent));
             riftTexturePack = parseBool(props.getProperty("riftTexturePack"), riftTexturePack);
             evenSpacingSnap = parseBool(props.getProperty("evenSpacingSnap"), evenSpacingSnap);
             autoRejoin = parseBool(props.getProperty("autoRejoin"), autoRejoin);
@@ -227,6 +239,7 @@ public final class FeatureToggles {
         props.setProperty("cooldownsHud", Boolean.toString(cooldownsHud));
         props.setProperty("statsHud",   Boolean.toString(statsHud));
         props.setProperty("outpostHud", Boolean.toString(outpostHud));
+        props.setProperty("dungeonTimerHud", Boolean.toString(dungeonTimerHud));
         props.setProperty("updateAlert", Boolean.toString(updateAlert));
         props.setProperty("bugReportUi", Boolean.toString(bugReportUi));
         props.setProperty("suggestUi", Boolean.toString(suggestUi));
@@ -236,6 +249,8 @@ public final class FeatureToggles {
         props.setProperty("cellTerminal", Boolean.toString(cellTerminal));
         props.setProperty("cellTermSortMode", Integer.toString(cellTermSortMode));
         props.setProperty("lootBrowser", Boolean.toString(lootBrowser));
+        props.setProperty("zoom", Boolean.toString(zoom));
+        props.setProperty("zoomFovPercent", Integer.toString(zoomFovPercent));
         props.setProperty("riftTexturePack", Boolean.toString(riftTexturePack));
         props.setProperty("evenSpacingSnap", Boolean.toString(evenSpacingSnap));
         props.setProperty("autoRejoin", Boolean.toString(autoRejoin));
@@ -399,6 +414,14 @@ public final class FeatureToggles {
         save();
     }
 
+    public static boolean isDungeonTimerHudEnabled() { return dungeonTimerHud; }
+
+    public static void setDungeonTimerHud(boolean value) {
+        if (dungeonTimerHud == value) return;
+        dungeonTimerHud = value;
+        save();
+    }
+
     public static boolean isOutpostHudEnabled() { return outpostHud; }
 
     public static void setOutpostHud(boolean value) {
@@ -513,6 +536,27 @@ public final class FeatureToggles {
         if (lootBrowser == value) return;
         lootBrowser = value;
         save();
+    }
+
+    public static boolean isZoomEnabled() { return zoom; }
+
+    public static void setZoom(boolean value) {
+        if (zoom == value) return;
+        zoom = value;
+        save();
+    }
+
+    public static int getZoomFovPercent() { return zoomFovPercent; }
+
+    public static void setZoomFovPercent(int value) {
+        int v = clampZoomFovPercent(value);
+        if (zoomFovPercent == v) return;
+        zoomFovPercent = v;
+        save();
+    }
+
+    private static int clampZoomFovPercent(int value) {
+        return Math.max(10, Math.min(70, value));
     }
 
     public static boolean isRiftTexturePackEnabled() { return riftTexturePack; }

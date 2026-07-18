@@ -50,7 +50,8 @@ public final class RateLimiter {
         CELLTERM_CHUNK(Protocol.RATE_CELLTERM_CHUNK_PER_SEC),
         CELLTERM_OPEN(Protocol.RATE_CELLTERM_OPEN_PER_SEC),
         POWERBALL(Protocol.RATE_POWERBALL_PER_SEC),
-        OUTPOST_STATE(Protocol.RATE_OUTPOST_STATE_PER_SEC);
+        OUTPOST_STATE(Protocol.RATE_OUTPOST_STATE_PER_SEC),
+        DUNGEON_TIMER(Protocol.RATE_DUNGEON_TIMER_PER_SEC);
 
         final int perSecond;
         Kind(int perSecond) { this.perSecond = perSecond; }

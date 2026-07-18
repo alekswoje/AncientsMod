@@ -366,6 +366,21 @@ public final class Protocol {
     public static final byte PKT_MINING_RUSH_PING_CLEAR = 49;
 
     /**
+     * S2C — dungeon run clock for the dungeon timer HUD. A 1 Hz heartbeat
+     * while a run is live (state 1, from the START-room "GO!" moment) and a
+     * final packet when it ends (state 2 = boss killed, state 3 = party
+     * wiped) carrying the closing elapsed time. The heartbeat self-heals
+     * relogs — a rejoining client shows the timer again within a second.
+     *
+     * <p>Wire after the type byte: {@code byte state (1=running, 2=complete,
+     * 3=wiped); varlong elapsedMs; varint tier}.
+     *
+     * <p>Byte 50 is free on every historical scheme (master/dev and season2
+     * both topped out at 49).
+     */
+    public static final byte PKT_DUNGEON_TIMER = 50;
+
+    /**
      * S2C — full dungeon skill tree layout. Pushed when a player clicks
      * "Tartarus Vision" on the Oracle NPC. Bounded by
      * {@link #MAX_SKILLTREE_PAYLOAD_BYTES}. The mod's screen opens on receipt
@@ -1274,6 +1289,8 @@ public final class Protocol {
     public static final int RATE_MINING_BLOCKS_PER_SEC = 5;
     /** Mining-session heartbeat — same 1 Hz shape as mining stats. */
     public static final int RATE_MINING_SESSION_PER_SEC = 5;
+    /** Dungeon timer heartbeat — 1 Hz while a run is live, plus the end packet. */
+    public static final int RATE_DUNGEON_TIMER_PER_SEC = 5;
     /** Per-block-break + right-click. A meteorite is 200–300 blocks; cap at theoretical max mining cadence. */
     public static final int RATE_METEORITE_HUD_PER_SEC = 40;
     /** Buff snapshot is on-demand (only on /pickbuffs or refresh-button). */

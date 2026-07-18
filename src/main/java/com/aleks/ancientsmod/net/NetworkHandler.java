@@ -219,6 +219,12 @@ public final class NetworkHandler {
                             com.aleks.ancientsmod.net.payload.MiningSessionPayload.decode(buf);
                     com.aleks.ancientsmod.client.hud.MiningSessionState.update(p);
                 }
+                case Protocol.PKT_DUNGEON_TIMER -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.DUNGEON_TIMER)) return;
+                    com.aleks.ancientsmod.net.payload.DungeonTimerPayload p =
+                            com.aleks.ancientsmod.net.payload.DungeonTimerPayload.decode(buf);
+                    com.aleks.ancientsmod.client.hud.DungeonTimerState.update(p);
+                }
                 case Protocol.PKT_BUFF_SNAPSHOT -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.BUFF_SNAPSHOT)) {
                         AncientsMod.LOGGER.info("BUFF_SNAPSHOT rate-limited");

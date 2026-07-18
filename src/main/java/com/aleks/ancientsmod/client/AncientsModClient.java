@@ -8,6 +8,7 @@ import com.aleks.ancientsmod.client.gangping.GangPingInput;
 import com.aleks.ancientsmod.client.gangping.GangPingManager;
 import com.aleks.ancientsmod.client.hud.BoosterHud;
 import com.aleks.ancientsmod.client.hud.CooldownsHud;
+import com.aleks.ancientsmod.client.hud.DungeonTimerHud;
 import com.aleks.ancientsmod.client.hud.EventsHud;
 import com.aleks.ancientsmod.client.hud.HudPositions;
 import com.aleks.ancientsmod.client.hud.HudRegistry;
@@ -82,6 +83,7 @@ public final class AncientsModClient implements ClientModInitializer {
         HudRegistry.register(CooldownsHud.INSTANCE);
         HudRegistry.register(StatsHud.INSTANCE);
         HudRegistry.register(OutpostHud.INSTANCE);
+        HudRegistry.register(DungeonTimerHud.INSTANCE);
         HudRenderer.register();
         MeteoriteLabelRenderer.register();
         PowerballRenderer.register();

@@ -79,11 +79,19 @@ public final class SettingsScreen extends WidgetSettingsScreen {
                 FeatureToggles::isStatsHudEnabled, FeatureToggles::setStatsHud);
         addToggle("Show outpost HUD",
                 FeatureToggles::isOutpostHudEnabled, FeatureToggles::setOutpostHud);
+        addToggle("Show dungeon timer HUD",
+                FeatureToggles::isDungeonTimerHudEnabled, FeatureToggles::setDungeonTimerHud);
         addToggle("Show meteorite count on block",
                 FeatureToggles::isMeteoriteHudEnabled, FeatureToggles::setMeteoriteHud);
         addAction("Edit HUD positions...", () -> {
             if (this.client != null) this.client.setScreen(new HudEditScreen(this));
         });
+
+        addSection("Camera");
+        addToggle("Hold-to-zoom (C)",
+                FeatureToggles::isZoomEnabled, FeatureToggles::setZoom);
+        addSlider("Zoom FOV %", 10, 70,
+                FeatureToggles::getZoomFovPercent, FeatureToggles::setZoomFovPercent);
 
         addSection("World");
         addToggle("Fullbright",
