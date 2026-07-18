@@ -68,6 +68,18 @@ public final class KeyBinds {
             KeyBinding.Category.INVENTORY
     );
 
+    /**
+     * Hold to zoom (OptiFine-style). Level-triggered — the FOV mixin reads
+     * {@code ZOOM.isPressed()} every frame rather than polling wasPressed(),
+     * so zoom holds exactly as long as the key does. Default C.
+     */
+    public static final KeyBinding ZOOM = new KeyBinding(
+            "key.ancientsmod.zoom",
+            InputUtil.Type.KEYSYM,
+            GLFW.GLFW_KEY_C,
+            KeyBinding.Category.MISC
+    );
+
     /** Returns true if the given keyboard event matches the lock keybind's currently-bound key. Used by the screen mixin. */
     public static boolean matchesItemLockKey(KeyInput input) {
         return TOGGLE_ITEM_LOCK.matchesKey(input);
@@ -79,6 +91,7 @@ public final class KeyBinds {
         KeyBindingHelper.registerKeyBinding(OPEN_SETTINGS);
         KeyBindingHelper.registerKeyBinding(OPEN_MUFFLER);
         KeyBindingHelper.registerKeyBinding(TOGGLE_ITEM_LOCK);
+        KeyBindingHelper.registerKeyBinding(ZOOM);
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (TOGGLE_MINE_PREDICT.wasPressed()) {

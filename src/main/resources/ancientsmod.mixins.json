@@ -11,6 +11,7 @@
     "client.EquipmentRendererMixin",
     "client.GameRendererInvoker",
     "client.GameRendererTargetMixin",
+    "client.GameRendererZoomMixin",
     "client.HandledScreenItemLockMixin",
     "client.HandledScreenLockKeyMixin",
     "client.HandledScreenSlotOverlayMixin",
