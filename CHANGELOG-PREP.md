@@ -10,20 +10,13 @@
 
 ## HUDs
 
-- Added a **Dungeon Timer HUD** that starts at the dungeon "GO!" countdown and freezes your final time on the boss kill or party wipe.
-
 ## Rendering & Visuals
 
 ## UI & Screens
 
 ## Input & Keybinds
 
-- Added **hold-to-zoom** on **C** (rebindable), with a toggle and zoom strength slider under F9 settings.
-- Fixed **locked inventory slots** being alterable with a click-drag inside container menus like the Personal Vault. Dragging can no longer deposit into a locked slot.
-
 ## Networking & Server Integration
-
-- Mod features now also activate when connecting to the server by its new direct IP.
 
 ## Updates & Installation
 
