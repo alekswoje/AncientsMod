@@ -23,6 +23,8 @@
 
 ## Networking & Server Integration
 
+- Mod features now also activate when connecting to the server by its new direct IP.
+
 ## Updates & Installation
 
 ## Quality of Life

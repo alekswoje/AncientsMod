@@ -34,6 +34,7 @@ public final class ServerAllowlist {
             "season2.rooprisons.com",
             "hub.rooprisons.com",
             "174.136.202.138",
+            "23.139.82.32",
             "localhost",
             "127.0.0.1"
     );
