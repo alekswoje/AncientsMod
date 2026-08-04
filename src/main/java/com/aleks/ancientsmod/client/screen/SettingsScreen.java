@@ -79,8 +79,6 @@ public final class SettingsScreen extends WidgetSettingsScreen {
                 FeatureToggles::isStatsHudEnabled, FeatureToggles::setStatsHud);
         addToggle("Show outpost HUD",
                 FeatureToggles::isOutpostHudEnabled, FeatureToggles::setOutpostHud);
-        addToggle("Show dungeon timer HUD",
-                FeatureToggles::isDungeonTimerHudEnabled, FeatureToggles::setDungeonTimerHud);
         addToggle("Show meteorite count on block",
                 FeatureToggles::isMeteoriteHudEnabled, FeatureToggles::setMeteoriteHud);
         addAction("Edit HUD positions...", () -> {

@@ -219,12 +219,6 @@ public final class NetworkHandler {
                             com.aleks.ancientsmod.net.payload.MiningSessionPayload.decode(buf);
                     com.aleks.ancientsmod.client.hud.MiningSessionState.update(p);
                 }
-                case Protocol.PKT_DUNGEON_TIMER -> {
-                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.DUNGEON_TIMER)) return;
-                    com.aleks.ancientsmod.net.payload.DungeonTimerPayload p =
-                            com.aleks.ancientsmod.net.payload.DungeonTimerPayload.decode(buf);
-                    com.aleks.ancientsmod.client.hud.DungeonTimerState.update(p);
-                }
                 case Protocol.PKT_BUFF_SNAPSHOT -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.BUFF_SNAPSHOT)) {
                         AncientsMod.LOGGER.info("BUFF_SNAPSHOT rate-limited");
@@ -290,42 +284,6 @@ public final class NetworkHandler {
                     byte[] chunk = new byte[len];
                     buf.readBytes(chunk);
                     PvClient.onBundleChunk(version, chunkIndex, chunkCount, chunk);
-                }
-                case Protocol.PKT_SKILLTREE_OPEN -> {
-                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.SKILLTREE_OPEN)) return;
-                    com.aleks.ancientsmod.net.payload.SkillTreeOpenPayload p =
-                            com.aleks.ancientsmod.net.payload.SkillTreeOpenPayload.decode(buf);
-                    com.aleks.ancientsmod.client.skilltree.SkillTreeClient.onOpen(p);
-                }
-                case Protocol.PKT_SKILLTREE_OPEN_CHUNK -> {
-                    // Chunks arrive as a short burst — gate on the generous
-                    // LOOT_CHUNK kind (sized for 80-chunk bursts) so reassembly
-                    // never drops a chunk to the single-shot SKILLTREE_OPEN rate.
-                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.LOOT_CHUNK)) return;
-                    int version = buf.readInt();
-                    int chunkIndex = buf.readVarInt();
-                    int chunkCount = buf.readVarInt();
-                    int len = buf.readVarInt();
-                    if (chunkCount < 1 || chunkCount > Protocol.SKILLTREE_MAX_CHUNKS) return;
-                    if (chunkIndex < 0 || chunkIndex >= chunkCount) return;
-                    if (len < 0 || len > Protocol.MAX_SKILLTREE_CHUNK_BYTES) return;
-                    if (buf.readableBytes() < len) return;
-                    byte[] chunk = new byte[len];
-                    buf.readBytes(chunk);
-                    com.aleks.ancientsmod.client.skilltree.SkillTreeClient.onOpenChunk(
-                            version, chunkIndex, chunkCount, chunk);
-                }
-                case Protocol.PKT_SKILLTREE_STATE -> {
-                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.SKILLTREE_STATE)) return;
-                    com.aleks.ancientsmod.net.payload.SkillTreeStatePayload p =
-                            com.aleks.ancientsmod.net.payload.SkillTreeStatePayload.decode(buf);
-                    com.aleks.ancientsmod.client.skilltree.SkillTreeClient.onState(p);
-                }
-                case Protocol.PKT_SKILLTREE_ACK -> {
-                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.SKILLTREE_ACK)) return;
-                    com.aleks.ancientsmod.net.payload.SkillTreeAckPayload p =
-                            com.aleks.ancientsmod.net.payload.SkillTreeAckPayload.decode(buf);
-                    com.aleks.ancientsmod.client.skilltree.SkillTreeClient.onAck(p);
                 }
                 case Protocol.PKT_PV_OPEN_TERMINAL -> {
                     // Server-initiated (admin /pvsee). Not client-spammable, so
@@ -827,55 +785,6 @@ public final class NetworkHandler {
             sendBuf(buf);
         } catch (Throwable t) {
             AncientsMod.LOGGER.debug("send pv shift-click failed", t);
-        }
-    }
-
-    // ── Skill tree sends ────────────────────────────────────────────────────
-
-    /** "Open the Tartarus Vision screen — push me the layout + state." */
-    public static void sendSkillTreeOpenRequest() {
-        if (!ServerAllowlist.isAllowed()) {
-            AncientsMod.LOGGER.info("sendSkillTreeOpenRequest: skipped — server not allowlisted");
-            return;
-        }
-        if (!ClientPlayNetworking.canSend(RawPayload.ID)) {
-            AncientsMod.LOGGER.info("sendSkillTreeOpenRequest: skipped — channel not registered server-side");
-            net.minecraft.client.MinecraftClient mc = net.minecraft.client.MinecraftClient.getInstance();
-            if (mc != null && mc.player != null) {
-                mc.player.sendMessage(net.minecraft.text.Text.literal(
-                        "Skill tree channel not ready yet — try again in a second.")
-                        .formatted(net.minecraft.util.Formatting.YELLOW), false);
-            }
-            return;
-        }
-        try {
-            ClientPlayNetworking.send(new RawPayload(new byte[] { Protocol.PKT_SKILLTREE_OPEN_REQ }));
-            AncientsMod.LOGGER.info("sendSkillTreeOpenRequest: sent");
-        } catch (Throwable t) {
-            AncientsMod.LOGGER.warn("send skilltree open req failed", t);
-        }
-    }
-
-    /** "Allocate this node." Server validates + replies with ACK + STATE. */
-    public static void sendSkillTreeAllocate(String nodeId) {
-        sendString(Protocol.PKT_SKILLTREE_ALLOCATE,
-                clamp(nodeId, Protocol.SKILLTREE_MAX_NODE_ID_CHARS));
-    }
-
-    /** "Refund this allocated node (free, no money cost)." Same wire as allocate. */
-    public static void sendSkillTreeRefund(String nodeId) {
-        sendString(Protocol.PKT_SKILLTREE_REFUND,
-                clamp(nodeId, Protocol.SKILLTREE_MAX_NODE_ID_CHARS));
-    }
-
-    /** "Respec all allocated nodes (charges money per dungeon level)." */
-    public static void sendSkillTreeRespec() {
-        if (!ServerAllowlist.isAllowed()) return;
-        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
-        try {
-            ClientPlayNetworking.send(new RawPayload(new byte[] { Protocol.PKT_SKILLTREE_RESPEC }));
-        } catch (Throwable t) {
-            AncientsMod.LOGGER.debug("send skilltree respec failed", t);
         }
     }
 

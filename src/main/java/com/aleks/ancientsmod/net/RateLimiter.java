@@ -40,9 +40,6 @@ public final class RateLimiter {
         SUGGEST(Protocol.RATE_SUGGEST_PER_SEC),
         PV_BUNDLE(Protocol.RATE_PV_BUNDLE_PER_SEC),
         FULLBRIGHT_BLACKLIST(Protocol.RATE_FULLBRIGHT_BLACKLIST_PER_SEC),
-        SKILLTREE_OPEN(Protocol.RATE_SKILLTREE_OPEN_PER_SEC),
-        SKILLTREE_STATE(Protocol.RATE_SKILLTREE_STATE_PER_SEC),
-        SKILLTREE_ACK(Protocol.RATE_SKILLTREE_ACK_PER_SEC),
         LOOT_CHUNK(Protocol.RATE_LOOT_CHUNK_PER_SEC),
         LOOT_LUCK(Protocol.RATE_LOOT_LUCK_PER_SEC),
         PV_CHUNK(Protocol.RATE_PV_CHUNK_PER_SEC),
@@ -50,8 +47,7 @@ public final class RateLimiter {
         CELLTERM_CHUNK(Protocol.RATE_CELLTERM_CHUNK_PER_SEC),
         CELLTERM_OPEN(Protocol.RATE_CELLTERM_OPEN_PER_SEC),
         POWERBALL(Protocol.RATE_POWERBALL_PER_SEC),
-        OUTPOST_STATE(Protocol.RATE_OUTPOST_STATE_PER_SEC),
-        DUNGEON_TIMER(Protocol.RATE_DUNGEON_TIMER_PER_SEC);
+        OUTPOST_STATE(Protocol.RATE_OUTPOST_STATE_PER_SEC);
 
         final int perSecond;
         Kind(int perSecond) { this.perSecond = perSecond; }

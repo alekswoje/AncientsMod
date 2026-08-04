@@ -2,7 +2,6 @@ package com.aleks.ancientsmod.client;
 
 import com.aleks.ancientsmod.client.screen.MufflerScreen;
 import com.aleks.ancientsmod.client.screen.SettingsScreen;
-import com.aleks.ancientsmod.client.skilltree.SkillTreeClient;
 import com.aleks.ancientsmod.client.update.UpdateInstaller;
 import com.mojang.brigadier.Command;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
@@ -43,30 +42,7 @@ public final class ClientCommands {
                     ClientCommandManager.literal("muffler")
                             .executes(ctx -> openMuffler())
             );
-            // /skilltree — re-open the Tartarus Vision screen without
-            // walking back to the Oracle. Requests a fresh layout + state
-            // from the server every time so balance edits show up.
-            dispatcher.register(
-                    ClientCommandManager.literal("skilltree")
-                            .executes(ctx -> requestSkillTreeOpen())
-            );
         });
-    }
-
-    private static int requestSkillTreeOpen() {
-        com.aleks.ancientsmod.AncientsMod.LOGGER.info("/skilltree invoked; allowlisted={}",
-                ServerAllowlist.isAllowed());
-        if (!ServerAllowlist.isAllowed()) {
-            MinecraftClient mc = MinecraftClient.getInstance();
-            if (mc != null && mc.player != null) {
-                mc.player.sendMessage(net.minecraft.text.Text.literal(
-                        "/skilltree only works on the Ancients server.")
-                        .formatted(net.minecraft.util.Formatting.RED), false);
-            }
-            return 0;
-        }
-        SkillTreeClient.requestOpen();
-        return Command.SINGLE_SUCCESS;
     }
 
     private static int openSettings() {

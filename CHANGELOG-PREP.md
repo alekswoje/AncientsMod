@@ -10,6 +10,8 @@
 
 ## HUDs
 
+- Removed the dungeon timer HUD and the Tartarus Vision skill tree screen (dungeons are removed from the server next season)
+
 ## Rendering & Visuals
 
 ## UI & Screens

@@ -73,9 +73,6 @@ public final class FeatureToggles {
     /** Show the draggable Outpost HUD (name, gang, capture % for all 5 outposts). */
     private static volatile boolean outpostHud = true;
 
-    /** Show the draggable Dungeon Timer HUD (live run clock, frozen on end). */
-    private static volatile boolean dungeonTimerHud = true;
-
     /** Check GitHub for a newer mod release on server join and alert (chat + toast + sound) once per session if one's out. */
     private static volatile boolean updateAlert = true;
 
@@ -195,7 +192,6 @@ public final class FeatureToggles {
             cooldownsHud = parseBool(props.getProperty("cooldownsHud"), cooldownsHud);
             statsHud   = parseBool(props.getProperty("statsHud"),   statsHud);
             outpostHud = parseBool(props.getProperty("outpostHud"), outpostHud);
-            dungeonTimerHud = parseBool(props.getProperty("dungeonTimerHud"), dungeonTimerHud);
             updateAlert = parseBool(props.getProperty("updateAlert"), updateAlert);
             bugReportUi = parseBool(props.getProperty("bugReportUi"), bugReportUi);
             suggestUi = parseBool(props.getProperty("suggestUi"), suggestUi);
@@ -239,7 +235,6 @@ public final class FeatureToggles {
         props.setProperty("cooldownsHud", Boolean.toString(cooldownsHud));
         props.setProperty("statsHud",   Boolean.toString(statsHud));
         props.setProperty("outpostHud", Boolean.toString(outpostHud));
-        props.setProperty("dungeonTimerHud", Boolean.toString(dungeonTimerHud));
         props.setProperty("updateAlert", Boolean.toString(updateAlert));
         props.setProperty("bugReportUi", Boolean.toString(bugReportUi));
         props.setProperty("suggestUi", Boolean.toString(suggestUi));
@@ -411,14 +406,6 @@ public final class FeatureToggles {
     public static void setCooldownsHud(boolean value) {
         if (cooldownsHud == value) return;
         cooldownsHud = value;
-        save();
-    }
-
-    public static boolean isDungeonTimerHudEnabled() { return dungeonTimerHud; }
-
-    public static void setDungeonTimerHud(boolean value) {
-        if (dungeonTimerHud == value) return;
-        dungeonTimerHud = value;
         save();
     }
 

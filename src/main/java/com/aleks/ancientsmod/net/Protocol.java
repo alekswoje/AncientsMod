@@ -365,186 +365,15 @@ public final class Protocol {
      */
     public static final byte PKT_MINING_RUSH_PING_CLEAR = 49;
 
-    /**
-     * S2C — dungeon run clock for the dungeon timer HUD. A 1 Hz heartbeat
-     * while a run is live (state 1, from the START-room "GO!" moment) and a
-     * final packet when it ends (state 2 = boss killed, state 3 = party
-     * wiped) carrying the closing elapsed time. The heartbeat self-heals
-     * relogs — a rejoining client shows the timer again within a second.
-     *
-     * <p>Wire after the type byte: {@code byte state (1=running, 2=complete,
-     * 3=wiped); varlong elapsedMs; varint tier}.
-     *
-     * <p>Byte 50 is free on every historical scheme (master/dev and season2
-     * both topped out at 49).
-     */
-    public static final byte PKT_DUNGEON_TIMER = 50;
-
-    /**
-     * S2C — full dungeon skill tree layout. Pushed when a player clicks
-     * "Tartarus Vision" on the Oracle NPC. Bounded by
-     * {@link #MAX_SKILLTREE_PAYLOAD_BYTES}. The mod's screen opens on receipt
-     * and renders the tree using the bundled layout (positions, names,
-     * effects, adjacency).
-     */
-    public static final byte PKT_SKILLTREE_OPEN = 28;
-
-    /**
-     * S2C — per-player skill-tree state (unlocked set + banked/available/spent
-     * points + live respec cost). Sent immediately after a SKILLTREE_OPEN
-     * and on every successful allocate / refund / respec (mod- or chisel-
-     * driven). The mod's open screen re-renders live on each push.
-     */
-    public static final byte PKT_SKILLTREE_STATE = 29;
-
-    /**
-     * S2C — result of a mod-initiated allocate / refund / respec. Mostly used
-     * for failure toasts; success is implied by the matching STATE push.
-     */
-    public static final byte PKT_SKILLTREE_ACK = 30;
-
-    /**
-     * S2C — one chunk of the dungeon skill-tree OPEN layout. The 1000+ node
-     * mega-tree's OPEN payload exceeds the single-message ceiling, so the
-     * server splits the body (everything a single {@link #PKT_SKILLTREE_OPEN}
-     * carries after its type byte) into ordered chunks; the mod reassembles by
-     * {@code version} and decodes once the last chunk arrives. Same scheme as
-     * {@link #PKT_LOOT_SNAPSHOT_CHUNK}. Wire per chunk:
-     * {@code int version; varint chunkIndex; varint chunkCount; varint len; byte[len] body}.
-     * Byte 46 is free on both season2 plugin + mod.
-     */
-    public static final byte PKT_SKILLTREE_OPEN_CHUNK = 46;
-
-    // Skill tree wire bounds (mirror plugin AncientsModChannel).
-    public static final int MAX_SKILLTREE_PAYLOAD_BYTES = 32_768;
-    public static final int SKILLTREE_MAX_NODES = 4096;
-    public static final int SKILLTREE_MAX_EDGES = 8192;
-    public static final int SKILLTREE_MAX_NODE_ID_CHARS = 32;
-    public static final int SKILLTREE_MAX_NODE_NAME_CHARS = 48;
-    // Chunked OPEN reassembly bounds (mirror plugin).
-    public static final int MAX_SKILLTREE_TOTAL_BYTES = 1_048_576;
-    public static final int MAX_SKILLTREE_CHUNK_BYTES = 32_768;
-    public static final int SKILLTREE_MAX_CHUNKS = 80;
-
-    // Branch byte values (must match plugin BRANCH_*).
-    public static final byte BRANCH_GATE      = 0;
-    public static final byte BRANCH_ASSAULT   = 1;
-    public static final byte BRANCH_ENDURANCE = 2;
-    public static final byte BRANCH_AGILITY   = 3;
-    public static final byte BRANCH_FORTUNE   = 4;
-
-    // Skill effect type bytes (must match plugin SKILL_EFFECT_*).
-    public static final byte SKILL_EFFECT_DUNGEON_DAMAGE_PCT            = 0;
-    public static final byte SKILL_EFFECT_DUNGEON_BOSS_DAMAGE_PCT       = 1;
-    public static final byte SKILL_EFFECT_DUNGEON_DAMAGE_REDUCTION_PCT  = 2;
-    public static final byte SKILL_EFFECT_DUNGEON_MAX_HP_FLAT           = 3;
-    public static final byte SKILL_EFFECT_DUNGEON_MOVE_SPEED_PCT        = 4;
-    public static final byte SKILL_EFFECT_DUNGEON_JUMP_BOOST_FLAT       = 5;
-    public static final byte SKILL_EFFECT_CHEST_COST_REDUCTION_PCT      = 6;
-    public static final byte SKILL_EFFECT_RUNE_RARITY_UPGRADE_CHANCE    = 7;
-    public static final byte SKILL_EFFECT_BONUS_RUNE_DROP_CHANCE        = 8;
-    public static final byte SKILL_EFFECT_DUNGEON_LIFESTEAL_PCT         = 9;
-    public static final byte SKILL_EFFECT_DUNGEON_CULLING_THRESHOLD_PCT = 10;
-    public static final byte SKILL_EFFECT_DUNGEON_DOUBLE_JUMP_FLAT      = 11;
-    // Season 2 redesign — appended; ordinals must match plugin SkillEffectType.
-    public static final byte SKILL_EFFECT_DUNGEON_SWORD_DAMAGE_PCT      = 12;
-    public static final byte SKILL_EFFECT_DUNGEON_AXE_DAMAGE_PCT        = 13;
-    public static final byte SKILL_EFFECT_DUNGEON_BOW_DAMAGE_PCT        = 14;
-    public static final byte SKILL_EFFECT_DUNGEON_WAND_DAMAGE_PCT       = 15;
-    public static final byte SKILL_EFFECT_DUNGEON_CRIT_CHANCE_PCT       = 16;
-    public static final byte SKILL_EFFECT_DUNGEON_CRIT_MULTI_PCT        = 17;
-    public static final byte SKILL_EFFECT_DUNGEON_AILMENT_DAMAGE_PCT    = 18;
-    public static final byte SKILL_EFFECT_DUNGEON_AILMENT_DURATION_PCT  = 19;
-    public static final byte SKILL_EFFECT_DUNGEON_ATTACK_SPEED_PCT      = 20;
-    public static final byte SKILL_EFFECT_DUNGEON_MAX_HP_PCT            = 21;
-    public static final byte SKILL_EFFECT_DUNGEON_LIFE_REGEN            = 22;
-    public static final byte SKILL_EFFECT_DUNGEON_XP_PCT                = 23;
-    public static final byte SKILL_EFFECT_DUNGEON_DUPLICATE_LOOT_PCT    = 24;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_GLASS_CANNON  = 25;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_EXECUTIONER   = 26;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_EARTHSPLITTER = 27;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_STORMWEAVER   = 28;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_AVATAR_HUNT   = 29;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_JUGGERNAUT    = 30;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_BLOODTHIRST   = 31;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_ATTUNEMENT    = 32;
-    // Mega-tree expansion — ordinals 33..58, must match plugin SkillEffectType.
-    public static final byte SKILL_EFFECT_DUNGEON_SWORD_CRIT_CHANCE_PCT  = 33;
-    public static final byte SKILL_EFFECT_DUNGEON_AXE_CRIT_CHANCE_PCT    = 34;
-    public static final byte SKILL_EFFECT_DUNGEON_BOW_CRIT_CHANCE_PCT    = 35;
-    public static final byte SKILL_EFFECT_DUNGEON_WAND_CRIT_CHANCE_PCT   = 36;
-    public static final byte SKILL_EFFECT_DUNGEON_SWORD_CRIT_MULTI_PCT   = 37;
-    public static final byte SKILL_EFFECT_DUNGEON_AXE_CRIT_MULTI_PCT     = 38;
-    public static final byte SKILL_EFFECT_DUNGEON_BOW_CRIT_MULTI_PCT     = 39;
-    public static final byte SKILL_EFFECT_DUNGEON_WAND_CRIT_MULTI_PCT    = 40;
-    public static final byte SKILL_EFFECT_DUNGEON_SWORD_ATTACK_SPEED_PCT = 41;
-    public static final byte SKILL_EFFECT_DUNGEON_AXE_ATTACK_SPEED_PCT   = 42;
-    public static final byte SKILL_EFFECT_DUNGEON_BOW_ATTACK_SPEED_PCT   = 43;
-    public static final byte SKILL_EFFECT_DUNGEON_WAND_ATTACK_SPEED_PCT  = 44;
-    public static final byte SKILL_EFFECT_DUNGEON_CRIT_CHANCE_FLAT_PCT   = 45;
-    public static final byte SKILL_EFFECT_DUNGEON_PROJECTILE_DAMAGE_PCT  = 46;
-    public static final byte SKILL_EFFECT_DUNGEON_MELEE_DAMAGE_PCT       = 47;
-    public static final byte SKILL_EFFECT_DUNGEON_AREA_DAMAGE_PCT        = 48;
-    public static final byte SKILL_EFFECT_DUNGEON_FULL_LIFE_DAMAGE_PCT   = 49;
-    public static final byte SKILL_EFFECT_DUNGEON_EXECUTE_DAMAGE_PCT     = 50;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_VOLLEY            = 51;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_PUNCTURE          = 52;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_RICOCHET          = 53;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_RIPOSTE           = 54;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_BLOODLETTER       = 55;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_CHAIN_LIGHTNING   = 56;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_RESOLUTE_TECHNIQUE = 57;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_RAMPAGE           = 58;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_AEGIS             = 59;
-    // Life-regen rework — % of Maximum HP regenerated per second.
-    public static final byte SKILL_EFFECT_DUNGEON_LIFE_REGEN_PCT             = 60;
-    // ── Keystone expansion (Season 2) — ordinals 61-88, mirror the plugin's
-    //    SkillEffectType. Each renders as a keystone (frame + ks_* gem).
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_BLADEDANCER       = 61;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_VENDETTA          = 62;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_HEADSMAN          = 63;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_WHIRLWIND         = 64;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_EXSANGUINATE      = 65;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_PARRY_MASTER      = 66;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_BERSERKERS_RAGE   = 67;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_BONECRUSHER       = 68;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_AFTERSHOCK        = 69;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_LAST_STAND        = 70;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_WARMONGER         = 71;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_REAVER            = 72;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_OVERCHARGE        = 73;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_RESONANT_CASCADE  = 74;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_PYROCLASM         = 75;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_SPELLBLADE        = 76;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_PRISM             = 77;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_FEEDBACK_LOOP     = 78;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_POINT_BLANK       = 79;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_ARROW_RAIN        = 80;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_DEADEYES_FOCUS    = 81;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_SPLINTER          = 82;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_TAILWIND          = 83;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_VAULT_HUNTER      = 84;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_SANGUINE_PACT     = 85;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_AVATAR_OF_FLAME   = 86;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_UNWAVERING_WILL   = 87;
-    public static final byte SKILL_EFFECT_DUNGEON_KEYSTONE_GLASS_ACROBAT     = 88;
-
-    // Skill tree ACK action codes.
-    public static final byte SKILL_ACTION_ALLOCATE = 0;
-    public static final byte SKILL_ACTION_REFUND   = 1;
-    public static final byte SKILL_ACTION_RESPEC   = 2;
-
-    // Skill tree ACK result codes.
-    public static final byte SKILL_RESULT_SUCCESS           = 0;
-    public static final byte SKILL_RESULT_ALREADY_UNLOCKED  = 1;
-    public static final byte SKILL_RESULT_PREREQ_MISSING    = 2;
-    public static final byte SKILL_RESULT_NOT_ENOUGH_POINTS = 3;
-    public static final byte SKILL_RESULT_NOT_UNLOCKED      = 4;
-    public static final byte SKILL_RESULT_HAS_DEPENDENTS    = 5;
-    public static final byte SKILL_RESULT_NOT_ENOUGH_MONEY  = 6;
-    public static final byte SKILL_RESULT_INVALID           = 7;
-    public static final byte SKILL_RESULT_NOTHING_TO_RESPEC = 8;
-    public static final byte SKILL_RESULT_ECONOMY_ERROR     = 9;
+    // S2C 50 reserved (removed dungeon timer — dungeons cut from the server).
+    // S2C 28 reserved (removed skilltree OPEN).
+    // S2C 29 reserved (removed skilltree STATE).
+    // S2C 30 reserved (removed skilltree ACK).
+    // S2C 46 reserved (removed skilltree OPEN_CHUNK).
+    // The skill-tree wire bounds, BRANCH_* bytes, SKILL_EFFECT_* bytes, and
+    // SKILL_ACTION_* / SKILL_RESULT_* codes were removed with the feature.
+    // Do NOT reuse these ids — the bytes stay reserved so older clients and
+    // servers never disagree on packet identity.
 
     /**
      * One chunk of the loot-browser catalog snapshot (server → mod), pushed in
@@ -624,7 +453,7 @@ public final class Protocol {
      * "Mining rush pings" toggle (dropped at intake when off).
      *
      * <p>Byte 34 is free on BOTH the master/dev scheme (tops out at 33) and the
-     * season2 scheme (28-30 = skilltree, 31 = loot, 33 = outpost), so this id
+     * season2 scheme (28-30 = reserved, 31 = loot, 33 = outpost), so this id
      * needs no renumber when merging dev→season2 — same anchor strategy as
      * {@link #PKT_POWERBALL}. Keep it that way.
      */
@@ -979,25 +808,10 @@ public final class Protocol {
     // C2S byte 123 was PKT_PV_FEATURES_STATE (gated the now-removed affinity
     // routing). Retired with the affinity system.
 
-    /** C2S — player clicked "Tartarus Vision" on the Oracle NPC or asked the
-     *  mod to reopen the screen. Server replies with PKT_SKILLTREE_OPEN +
-     *  PKT_SKILLTREE_STATE. No payload. */
-    public static final byte PKT_SKILLTREE_OPEN_REQ  = (byte) 124;
-
-    /** C2S — allocate a node. Wire: varint+string nodeId. Server replies with
-     *  PKT_SKILLTREE_ACK + PKT_SKILLTREE_STATE. */
-    public static final byte PKT_SKILLTREE_ALLOCATE  = (byte) 125;
-
-    /** C2S — refund a single node (free, no money cost). Same wire shape. */
-    public static final byte PKT_SKILLTREE_REFUND    = (byte) 126;
-
-    /** C2S — full respec (charges money per dungeon level). No payload. */
-    public static final byte PKT_SKILLTREE_RESPEC    = (byte) 127;
-
-    // NB: bytes 124-127 are the skill-tree C2S packets on this season2 branch.
-    // Public master assigns 124-128 to the PV-extract / loot packets below; to
-    // avoid a collision they are renumbered to 128-132 here, matching the
-    // season2 plugin (AncientsModChannel). Public master uses 124-128.
+    // C2S bytes 124-127 reserved (removed skill-tree OPEN_REQ / ALLOCATE /
+    // REFUND / RESPEC). Do not reuse. Historical note: the PV-extract / loot
+    // packets below were renumbered to 128-132 to avoid colliding with these
+    // ids (public master once used 124-128 for them) — that numbering stays.
     /**
      * Player clicked a tile in the PV terminal view: pull from a specific
      * vault slot into the player's inventory. Server reads the slot, computes
@@ -1289,8 +1103,6 @@ public final class Protocol {
     public static final int RATE_MINING_BLOCKS_PER_SEC = 5;
     /** Mining-session heartbeat — same 1 Hz shape as mining stats. */
     public static final int RATE_MINING_SESSION_PER_SEC = 5;
-    /** Dungeon timer heartbeat — 1 Hz while a run is live, plus the end packet. */
-    public static final int RATE_DUNGEON_TIMER_PER_SEC = 5;
     /** Per-block-break + right-click. A meteorite is 200–300 blocks; cap at theoretical max mining cadence. */
     public static final int RATE_METEORITE_HUD_PER_SEC = 40;
     /** Buff snapshot is on-demand (only on /pickbuffs or refresh-button). */
@@ -1307,12 +1119,6 @@ public final class Protocol {
     public static final int RATE_PV_BUNDLE_PER_SEC = 20;
     /** Fullbright blacklist is one-shot per handshake — tight cap. */
     public static final int RATE_FULLBRIGHT_BLACKLIST_PER_SEC = 2;
-    /** Skill tree layout pushed only when the screen opens — tight cap. */
-    public static final int RATE_SKILLTREE_OPEN_PER_SEC  = 2;
-    /** State pushed after every chisel / mod allocation — 1 Hz typical, allow burst. */
-    public static final int RATE_SKILLTREE_STATE_PER_SEC = 10;
-    /** Ack arrives at most once per mod action — burst limit is the player's click rate. */
-    public static final int RATE_SKILLTREE_ACK_PER_SEC   = 10;
     /** Loot snapshot is on-demand but multi-chunk; allow a burst for the chunks
      *  of one snapshot to arrive back-to-back without tripping the limiter. */
     public static final int RATE_LOOT_CHUNK_PER_SEC = 80;
