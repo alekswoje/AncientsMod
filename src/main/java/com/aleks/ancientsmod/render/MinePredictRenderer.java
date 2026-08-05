@@ -52,6 +52,26 @@ import java.util.concurrent.ThreadLocalRandom;
  * (so nothing renders twice) and grants a ping-bounded completion grace when the
  * player retargets early, so predicted breaks confirm instead of rolling back.
  *
+ * <p><b>The server's break-effect suppression is unconditional</b> — it keys off
+ * the reported predict-on flag alone, not off whether this engine still holds a
+ * live prediction for that block. So every break we abandon early would render
+ * nothing at all. {@link #OWED_FLASH} closes that: whenever an unswapped entry
+ * is given up while the server may still break the block (predicted timer
+ * elapsed with no known replacement, position blacklisted after a rollback,
+ * attack released or crosshair moved off while the server's completion grace
+ * finishes it, {@code PKT_MINE_CANCEL}, entry evicted at the cap), the position
+ * is recorded as owing a flash and the server's own block update pays it. Every
+ * break therefore renders exactly one effect.
+ *
+ * <p>{@link #PAUSED} is the counterpart for the crack itself. The server keeps a
+ * paused block's mining progress and resumes from it (its
+ * {@code mining.progress-persist-ticks} window), and {@code MiningResumeMixin}
+ * re-sends {@code START_DESTROY_BLOCK} on look-back so it does — but the
+ * {@code PKT_MINE_START} that follows carries the <em>full</em> duration, not the
+ * remaining one. Left alone the crack would restart from stage 0 on every
+ * look-away/look-back and every release/re-press. Remembering the elapsed time
+ * per position and resuming from it keeps the predicted timeline on the server's.
+ *
  * <p>The engine only arms itself after seeing a {@code PKT_MINE_START} within
  * the last {@link Protocol#MINE_PREDICT_ARMED_WINDOW_MS} — outside custom-mining
  * areas (cells, lobby) it stays silent.
@@ -79,6 +99,20 @@ public final class MinePredictRenderer {
     private static final Map<Block, BlockState> LEARNED_REPLACEMENT = new HashMap<>();
     /** Positions whose last ghost swap rolled back — no swaps there until expiry (ms timestamp). */
     private static final Map<BlockPos, Long> POS_BLACKLIST = new HashMap<>();
+
+    /** A break flash this engine owes a position because it dropped the prediction
+     *  before the server's block update landed, while the server was suppressing
+     *  its own effects for us. Paid out by {@link #onServerBlockUpdate}. */
+    private record OwedFlash(BlockState priorState, long expiresAtMs) {}
+
+    /** Elapsed prediction time remembered for a position whose break was paused
+     *  (attack released, crosshair moved off, {@code PKT_MINE_CANCEL}). The server
+     *  resumes its own mining task from the same point, so a resumed prediction
+     *  seeds its start time from here rather than restarting the crack. */
+    private record PausedProgress(Block ore, long elapsedMs, long expiresAtMs) {}
+
+    private static final Map<BlockPos, OwedFlash> OWED_FLASH = new HashMap<>();
+    private static final Map<BlockPos, PausedProgress> PAUSED = new HashMap<>();
 
     /** Last time the server sent PKT_MINE_START — arms swing-time prediction. */
     private static long lastMineStartMs = 0L;
@@ -196,7 +230,12 @@ public final class MinePredictRenderer {
                     System.currentTimeMillis() + Protocol.MINE_PREDICT_CONFIRM_MIN_MS);
             return;
         }
+        // Unswapped, and the same abort that produced this cancel can still be
+        // grace-finished into a real break by the server. Keep the position owed
+        // a flash (the server suppresses its own) and remember the progress the
+        // server is persisting, then drop the entry.
         clearCrack(pos, entry);
+        pauseEntry(pos, entry);
         ACTIVE.remove(pos);
     }
 
@@ -207,7 +246,14 @@ public final class MinePredictRenderer {
      */
     public static void onServerBlockUpdate(BlockPos pos, BlockState newState) {
         Entry entry = ACTIVE.get(pos);
-        if (entry == null) return;
+        if (entry == null) {
+            payOwedFlash(pos, newState);
+            return;
+        }
+        // A live entry owns this position's effect — it either already flashed on
+        // the ghost swap or flashes below. Drop any stale debt so it can't fire a
+        // second effect on a later update here.
+        OWED_FLASH.remove(pos);
         if (entry.ore != null && newState.getBlock() == entry.ore) {
             // Server re-asserted the ore (resync / rejected break). The world
             // already shows the server's state; just drop the prediction.
@@ -220,6 +266,7 @@ public final class MinePredictRenderer {
         }
         // Block changed → this is the authoritative break. Learn the replacement
         // for first-swing swaps on future blocks of this type.
+        PAUSED.remove(pos); // the break ends any paused progress the server held here
         if (entry.ore != null && !newState.isAir()) {
             LEARNED_REPLACEMENT.put(entry.ore, newState);
         }
@@ -283,14 +330,26 @@ public final class MinePredictRenderer {
             boolean miningHeld = attacking || clickLockActive;
             boolean stillTargeting = pos.equals(targeted);
             if (!miningHeld || !stillTargeting) {
+                // The server does not necessarily stop here: within a ping-derived
+                // grace of completion it finishes the block instead of pausing, and
+                // it suppresses the break effects for us either way. So leave the
+                // position owed a flash, and remember the progress the server is
+                // persisting so a resumed break continues this crack.
                 clearCrack(pos, entry);
+                pauseEntry(pos, entry);
                 it.remove();
                 continue;
             }
 
             if (elapsed >= entry.durationMs) {
                 ghostBreak(client, world, pos, entry);
-                if (!entry.swapped()) it.remove(); // crack-only: wait for the server's break
+                if (!entry.swapped()) {
+                    // Crack-only prediction: no ghost swap and so no flash yet.
+                    // The entry cannot stay (a fresh swing must be able to re-predict
+                    // here), so hand the flash to the owed-flash ledger instead.
+                    owePendingFlash(client, world, pos);
+                    it.remove();
+                }
                 continue;
             }
 
@@ -301,9 +360,15 @@ public final class MinePredictRenderer {
             }
         }
 
-        // Expire stale blacklist entries occasionally (cheap; map stays tiny).
+        // Expire stale bookkeeping occasionally (cheap; maps stay tiny).
         if (!POS_BLACKLIST.isEmpty()) {
             POS_BLACKLIST.values().removeIf(deadline -> now >= deadline);
+        }
+        if (!OWED_FLASH.isEmpty()) {
+            OWED_FLASH.values().removeIf(owed -> now >= owed.expiresAtMs());
+        }
+        if (!PAUSED.isEmpty()) {
+            PAUSED.values().removeIf(paused -> now >= paused.expiresAtMs());
         }
 
         // Swing-start: begin a new prediction the instant the player attacks a
@@ -326,7 +391,10 @@ public final class MinePredictRenderer {
         Entry entry = newEntry(world, targeted, duration, block, false);
         if (entry != null && duration < Protocol.INSTA_BREAK_THRESHOLD_MS) {
             ghostBreak(client, world, targeted, entry);
-            if (!entry.swapped()) ACTIVE.remove(targeted);
+            if (!entry.swapped()) {
+                owePendingFlash(client, world, targeted);
+                ACTIVE.remove(targeted);
+            }
         }
     }
 
@@ -340,23 +408,105 @@ public final class MinePredictRenderer {
                 if (oldest.getValue().swapped()) {
                     rollback(world, oldest.getKey(), oldest.getValue());
                 } else {
+                    // Evicted before the server resolved it — it may still break,
+                    // with the server's own effects suppressed. Leave the flash owed.
                     clearCrack(oldest.getKey(), oldest.getValue());
+                    owePendingFlash(MinecraftClient.getInstance(), world, oldest.getKey());
                 }
                 it.remove();
             }
         }
         int entityId = nextEntityId++;
         if (nextEntityId > BASE_ENTITY_ID + 1_000_000) nextEntityId = BASE_ENTITY_ID;
-        Entry entry = new Entry(entityId, System.currentTimeMillis(), durationMs, ore, serverSynced);
+
+        long now = System.currentTimeMillis();
+        long startMs = now;
+        // Resume, don't restart. The server persists a paused block's mining
+        // progress and picks it back up on the next START_DESTROY_BLOCK (which
+        // MiningResumeMixin re-sends on look-back), but the PKT_MINE_START that
+        // follows carries the full duration rather than the remainder. Back-date
+        // our start by the elapsed time we recorded when the break was paused so
+        // the crack continues from where it stopped.
+        PausedProgress paused = PAUSED.remove(pos);
+        if (paused != null && paused.ore() == ore && now < paused.expiresAtMs()) {
+            startMs -= Math.min(paused.elapsedMs(), Math.max(0, durationMs));
+        }
+
+        Entry entry = new Entry(entityId, startMs, durationMs, ore, serverSynced);
         ACTIVE.put(pos.toImmutable(), entry);
         return entry;
     }
 
     /**
+     * Record that this position still owes a break flash: the prediction has been
+     * given up but the server may yet break the block, and its own break effects
+     * are suppressed for predict-on clients. Paid out by {@link #payOwedFlash}.
+     */
+    private static void owePendingFlash(MinecraftClient client, ClientWorld world, BlockPos pos) {
+        if (world == null) return;
+        BlockState prior = world.getBlockState(pos);
+        if (prior.isAir()) return;
+        if (OWED_FLASH.size() >= Protocol.MINE_PREDICT_MAX_TRACKED_POSITIONS) {
+            Iterator<Map.Entry<BlockPos, OwedFlash>> it = OWED_FLASH.entrySet().iterator();
+            if (it.hasNext()) { it.next(); it.remove(); }
+        }
+        OWED_FLASH.put(pos.toImmutable(),
+                new OwedFlash(prior, System.currentTimeMillis() + confirmWindowMs(client)));
+    }
+
+    /**
+     * A server block update landed at a position with no live prediction. If we
+     * owe that position a flash and the block genuinely changed, this is the break
+     * the server suppressed its effects for — play ours now.
+     */
+    private static void payOwedFlash(BlockPos pos, BlockState newState) {
+        OwedFlash owed = OWED_FLASH.get(pos);
+        if (owed == null) return;
+        if (System.currentTimeMillis() >= owed.expiresAtMs()) {
+            OWED_FLASH.remove(pos);
+            return;
+        }
+        if (owed.priorState().getBlock() == newState.getBlock()) {
+            // Same block re-asserted (resync, or a chunk delta that happens to
+            // cover this position) — nothing broke. Keep the debt until it expires.
+            return;
+        }
+        OWED_FLASH.remove(pos);
+        PAUSED.remove(pos); // the break ends any paused progress the server held here
+        if (!FeatureToggles.isMinePredictEnabled()) return; // server isn't suppressing; it drew its own
+        MinecraftClient client = MinecraftClient.getInstance();
+        ClientWorld world = client.world;
+        if (world == null) return;
+        playBreakFlash(client, world, pos, owed.priorState());
+    }
+
+    /**
+     * Give up an unswapped entry that the server may still resolve either way:
+     * leave the position owed a break flash (server grace-finish) and remember the
+     * elapsed progress (server pause + resume). Mirrors PrisonsCore's own pause
+     * path, which skips persisting progress when nothing has elapsed yet.
+     */
+    private static void pauseEntry(BlockPos pos, Entry entry) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        owePendingFlash(client, client.world, pos);
+
+        long elapsed = System.currentTimeMillis() - entry.startMs;
+        if (elapsed < 50L || entry.ore == null) return; // sub-tick tap: server persists nothing
+        if (PAUSED.size() >= Protocol.MINE_PREDICT_MAX_TRACKED_POSITIONS) {
+            Iterator<Map.Entry<BlockPos, PausedProgress>> it = PAUSED.entrySet().iterator();
+            if (it.hasNext()) { it.next(); it.remove(); }
+        }
+        PAUSED.put(pos.toImmutable(), new PausedProgress(entry.ore, Math.min(elapsed, entry.durationMs),
+                System.currentTimeMillis() + Protocol.MINE_PREDICT_RESUME_WINDOW_MS));
+    }
+
+    /**
      * Predicted completion: swap the block to its known replacement locally and
      * play the break flash. If no replacement is known (or the position recently
-     * rolled back), this only plays the crack-clear — the flash then plays when
-     * the server's real block update arrives.
+     * rolled back, or the block is already gone), this only clears the crack and
+     * leaves {@code swappedTo} null; the caller is then responsible for making
+     * sure the flash still happens on the server's real block update — either by
+     * keeping the entry alive or via {@link #owePendingFlash}.
      */
     private static void ghostBreak(MinecraftClient client, ClientWorld world, BlockPos pos, Entry entry) {
         clearCrack(pos, entry);
@@ -471,6 +621,8 @@ public final class MinePredictRenderer {
         LEARNED_DURATION.clear();
         LEARNED_REPLACEMENT.clear();
         POS_BLACKLIST.clear();
+        OWED_FLASH.clear();
+        PAUSED.clear();
         lastMineStartMs = 0L;
         clickLockActive = false;
         AncientsMod.LOGGER.debug("MinePredictRenderer reset");

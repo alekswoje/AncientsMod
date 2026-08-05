@@ -1260,6 +1260,13 @@ public final class Protocol {
      *  ghost swaps at that exact position are suppressed for this long; the crack
      *  animation still predicts. */
     public static final long MINE_PREDICT_POS_BLACKLIST_MS = 10_000L;
+    /** How long a paused prediction's elapsed progress is remembered for its
+     *  position, so a resumed break continues the crack instead of restarting it.
+     *  Mirrors PrisonsCore's {@code mining.progress-persist-ticks} (1200 ticks =
+     *  60s), which is how long the server keeps the matching paused mining task. */
+    public static final long MINE_PREDICT_RESUME_WINDOW_MS = 60_000L;
+    /** Bound on the paused-progress and owed-flash bookkeeping maps. */
+    public static final int MINE_PREDICT_MAX_TRACKED_POSITIONS = 64;
 
     private Protocol() {}
 }

@@ -22,12 +22,12 @@
 
 ## Rendering & Visuals
 
-- **Low-ping mine prediction**, on by default, starts the crack animation the instant you swing
-- Blocks now break on your own screen the moment their predicted timer ends, with the server confirming right after
+- New **Low-ping mine prediction** starts the crack animation the instant you swing, on by default
+- Blocks now break on your own screen the moment their predicted timer ends
 - Break particles and the break sound now play instantly on your client
-- Mine prediction now keeps running while **ClickLock** is on, without the attack key held
+- Mine prediction keeps animating while **ClickLock** is on
 - Powerball fireballs show their fire charge body again instead of only the flame trail
-- Powerball fireballs now render correctly alongside Sodium, Iris and Distant Horizons
+- Powerball fireballs now render correctly alongside **Sodium**, **Iris** and **Distant Horizons**
 
 ## UI & Screens
 
@@ -35,13 +35,11 @@
 - `/energycalc <targetLevel>` still goes to the server for its full cost breakdown
 - `/buffs` now opens with a **mining speed** line showing your speed multiplier and blocks per second
 - `/buffs` now opens with a **daily bonus** line showing the bonus, its block cap and your progress
-- The mining setting **Mine-crack prediction** is now called **Low-ping mine prediction**
+- **Mine-crack prediction** in the advanced settings screen is now called **Low-ping mine prediction**
 
 ## Input & Keybinds
 
 ## Networking & Server Integration
-
-- The server now stops sending its own crack animation and break effects while mine prediction is on, so nothing renders twice
 
 ## Updates & Installation
 

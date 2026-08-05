@@ -309,6 +309,14 @@ public final class FeatureToggles {
         if (minePredict == value) return;
         minePredict = value;
         save();
+        if (!value) {
+            // Drop in-flight predicted cracks, ghost swaps and owed break flashes
+            // so the switch-off is immediate and nothing left over renders on top
+            // of the server's effects once it resumes sending them. Every path
+            // that flips this toggle (keybind, settings screen) gets this — the
+            // reset lives here rather than at the call site for that reason.
+            com.aleks.ancientsmod.render.MinePredictRenderer.reset();
+        }
         // Tell the server so it flips its side (speed-table stream, crack/effect
         // suppression, completion grace) together with us. No-op when not connected.
         com.aleks.ancientsmod.net.NetworkHandler.sendMinePredictState(value);

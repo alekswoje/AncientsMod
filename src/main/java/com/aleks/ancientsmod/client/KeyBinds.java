@@ -3,7 +3,6 @@ package com.aleks.ancientsmod.client;
 import com.aleks.ancientsmod.AncientsMod;
 import com.aleks.ancientsmod.client.screen.MufflerScreen;
 import com.aleks.ancientsmod.client.screen.SettingsScreen;
-import com.aleks.ancientsmod.render.MinePredictRenderer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.MinecraftClient;
@@ -95,11 +94,9 @@ public final class KeyBinds {
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (TOGGLE_MINE_PREDICT.wasPressed()) {
+                // Clearing in-flight predictions on switch-off is done by
+                // FeatureToggles.setMinePredict, so the settings screen gets it too.
                 boolean nowOn = FeatureToggles.toggleMinePredict();
-                if (!nowOn) {
-                    // Clear any in-flight predicted cracks so the switch-off is visible.
-                    MinePredictRenderer.reset();
-                }
                 notify(client, nowOn);
             }
             while (OPEN_SETTINGS.wasPressed()) {
