@@ -21,10 +21,12 @@ public final class FeatureToggles {
 
     // ── Toggles (defaults below) ─────────────────────────────────────────────
 
-    /** Client-side break-crack prediction. On by default. Note: on this server the plugin
-     *  already sends its own crack the same tick mining starts, so prediction can render a
-     *  second, overlapping crack (a slightly doubled/choppy look) — flip it off under
-     *  Settings → Advanced → Mining if that bothers you. */
+    /** Swing-time mine prediction. On by default: the crack starts the instant you
+     *  swing (no round trip), the block ghost-swaps to its replacement when the
+     *  predicted timer ends, and the break flash plays locally. The server is told
+     *  via PKT_MINE_PREDICT_STATE and suppresses its own crack stream + break
+     *  effects for this client (no doubled crack), so high-ping mining feels like
+     *  low-ping. Off = legacy server-driven crack + effects. */
     private static volatile boolean minePredict = true;
 
     /** Collapse marked enchant tooltip lines behind Shift. Off by default — full enchant list always visible. */
@@ -299,8 +301,7 @@ public final class FeatureToggles {
     public static boolean isMinePredictEnabled() { return minePredict; }
 
     public static boolean toggleMinePredict() {
-        minePredict = !minePredict;
-        save();
+        setMinePredict(!minePredict);
         return minePredict;
     }
 
@@ -308,6 +309,9 @@ public final class FeatureToggles {
         if (minePredict == value) return;
         minePredict = value;
         save();
+        // Tell the server so it flips its side (speed-table stream, crack/effect
+        // suppression, completion grace) together with us. No-op when not connected.
+        com.aleks.ancientsmod.net.NetworkHandler.sendMinePredictState(value);
     }
 
     public static boolean isEnchantCollapseEnabled() { return enchantCollapse; }

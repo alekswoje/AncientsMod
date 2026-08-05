@@ -498,6 +498,44 @@ public final class Protocol {
     public static final byte MINING_SESSION_STATE_RUNNING = 1;
     public static final byte MINING_SESSION_STATE_STOPPED = 2;
 
+    /**
+     * Per-ore predicted break time + post-break replacement block for swing-time
+     * mine prediction. With this table the client starts the crack animation —
+     * and the ghost ore→replacement swap — the instant the player swings,
+     * instead of waiting one round trip for {@link #PKT_MINE_START}; that packet
+     * still follows per block and stays the authoritative reconciliation signal.
+     * Server sends it on predict-enable and at 1 Hz while a live mining window
+     * is active (so momentum / pickaxe-swap drift stays ≤ ~1s).
+     *
+     * <p>Wire after the type byte: {@code byte count; for each:
+     * varint+string oreId (Bukkit Material name); varint durationMs;
+     * varint+string replacementId (Bukkit Material name)}.
+     *
+     * <p>Byte 39 is free on BOTH the master/dev scheme (tops at 38) and the
+     * season2 scheme — same anchor strategy as {@link #PKT_MINING_SESSION}.
+     * Keep it that way on merge.
+     */
+    public static final byte PKT_MINE_SPEEDS = 39;
+
+    /** Hard cap on rows per mine-speeds snapshot (mirrors plugin). */
+    public static final int MAX_MINE_SPEED_ROWS = 32;
+    /** Max ore/replacement id (Bukkit Material name) length accepted on the wire. */
+    public static final int MINE_SPEED_MAX_ID_CHARS = 48;
+    /** Mine-speeds heartbeat is 1 Hz from the server; 5 absorbs jitter. */
+    public static final int RATE_MINE_SPEEDS_PER_SEC = 5;
+
+    /**
+     * S2C — the player's ClickLock on/off state (single state byte: 1=on, 0=off).
+     * ClickLock is server-driven (the server raycasts + mines without the attack
+     * key held), so while it's on the prediction engine keeps its server-paced
+     * crack alive on crosshair-targeting alone instead of the attack key. Sent on
+     * toggle, join restore, and predict-enable. Byte 40 is free on both the
+     * master and season2 server schemes — keep it that way on merge.
+     */
+    public static final byte PKT_CLICKLOCK_STATE = 40;
+    /** ClickLock state is a low-frequency keepalive — a handful per second is the ceiling. */
+    public static final int RATE_CLICKLOCK_STATE_PER_SEC = 5;
+
     // ── Cell Vault Terminal (S2C 41-44, C2S 137-144 — wire spec v1) ─────────
 
     /**
@@ -929,6 +967,15 @@ public final class Protocol {
     /** Max chars for the IANA zone id carried by {@link #PKT_CLIENT_TIMEZONE}. */
     public static final int CLIENT_TIMEZONE_MAX_CHARS = 64;
 
+    /** C2S — report whether the mod runs swing-time mine prediction (1=on, 0=off).
+     *  When on, the server streams {@link #PKT_MINE_SPEEDS}, suppresses its own
+     *  crack-stage stream + break particle/sound/fragment for this player's breaks
+     *  (the mod renders them locally), and grants a ping-bounded completion grace
+     *  on early retarget so predicted breaks confirm instead of rolling back. Sent
+     *  on join after the handshake and on every toggle flip. Byte 136 is free on
+     *  both the master and season2 server schemes — keep it that way on merge. */
+    public static final byte PKT_MINE_PREDICT_STATE = (byte) 136;
+
     // ── Cell Vault Terminal C2S (intent-only; the server resolves the sender
     //    from the connection — payloads carry indices only, never item identity
     //    or UUIDs; every mutating op is answered with a fresh PKT_CELLTERM_BUNDLE).
@@ -1114,6 +1161,8 @@ public final class Protocol {
     public static final int RATE_MINING_BLOCKS_PER_SEC = 5;
     /** Mining-session heartbeat — same 1 Hz shape as mining stats. */
     public static final int RATE_MINING_SESSION_PER_SEC = 5;
+    // NB: RATE_MINE_SPEEDS_PER_SEC / RATE_CLICKLOCK_STATE_PER_SEC live next to
+    // their packet ids above (PKT_MINE_SPEEDS / PKT_CLICKLOCK_STATE).
     /** Per-block-break + right-click. A meteorite is 200–300 blocks; cap at theoretical max mining cadence. */
     public static final int RATE_METEORITE_HUD_PER_SEC = 40;
     /** Buff snapshot is on-demand (only on /pickbuffs or refresh-button). */
@@ -1199,6 +1248,18 @@ public final class Protocol {
     public static final int MAX_MINE_DURATION_MS = 30_000;
     /** Predictions below this duration skip the crack ladder and fire an "insta-break" flash instead. */
     public static final int INSTA_BREAK_THRESHOLD_MS = 100;
+    /** Swing-time prediction only runs while the server has sent a PKT_MINE_START
+     *  within this window — keeps the engine quiet outside custom-mining areas
+     *  (cells, lobby) where a ghost swap would be wrong. */
+    public static final long MINE_PREDICT_ARMED_WINDOW_MS = 60_000L;
+    /** Floor / ceiling for the ghost-swap confirmation window (actual value is
+     *  2×latency + 500ms, clamped to this range). On timeout the swap rolls back. */
+    public static final long MINE_PREDICT_CONFIRM_MIN_MS = 600L;
+    public static final long MINE_PREDICT_CONFIRM_MAX_MS = 3_000L;
+    /** After a rollback (server disagreed — e.g. a meteorite block that stays put),
+     *  ghost swaps at that exact position are suppressed for this long; the crack
+     *  animation still predicts. */
+    public static final long MINE_PREDICT_POS_BLACKLIST_MS = 10_000L;
 
     private Protocol() {}
 }

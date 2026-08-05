@@ -126,6 +126,16 @@ public final class NetworkHandler {
                     MineCancelPayload p = MineCancelPayload.decode(buf);
                     MinePredictRenderer.onMineCancel(p.pos());
                 }
+                case Protocol.PKT_MINE_SPEEDS -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.MINE_SPEEDS)) return;
+                    com.aleks.ancientsmod.net.payload.MineSpeedsPayload p =
+                            com.aleks.ancientsmod.net.payload.MineSpeedsPayload.decode(buf);
+                    MinePredictRenderer.onSpeedTable(p);
+                }
+                case Protocol.PKT_CLICKLOCK_STATE -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.CLICKLOCK_STATE)) return;
+                    MinePredictRenderer.onClickLockState(buf.readByte() != 0);
+                }
                 case Protocol.PKT_GANG_PING -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.GANG_PING)) return;
                     GangPingPayload p = GangPingPayload.decode(buf);
@@ -475,6 +485,25 @@ public final class NetworkHandler {
             }));
         } catch (Throwable t) {
             AncientsMod.LOGGER.debug("send powerball state failed", t);
+        }
+    }
+
+    /**
+     * Report whether the mod runs swing-time mine prediction. When on, the
+     * server streams {@link Protocol#PKT_MINE_SPEEDS}, suppresses its own
+     * crack-stage stream + break particle/sound/fragment for this player's own
+     * breaks, and grants a ping-bounded completion grace on early retarget.
+     * Sent after the handshake on join and on every toggle change.
+     */
+    public static void sendMinePredictState(boolean on) {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            ClientPlayNetworking.send(new RawPayload(new byte[] {
+                    Protocol.PKT_MINE_PREDICT_STATE, (byte) (on ? 1 : 0)
+            }));
+        } catch (Throwable t) {
+            AncientsMod.LOGGER.debug("send mine predict state failed", t);
         }
     }
 
