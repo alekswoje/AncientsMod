@@ -73,6 +73,21 @@ public final class FeatureToggles {
     /** Show the draggable Outpost HUD (name, gang, capture % for all 5 outposts). */
     private static volatile boolean outpostHud = true;
 
+    /** Show the draggable Armor Durability HUD (uses left on each worn piece). Off by default — extra HUD clutter. */
+    private static volatile boolean armorDurabilityHud = false;
+
+    /** Show the draggable Clock HUD (your own local wall-clock time). Off by default — extra HUD clutter. */
+    private static volatile boolean clockHud = false;
+
+    /** Draw a slim saturation strip above the vanilla hunger bar. Off by default — extra HUD clutter. */
+    private static volatile boolean saturationOverlay = false;
+
+    /** Show the mining-speed summary line at the top of the {@code /buffs} screen. */
+    private static volatile boolean buffsMiningSpeed = true;
+
+    /** Show the daily-bonus summary line at the top of the {@code /buffs} screen. */
+    private static volatile boolean buffsDailyBonus = true;
+
     /** Check GitHub for a newer mod release on server join and alert (chat + toast + sound) once per session if one's out. */
     private static volatile boolean updateAlert = true;
 
@@ -114,6 +129,9 @@ public final class FeatureToggles {
 
     /** Intercept {@code /loottables} (and its {@code /loot} alias) and open the mod's searchable loot browser instead of the server chest GUI. Off = vanilla server menu. */
     private static volatile boolean lootBrowser = true;
+
+    /** Intercept a bare {@code /energycalc} and open the mod's gear-energy screen. {@code /energycalc <level>} always goes to the server. */
+    private static volatile boolean energyCalcUi = true;
 
     /** Hold-to-zoom on the {@link KeyBinds#ZOOM} key. Client-only, works on any server. */
     private static volatile boolean zoom = true;
@@ -192,6 +210,11 @@ public final class FeatureToggles {
             cooldownsHud = parseBool(props.getProperty("cooldownsHud"), cooldownsHud);
             statsHud   = parseBool(props.getProperty("statsHud"),   statsHud);
             outpostHud = parseBool(props.getProperty("outpostHud"), outpostHud);
+            armorDurabilityHud = parseBool(props.getProperty("armorDurabilityHud"), armorDurabilityHud);
+            clockHud = parseBool(props.getProperty("clockHud"), clockHud);
+            saturationOverlay = parseBool(props.getProperty("saturationOverlay"), saturationOverlay);
+            buffsMiningSpeed = parseBool(props.getProperty("buffsMiningSpeed"), buffsMiningSpeed);
+            buffsDailyBonus = parseBool(props.getProperty("buffsDailyBonus"), buffsDailyBonus);
             updateAlert = parseBool(props.getProperty("updateAlert"), updateAlert);
             bugReportUi = parseBool(props.getProperty("bugReportUi"), bugReportUi);
             suggestUi = parseBool(props.getProperty("suggestUi"), suggestUi);
@@ -201,6 +224,7 @@ public final class FeatureToggles {
             cellTerminal = parseBool(props.getProperty("cellTerminal"), cellTerminal);
             cellTermSortMode = clampSortMode(parseInt(props.getProperty("cellTermSortMode"), cellTermSortMode));
             lootBrowser = parseBool(props.getProperty("lootBrowser"), lootBrowser);
+            energyCalcUi = parseBool(props.getProperty("energyCalcUi"), energyCalcUi);
             zoom = parseBool(props.getProperty("zoom"), zoom);
             zoomFovPercent = clampZoomFovPercent(parseInt(props.getProperty("zoomFovPercent"), zoomFovPercent));
             riftTexturePack = parseBool(props.getProperty("riftTexturePack"), riftTexturePack);
@@ -235,6 +259,11 @@ public final class FeatureToggles {
         props.setProperty("cooldownsHud", Boolean.toString(cooldownsHud));
         props.setProperty("statsHud",   Boolean.toString(statsHud));
         props.setProperty("outpostHud", Boolean.toString(outpostHud));
+        props.setProperty("armorDurabilityHud", Boolean.toString(armorDurabilityHud));
+        props.setProperty("clockHud", Boolean.toString(clockHud));
+        props.setProperty("saturationOverlay", Boolean.toString(saturationOverlay));
+        props.setProperty("buffsMiningSpeed", Boolean.toString(buffsMiningSpeed));
+        props.setProperty("buffsDailyBonus", Boolean.toString(buffsDailyBonus));
         props.setProperty("updateAlert", Boolean.toString(updateAlert));
         props.setProperty("bugReportUi", Boolean.toString(bugReportUi));
         props.setProperty("suggestUi", Boolean.toString(suggestUi));
@@ -244,6 +273,7 @@ public final class FeatureToggles {
         props.setProperty("cellTerminal", Boolean.toString(cellTerminal));
         props.setProperty("cellTermSortMode", Integer.toString(cellTermSortMode));
         props.setProperty("lootBrowser", Boolean.toString(lootBrowser));
+        props.setProperty("energyCalcUi", Boolean.toString(energyCalcUi));
         props.setProperty("zoom", Boolean.toString(zoom));
         props.setProperty("zoomFovPercent", Integer.toString(zoomFovPercent));
         props.setProperty("riftTexturePack", Boolean.toString(riftTexturePack));
@@ -430,6 +460,46 @@ public final class FeatureToggles {
                 com.aleks.ancientsmod.client.hud.StatsHud.isMiningEffectivelyEnabled());
     }
 
+    public static boolean isArmorDurabilityHudEnabled() { return armorDurabilityHud; }
+
+    public static void setArmorDurabilityHud(boolean value) {
+        if (armorDurabilityHud == value) return;
+        armorDurabilityHud = value;
+        save();
+    }
+
+    public static boolean isClockHudEnabled() { return clockHud; }
+
+    public static void setClockHud(boolean value) {
+        if (clockHud == value) return;
+        clockHud = value;
+        save();
+    }
+
+    public static boolean isSaturationOverlayEnabled() { return saturationOverlay; }
+
+    public static void setSaturationOverlay(boolean value) {
+        if (saturationOverlay == value) return;
+        saturationOverlay = value;
+        save();
+    }
+
+    public static boolean isBuffsMiningSpeedEnabled() { return buffsMiningSpeed; }
+
+    public static void setBuffsMiningSpeed(boolean value) {
+        if (buffsMiningSpeed == value) return;
+        buffsMiningSpeed = value;
+        save();
+    }
+
+    public static boolean isBuffsDailyBonusEnabled() { return buffsDailyBonus; }
+
+    public static void setBuffsDailyBonus(boolean value) {
+        if (buffsDailyBonus == value) return;
+        buffsDailyBonus = value;
+        save();
+    }
+
     public static boolean isUpdateAlertEnabled() { return updateAlert; }
 
     public static void setUpdateAlert(boolean value) {
@@ -522,6 +592,14 @@ public final class FeatureToggles {
     public static void setLootBrowser(boolean value) {
         if (lootBrowser == value) return;
         lootBrowser = value;
+        save();
+    }
+
+    public static boolean isEnergyCalcUiEnabled() { return energyCalcUi; }
+
+    public static void setEnergyCalcUi(boolean value) {
+        if (energyCalcUi == value) return;
+        energyCalcUi = value;
         save();
     }
 

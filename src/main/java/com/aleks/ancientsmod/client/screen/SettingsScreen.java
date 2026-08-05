@@ -79,6 +79,12 @@ public final class SettingsScreen extends WidgetSettingsScreen {
                 FeatureToggles::isStatsHudEnabled, FeatureToggles::setStatsHud);
         addToggle("Show outpost HUD",
                 FeatureToggles::isOutpostHudEnabled, FeatureToggles::setOutpostHud);
+        addToggle("Show armor durability HUD",
+                FeatureToggles::isArmorDurabilityHudEnabled, FeatureToggles::setArmorDurabilityHud);
+        addToggle("Show clock HUD",
+                FeatureToggles::isClockHudEnabled, FeatureToggles::setClockHud);
+        addToggle("Show saturation over hunger bar",
+                FeatureToggles::isSaturationOverlayEnabled, FeatureToggles::setSaturationOverlay);
         addToggle("Show meteorite count on block",
                 FeatureToggles::isMeteoriteHudEnabled, FeatureToggles::setMeteoriteHud);
         addAction("Edit HUD positions...", () -> {

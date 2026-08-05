@@ -45,6 +45,12 @@ public final class AdvancedSettingsScreen extends WidgetSettingsScreen {
         addToggle("Block breakdown on pickaxes",
                 FeatureToggles::isPickaxeBlocksEnabled, FeatureToggles::setPickaxeBlocks);
 
+        addSection("Buffs Screen");
+        addToggle("Mining speed line in /buffs",
+                FeatureToggles::isBuffsMiningSpeedEnabled, FeatureToggles::setBuffsMiningSpeed);
+        addToggle("Daily bonus line in /buffs",
+                FeatureToggles::isBuffsDailyBonusEnabled, FeatureToggles::setBuffsDailyBonus);
+
         addSection("Custom Screens");
         addToggle("Bug-report UI on /bugreport",
                 FeatureToggles::isBugReportUiEnabled, FeatureToggles::setBugReportUi);
@@ -54,6 +60,8 @@ public final class AdvancedSettingsScreen extends WidgetSettingsScreen {
                 FeatureToggles::isPvTerminalAutoFocusSearchEnabled, FeatureToggles::setPvTerminalAutoFocusSearch);
         addToggle("Loot browser on /loottables",
                 FeatureToggles::isLootBrowserEnabled, FeatureToggles::setLootBrowser);
+        addToggle("Energy calculator on /energycalc",
+                FeatureToggles::isEnergyCalcUiEnabled, FeatureToggles::setEnergyCalcUi);
 
         addSection("Network");
         addToggle("Auto-rejoin after kick",

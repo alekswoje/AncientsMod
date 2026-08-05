@@ -11,10 +11,23 @@
 ## HUDs
 
 - Removed the dungeon timer HUD and the Tartarus Vision skill tree screen (dungeons are removed from the server next season)
+- New **Armor Durability** HUD showing the uses left on each worn piece, off by default
+- Armor Durability HUD can also track your held and offhand item, show percent instead of uses, and stay hidden until a piece drops below a chosen percent
+- New **Clock** HUD showing your own local time, off by default
+- Clock HUD supports 12 or 24 hour format, seconds, timezone and date
+- New **saturation strip** above the hunger bar, off by default
+- Events HUD now shows the **Mining Rush** timer by default
+- Events HUD has a **Skywars** row that fills in once the server starts sending that timer
+- Collapsed booster rows now count down to the **lowest** remaining time instead of the highest
 
 ## Rendering & Visuals
 
 ## UI & Screens
+
+- `/energycalc` now opens an in-game screen listing level, **next level energy cost** and banked energy for every Ancient item you hold or wear
+- `/energycalc <targetLevel>` still goes to the server for its full cost breakdown
+- `/buffs` now opens with a **mining speed** line showing your speed multiplier and blocks per second
+- `/buffs` now opens with a **daily bonus** line showing the bonus, its block cap and your progress
 
 ## Input & Keybinds
 
@@ -23,3 +36,5 @@
 ## Updates & Installation
 
 ## Quality of Life
+
+- Every new HUD, overlay and screen line has its own toggle in the settings screen

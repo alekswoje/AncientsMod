@@ -632,6 +632,17 @@ public final class Protocol {
     public static final byte EVENT_OUTPOST           = 10;
     public static final byte EVENT_CHAT_GAMES        = 11;
     public static final byte EVENT_METEORITE_SHOWER  = 12;
+    /**
+     * Skywars round timer. <b>Not emitted by PrisonsCore yet</b> — the server has a
+     * {@code SkywarsManager} with a working next-round clock that it already publishes
+     * to the cluster Redis map under the key {@code "skywars"}, but
+     * {@code EventTimerModBroadcaster} never reads that key and there is no matching
+     * server-side event byte. Byte 13 is the next free id on both the mod and the
+     * plugin enums, so this client wiring is dormant-but-ready: the Events HUD row
+     * simply never appears until the server starts sending it, and lights up with no
+     * mod release once it does.
+     */
+    public static final byte EVENT_SKYWARS           = 13;
 
     public static final byte EVENT_STATE_COUNTDOWN = 0;
     public static final byte EVENT_STATE_ACTIVE    = 1;

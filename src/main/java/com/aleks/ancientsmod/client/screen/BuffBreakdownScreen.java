@@ -418,7 +418,18 @@ public final class BuffBreakdownScreen extends Screen {
             return;
         }
 
-        int topY = PADDING + 24;
+        // At-a-glance strip: the two headline numbers players kept asking to see
+        // without drilling into a channel. Both are derived from the snapshot —
+        // nothing is invented client-side. Each is individually toggleable.
+        String summary = buildSummaryLine();
+        int summaryH = 0;
+        if (summary != null) {
+            ctx.drawCenteredTextWithShadow(textRenderer, Text.literal(summary),
+                    width / 2, PADDING + 12, GlassTheme.textDim());
+            summaryH = 11;
+        }
+
+        int topY = PADDING + 24 + summaryH;
         int contentBottom = height - PADDING - 30;
         int leftRailX = PADDING;
         int panelX = leftRailX + TAB_W + PADDING;
@@ -442,6 +453,90 @@ public final class BuffBreakdownScreen extends Screen {
 
         super.render(ctx, mouseX, mouseY, delta);
     }
+
+    // ── At-a-glance summary strip ──────────────────────────────────────────────
+
+    /**
+     * The one-line "mining speed · daily bonus" strip under the title, or null
+     * when both pieces are toggled off / absent from the snapshot.
+     */
+    private @Nullable String buildSummaryLine() {
+        List<String> parts = new ArrayList<>(2);
+        if (com.aleks.ancientsmod.client.FeatureToggles.isBuffsMiningSpeedEnabled()) {
+            String s = miningSpeedSummary();
+            if (s != null) parts.add(s);
+        }
+        if (com.aleks.ancientsmod.client.FeatureToggles.isBuffsDailyBonusEnabled()) {
+            String s = dailyBonusSummary();
+            if (s != null) parts.add(s);
+        }
+        return parts.isEmpty() ? null : String.join("   ·   ", parts);
+    }
+
+    /**
+     * Mining speed as a player-readable rate. The channel's own value is a bare
+     * break-speed multiplier, which says nothing on its own — so the blocks/sec
+     * span is computed from the per-ore break times the snapshot already carries
+     * ({@link BuffSnapshotPayload.OreYield#breakMs}, a real numeric field, not a
+     * parsed string). Null when the server didn't send the speed channel.
+     */
+    private @Nullable String miningSpeedSummary() {
+        if (snapshot == null) return null;
+        BuffSnapshotPayload.Channel ch = snapshot.channels.get(BuffSnapshotPayload.CH_MINING_SPEED);
+        if (ch == null) return null;
+
+        StringBuilder sb = new StringBuilder("Mining speed: ").append(formatX(ch.serverFinalValue));
+
+        double slowest = Double.MAX_VALUE, fastest = 0.0;
+        if (snapshot.oreYields != null) {
+            for (BuffSnapshotPayload.OreYield o : snapshot.oreYields) {
+                if (o.breakMs <= 0.0) continue;
+                double blocksPerSec = 1000.0 / o.breakMs;
+                slowest = Math.min(slowest, blocksPerSec);
+                fastest = Math.max(fastest, blocksPerSec);
+            }
+        }
+        if (fastest > 0.0) {
+            if (fastest - slowest < 0.05) {
+                sb.append(String.format(Locale.US, " · %.1f blocks/s", fastest));
+            } else {
+                sb.append(String.format(Locale.US, " · %.1f–%.1f blocks/s", slowest, fastest));
+            }
+        }
+        return sb.toString();
+    }
+
+    /**
+     * The {@code /daily} mining bonus, lifted out of whichever mining channel
+     * carries it. The server folds it into Mining XP / Energy / Shards / Ore as a
+     * layer labelled "Daily bonus" whose detail line already holds the cap and the
+     * player's progress, so this just surfaces the first match up top instead of
+     * making the player open a channel to find it. Null when no channel has it.
+     */
+    private @Nullable String dailyBonusSummary() {
+        if (snapshot == null) return null;
+        byte[] miningChannels = {
+                BuffSnapshotPayload.CH_MINING_XP,
+                BuffSnapshotPayload.CH_MINING_ENERGY,
+                BuffSnapshotPayload.CH_MINING_SHARDS,
+                BuffSnapshotPayload.CH_MINING_ORE,
+        };
+        for (byte id : miningChannels) {
+            BuffSnapshotPayload.Channel c = snapshot.channels.get(id);
+            if (c == null) continue;
+            for (BuffSnapshotPayload.Layer l : c.layers) {
+                if (!DAILY_BONUS_LABEL.equalsIgnoreCase(l.label)) continue;
+                StringBuilder sb = new StringBuilder("Daily bonus: ").append(formatSignedPct(l.value));
+                if (l.state != BuffSnapshotPayload.STATE_ACTIVE) sb.append(" (spent)");
+                if (l.detail != null && !l.detail.isEmpty()) sb.append(" · ").append(l.detail);
+                return sb.toString();
+            }
+        }
+        return null;
+    }
+
+    /** Layer label PrisonsCore uses for the {@code /daily} mining bonus. */
+    private static final String DAILY_BONUS_LABEL = "Daily bonus";
 
     private void renderLeftRail(DrawContext ctx, int x, int y, int w, int h, int mouseX, int mouseY) {
         GlassRender.roundedRectGrad(ctx, x, y, x + w, y + h, GlassRender.RADIUS, GlassTheme.panelTop(), GlassTheme.panelBot());

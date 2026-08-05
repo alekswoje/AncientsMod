@@ -6,7 +6,9 @@ import com.aleks.ancientsmod.client.pv.PvClient;
 import com.aleks.ancientsmod.client.suggest.SuggestClient;
 import com.aleks.ancientsmod.client.gangping.GangPingInput;
 import com.aleks.ancientsmod.client.gangping.GangPingManager;
+import com.aleks.ancientsmod.client.hud.ArmorDurabilityHud;
 import com.aleks.ancientsmod.client.hud.BoosterHud;
+import com.aleks.ancientsmod.client.hud.ClockHud;
 import com.aleks.ancientsmod.client.hud.CooldownsHud;
 import com.aleks.ancientsmod.client.hud.EventsHud;
 import com.aleks.ancientsmod.client.hud.HudPositions;
@@ -74,6 +76,7 @@ public final class AncientsModClient implements ClientModInitializer {
         SuggestClient.register();
         PvClient.register();
         com.aleks.ancientsmod.client.loot.LootClient.register();
+        com.aleks.ancientsmod.client.energycalc.EnergyCalcClient.register();
         UpdateInstaller.init();
 
         // HUD framework: register moveable widgets and the renderer hook.
@@ -82,7 +85,10 @@ public final class AncientsModClient implements ClientModInitializer {
         HudRegistry.register(CooldownsHud.INSTANCE);
         HudRegistry.register(StatsHud.INSTANCE);
         HudRegistry.register(OutpostHud.INSTANCE);
+        HudRegistry.register(ArmorDurabilityHud.INSTANCE);
+        HudRegistry.register(ClockHud.INSTANCE);
         HudRenderer.register();
+        SaturationOverlay.register();
         MeteoriteLabelRenderer.register();
         PowerballRenderer.register();
 

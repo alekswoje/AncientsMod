@@ -157,12 +157,19 @@ public final class BoosterHud extends HudElement {
 
             if (group.size() == expectedKinds && allMatching(group)) {
                 BoosterUpdatePayload.Entry first = group.get(0);
-                int longest = 0;
-                for (BoosterUpdatePayload.Entry e : group) longest = Math.max(longest, BoosterState.liveSecondsRemaining(e));
+                // Show the SHORTEST remaining time, not the longest. A collapsed
+                // row stands for "all N kinds at this multiplier"; that claim
+                // stops being true the moment the first one expires, so the row
+                // must count down to the soonest expiry. (Once it does expire the
+                // group no longer has all N kinds and the row splits back out
+                // into per-kind rows automatically.)
+                int shortest = Integer.MAX_VALUE;
+                for (BoosterUpdatePayload.Entry e : group) shortest = Math.min(shortest, BoosterState.liveSecondsRemaining(e));
+                if (shortest == Integer.MAX_VALUE) shortest = 0;
                 out.add(new Row(
                         collapsedLabelFor(source),
                         first.multiplier(),
-                        longest,
+                        shortest,
                         first.paused(),
                         collapsedColorFor(source),
                         source
