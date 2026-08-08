@@ -39,11 +39,19 @@ public final class JewelSockets {
     /** Source rect of one empty storage cell (with its bevel) in inventory.png. */
     private static final int SRC_U = 7, SRC_V = 83, CELL = 18;
 
-    /** Gap between the inventory panel's right edge and the socket column. */
-    private static final int PANEL_GAP = 4;
-    private static final int SLOT_GAP = 2;
+    /** Gap between the inventory panel and the socket frame. */
+    private static final int PANEL_GAP = 3;
+    /** Cells sit flush like the vanilla armour column — a gap reads as floating. */
+    private static final int SLOT_GAP = 0;
+    /** Panel border drawn around the cell column. */
+    private static final int FRAME = 4;
     /** Inset from the cell's top-left to its 16x16 content area. */
     private static final int CONTENT_INSET = 1;
+
+    // Vanilla GUI panel palette — the same three tones the inventory frame uses.
+    private static final int PANEL_FILL   = 0xFFC6C6C6;
+    private static final int PANEL_LIGHT  = 0xFFFFFFFF;
+    private static final int PANEL_SHADOW = 0xFF555555;
 
     private static final int[] RARITY_COLORS = {
             0xAAAAAA, 0x55FF55, 0x5555FF, 0xFFFF55,
@@ -77,13 +85,13 @@ public final class JewelSockets {
      * can't disagree about which side it's on.
      */
     private static int columnX(int panelX, int panelWidth) {
-        int left = panelX - PANEL_GAP - CELL;
-        if (left >= 0) return left;
-        int right = panelX + panelWidth + PANEL_GAP;
+        int left = panelX - PANEL_GAP - CELL - FRAME;
+        if (left >= FRAME) return left;
+        int right = panelX + panelWidth + PANEL_GAP + FRAME;
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc != null && mc.getWindow() != null
-                && right + CELL > mc.getWindow().getScaledWidth()) {
-            return Math.max(0, left);
+                && right + CELL + FRAME > mc.getWindow().getScaledWidth()) {
+            return Math.max(FRAME, left);
         }
         return right;
     }
@@ -109,12 +117,19 @@ public final class JewelSockets {
         return -1;
     }
 
-    /** Draws the socket column. Call at the tail of the inventory screen's render. */
+    /**
+     * Draws the socket column. Hooked to {@code afterBackground}, NOT
+     * {@code afterRender}: the screen paints the cursor stack at the very end
+     * of its own render, so drawing after that puts the sockets on top of a
+     * dragged item. Nothing else draws in this strip, so being early costs
+     * nothing and the held item correctly floats above.
+     */
     public static void render(DrawContext ctx, int panelX, int panelY, int panelWidth,
                               int mouseX, int mouseY) {
         if (!enabled()) return;
         List<JewelSlotsPayload.Slot> slots = JewelState.slots();
         int x = columnX(panelX, panelWidth);
+        drawFrame(ctx, x, columnY(panelY), CELL, slotsHeight(slots.size()));
 
         for (int i = 0; i < slots.size(); i++) {
             JewelSlotsPayload.Slot slot = slots.get(i);
@@ -177,7 +192,7 @@ public final class JewelSockets {
      * ours (so the screen shouldn't also treat it as a normal click).
      */
     public static boolean onClick(int panelX, int panelY, int panelWidth,
-                                  double mouseX, double mouseY) {
+                                  double mouseX, double mouseY, boolean shift) {
         int index = slotAt(panelX, panelY, panelWidth, mouseX, mouseY);
         if (index < 0) return false;
         List<JewelSlotsPayload.Slot> slots = JewelState.slots();
@@ -185,9 +200,10 @@ public final class JewelSockets {
         JewelSlotsPayload.Slot slot = slots.get(index);
         if (slot.isLocked()) return true; // eat the click, server would refuse anyway
 
+        // Plain click = vanilla slot semantics (take to cursor / put in / swap),
+        // resolved server-side. Shift-click sends it straight to the inventory.
         NetworkHandler.sendJewelSocketRequest(
-                slot.isFilled() ? Protocol.JEWEL_OP_UNSOCKET : Protocol.JEWEL_OP_SOCKET_CURSOR,
-                index);
+                shift ? Protocol.JEWEL_OP_UNSOCKET : Protocol.JEWEL_OP_SOCKET_CURSOR, index);
         return true;
     }
 
@@ -203,6 +219,26 @@ public final class JewelSockets {
         stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("minecraft", "jewel_" + RARITY_IDS[idx]));
         GEM_CACHE[idx] = stack;
         return stack;
+    }
+
+    private static int slotsHeight(int count) {
+        int n = Math.max(1, count);
+        return n * CELL + (n - 1) * SLOT_GAP;
+    }
+
+    /**
+     * Vanilla-style GUI panel behind the cells: flat fill, light top-left edge,
+     * dark bottom-right edge. Without it the cells float in space and read as
+     * an overlay rather than part of the screen.
+     */
+    private static void drawFrame(DrawContext ctx, int x, int y, int w, int h) {
+        int x0 = x - FRAME, y0 = y - FRAME;
+        int x1 = x + w + FRAME, y1 = y + h + FRAME;
+        ctx.fill(x0, y0, x1, y1, PANEL_FILL);
+        ctx.fill(x0, y0, x1, y0 + 1, PANEL_LIGHT);          // top
+        ctx.fill(x0, y0, x0 + 1, y1, PANEL_LIGHT);          // left
+        ctx.fill(x0, y1 - 1, x1, y1, PANEL_SHADOW);         // bottom
+        ctx.fill(x1 - 1, y0, x1, y1, PANEL_SHADOW);         // right
     }
 
     /** 7x9 padlock from primitive fills — matches the item-lock badge style. */

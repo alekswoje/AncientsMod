@@ -150,19 +150,27 @@ public final class AncientsModClient implements ClientModInitializer {
             if (!(screen instanceof net.minecraft.client.gui.screen.ingame.InventoryScreen)) return;
             com.aleks.ancientsmod.mixin.client.HandledScreenAccessor panel =
                     (com.aleks.ancientsmod.mixin.client.HandledScreenAccessor) screen;
-            ScreenEvents.afterRender(screen).register((s, ctx, mouseX, mouseY, delta) -> {
-                JewelSockets.render(ctx, panel.ancientsmod$panelX(), panel.ancientsmod$panelY(),
-                        panel.ancientsmod$panelWidth(), mouseX, mouseY);
-                JewelSockets.renderTooltip(ctx, panel.ancientsmod$panelX(), panel.ancientsmod$panelY(),
-                        panel.ancientsmod$panelWidth(), mouseX, mouseY);
-            });
+            // Cells go in afterBackground — the screen draws the cursor stack at
+            // the end of its own render, so drawing them afterwards puts the
+            // sockets ON TOP of an item being dragged. Nothing else paints in
+            // this strip, so early is safe.
+            ScreenEvents.afterBackground(screen).register((s, ctx, mouseX, mouseY, delta) ->
+                    JewelSockets.render(ctx, panel.ancientsmod$panelX(), panel.ancientsmod$panelY(),
+                            panel.ancientsmod$panelWidth(), mouseX, mouseY));
+            // The tooltip still wants to be last so it sits over everything.
+            ScreenEvents.afterRender(screen).register((s, ctx, mouseX, mouseY, delta) ->
+                    JewelSockets.renderTooltip(ctx, panel.ancientsmod$panelX(), panel.ancientsmod$panelY(),
+                            panel.ancientsmod$panelWidth(), mouseX, mouseY));
             net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents.allowMouseClick(screen)
                     .register((s, click) -> {
                         int button = click.button();
                         if (button != 0 && button != 1) return true;
+                        // GLFW_MOD_SHIFT — Screen.hasShiftDown() is gone in
+                        // 1.21.11, the Click record carries the modifiers now.
+                        boolean shift = (click.modifiers() & 0x0001) != 0;
                         // false = swallow the click, so the cursor stack isn't dropped.
                         return !JewelSockets.onClick(panel.ancientsmod$panelX(), panel.ancientsmod$panelY(),
-                                panel.ancientsmod$panelWidth(), click.x(), click.y());
+                                panel.ancientsmod$panelWidth(), click.x(), click.y(), shift);
                     });
         });
         // Watch system chat for rift queue state-change announcements so the
