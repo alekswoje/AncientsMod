@@ -23,7 +23,7 @@
 - Socketed jewels show their gem icon and their rarity colours the slot border
 - Locked jewel slots show a padlock and the prestige they need to unlock
 - Jewel Slots HUD can stack vertically, list the stats on each socketed jewel, and stay visible while every slot is empty
-- Your jewel sockets now appear in the **inventory screen** as three real slots down the right of the panel
+- Your jewel sockets now appear in the **inventory screen** as three real slots down the side of the panel
 - Pick a jewel up onto your cursor and click a socket to fit it, click a socketed jewel to take it back out
 - Hovering a socket shows the jewel and its stats, or the prestige a locked socket needs
 - The inventory sockets are drawn from your resource pack's own slot art, so they match whatever pack you use

@@ -161,6 +161,7 @@ public final class AncientsModClient implements ClientModInitializer {
             ScreenEvents.afterRender(screen).register((s, ctx, mouseX, mouseY, delta) ->
                     JewelSockets.renderTooltip(ctx, panel.ancientsmod$panelX(), panel.ancientsmod$panelY(),
                             panel.ancientsmod$panelWidth(), mouseX, mouseY));
+            JewelSockets.resetGesture();
             net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents.allowMouseClick(screen)
                     .register((s, click) -> {
                         int button = click.button();
@@ -172,6 +173,17 @@ public final class AncientsModClient implements ClientModInitializer {
                         return !JewelSockets.onClick(panel.ancientsmod$panelX(), panel.ancientsmod$panelY(),
                                 panel.ancientsmod$panelWidth(), click.x(), click.y(), shift);
                     });
+            // The release matters as much as the press: HandledScreen's
+            // "clicked outside the panel" drop (slot -999, PICKUP) lives in
+            // mouseReleased, so swallowing only the press still threw the
+            // cursor stack on the floor — and the resulting desync made the
+            // client replay the held-item equip animation.
+            net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents.allowMouseRelease(screen)
+                    .register((s, click) ->
+                            !JewelSockets.onRelease(panel.ancientsmod$panelX(), panel.ancientsmod$panelY(),
+                                    panel.ancientsmod$panelWidth(), click.x(), click.y()));
+            net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents.allowMouseDrag(screen)
+                    .register((s, click, dx, dy) -> !JewelSockets.onDrag());
         });
         // Watch system chat for rift queue state-change announcements so the
         // texture pack can pre-load during the queue wait rather than stalling

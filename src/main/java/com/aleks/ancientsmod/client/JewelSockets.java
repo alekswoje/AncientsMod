@@ -68,7 +68,24 @@ public final class JewelSockets {
 
     private static final ItemStack[] GEM_CACHE = new ItemStack[RARITY_IDS.length];
 
+    /**
+     * True while a press we swallowed is still waiting for its release.
+     *
+     * <p>HandledScreen puts the "clicked outside the inventory panel" drop in
+     * {@code mouseReleased}, not {@code mouseClicked} — so eating only the
+     * press still lets the release throw the cursor stack on the floor, and
+     * the resulting {@code slot -999} desync makes the client replay the
+     * held-item equip animation (which reads as the hand swinging). The
+     * gesture has to be swallowed end to end.
+     */
+    private static boolean pressSwallowed;
+
     private JewelSockets() {}
+
+    /** Drops any half-finished gesture. Called whenever a screen opens. */
+    public static void resetGesture() {
+        pressSwallowed = false;
+    }
 
     public static boolean enabled() {
         return ServerAllowlist.isAllowed()
@@ -102,6 +119,16 @@ public final class JewelSockets {
 
     private static int slotY(int panelY, int index) {
         return columnY(panelY) + index * (CELL + SLOT_GAP);
+    }
+
+    /** True when the pointer is anywhere on the widget, frame border included. */
+    public static boolean contains(int panelX, int panelY, int panelWidth, double mouseX, double mouseY) {
+        if (!enabled()) return false;
+        int x = columnX(panelX, panelWidth);
+        int y = columnY(panelY);
+        int h = slotsHeight(JewelState.slots().size());
+        return mouseX >= x - FRAME && mouseX < x + CELL + FRAME
+                && mouseY >= y - FRAME && mouseY < y + h + FRAME;
     }
 
     /** Slot index under the mouse, or -1. */
@@ -198,23 +225,51 @@ public final class JewelSockets {
     }
 
     /**
-     * Handles a click in the socket column. Returns true when the click was
+     * Handles a press in the socket column. Returns true when the press was
      * ours (so the screen shouldn't also treat it as a normal click).
+     *
+     * <p>The whole widget is claimed, frame border included and whatever the
+     * cursor happens to be holding: to the screen underneath this strip is
+     * "outside the inventory", so any press that gets through is a request to
+     * bin the cursor stack. A click that can't do anything has to end up doing
+     * nothing rather than falling through.
      */
     public static boolean onClick(int panelX, int panelY, int panelWidth,
                                   double mouseX, double mouseY, boolean shift) {
+        if (!contains(panelX, panelY, panelWidth, mouseX, mouseY)) return false;
+        pressSwallowed = true;
+
         int index = slotAt(panelX, panelY, panelWidth, mouseX, mouseY);
-        if (index < 0) return false;
+        if (index < 0) return true;                        // on the frame, not a cell
         List<JewelSlotsPayload.Slot> slots = JewelState.slots();
-        if (index >= slots.size()) return false;
-        JewelSlotsPayload.Slot slot = slots.get(index);
-        if (slot.isLocked()) return true; // eat the click, server would refuse anyway
+        if (index >= slots.size()) return true;
+        if (slots.get(index).isLocked()) return true;      // server would refuse anyway
 
         // Plain click = vanilla slot semantics (take to cursor / put in / swap),
-        // resolved server-side. Shift-click sends it straight to the inventory.
+        // resolved server-side — it re-reads the cursor and ignores anything
+        // that isn't a jewel. Shift-click sends it straight to the inventory.
         NetworkHandler.sendJewelSocketRequest(
                 shift ? Protocol.JEWEL_OP_UNSOCKET : Protocol.JEWEL_OP_SOCKET_CURSOR, index);
         return true;
+    }
+
+    /**
+     * Whether the screen should be kept out of this release. Pairs with the
+     * swallowed press wherever the pointer ended up — dragging off the widget
+     * mid-click must not turn into a drop either.
+     */
+    public static boolean onRelease(int panelX, int panelY, int panelWidth,
+                                    double mouseX, double mouseY) {
+        if (pressSwallowed) {
+            pressSwallowed = false;
+            return true;
+        }
+        return contains(panelX, panelY, panelWidth, mouseX, mouseY);
+    }
+
+    /** Drags belonging to a swallowed press — keeps quick-craft from starting. */
+    public static boolean onDrag() {
+        return pressSwallowed;
     }
 
     private static int clampOrdinal(int ordinal) {
