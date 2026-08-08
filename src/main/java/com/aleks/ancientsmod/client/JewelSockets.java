@@ -204,8 +204,10 @@ public final class JewelSockets {
             int ord = clampOrdinal(slot.rarityOrdinal());
             String name = RARITY_NAMES[ord] + " " + slot.familyName() + " Jewel";
             lines.add(Text.literal(name).withColor(RARITY_COLORS[ord]));
+            // Server-authored lore, colours intact — the tier badge is
+            // colour-coded, so repainting the line one flat green loses it.
             for (String stat : slot.statLines()) {
-                lines.add(Text.literal(stat).formatted(Formatting.GREEN));
+                lines.add(LegacyText.parse(stat));
             }
             lines.add(Text.literal("Click to unsocket").formatted(Formatting.YELLOW));
         } else {

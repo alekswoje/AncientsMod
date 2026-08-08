@@ -393,7 +393,8 @@ public final class Protocol {
     public static final int MAX_JEWEL_SLOTS = 3;
     public static final int MAX_JEWEL_STATS = 3;
     public static final int JEWEL_MAX_FAMILY_CHARS = 24;
-    public static final int JEWEL_MAX_STAT_CHARS = 64;
+    /** Stat lines arrive with their colour codes. Must match the server's cap. */
+    public static final int JEWEL_MAX_STAT_CHARS = 96;
     public static final int RATE_JEWEL_SLOTS_PER_SEC = 5;
 
     /**

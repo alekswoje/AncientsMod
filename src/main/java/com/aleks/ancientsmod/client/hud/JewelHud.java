@@ -165,8 +165,13 @@ public final class JewelHud extends HudElement {
         if (captions.isEmpty()) return;
         int y = slotsHeight() + 2;
         for (String line : captions) {
+            // Requirement captions are ours and plain; stat lines are the
+            // server's lore, so they keep their own colours (tier badge
+            // included) and STAT_COLOR is only the fallback.
             boolean requirement = line.startsWith("Slot ");
-            ctx.drawText(fr, Text.literal(line), 0, y, requirement ? CAPTION_COLOR : STAT_COLOR, true);
+            ctx.drawText(fr, requirement ? Text.literal(line)
+                            : com.aleks.ancientsmod.client.LegacyText.parse(line),
+                    0, y, requirement ? CAPTION_COLOR : STAT_COLOR, true);
             y += 9;
         }
     }
