@@ -170,8 +170,14 @@ public final class AncientsModClient implements ClientModInitializer {
                         // 1.21.11, the Click record carries the modifiers now.
                         boolean shift = (click.modifiers() & 0x0001) != 0;
                         // false = swallow the click, so the cursor stack isn't dropped.
-                        return !JewelSockets.onClick(panel.ancientsmod$panelX(), panel.ancientsmod$panelY(),
-                                panel.ancientsmod$panelWidth(), click.x(), click.y(), shift);
+                        if (JewelSockets.onClick(panel.ancientsmod$panelX(), panel.ancientsmod$panelY(),
+                                panel.ancientsmod$panelWidth(), click.x(), click.y(), shift)) {
+                            return false;
+                        }
+                        // Shift-click a jewel in the bag: straight into the
+                        // first free socket rather than the usual hotbar shuffle.
+                        return !(shift && button == 0
+                                && JewelSockets.onInventoryShiftClick(panel, click.x(), click.y()));
                     });
             // The release matters as much as the press: HandledScreen's
             // "clicked outside the panel" drop (slot -999, PICKUP) lives in
