@@ -432,6 +432,18 @@ public final class Protocol {
     public static final int JEWEL_STATE_FILLED = 2;
 
     /**
+     * C2S — the inventory-screen jewel sockets asking to socket the cursor
+     * stack into a slot, or to take the jewel in a slot back out. Body:
+     * {@code op} then the slot index.
+     *
+     * <p>Intent only: the server reads the cursor itself and re-runs every
+     * gate, so this can never socket something the player isn't holding.
+     */
+    public static final byte PKT_JEWEL_SOCKET_REQ = (byte) 147;
+    public static final byte JEWEL_OP_SOCKET_CURSOR = 0;
+    public static final byte JEWEL_OP_UNSOCKET = 1;
+
+    /**
      * One chunk of the loot-browser catalog snapshot (server → mod), pushed in
      * response to {@link #PKT_LOOT_REQ} and again on {@code /loottablesplit
      * reload} or a fresh discovery. The full body is split into ordered chunks;

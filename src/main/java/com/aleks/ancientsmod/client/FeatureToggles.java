@@ -84,6 +84,9 @@ public final class FeatureToggles {
     /** Show the jewel sockets as extra hotbar-style slots. On by default — it mirrors real gear state. */
     private static volatile boolean jewelHud = true;
 
+    /** Add the jewel sockets to the inventory screen so jewels can be clicked in and out. On by default. */
+    private static volatile boolean jewelSockets = true;
+
     /** Draw a slim saturation strip above the vanilla hunger bar. Off by default — extra HUD clutter. */
     private static volatile boolean saturationOverlay = false;
 
@@ -218,6 +221,7 @@ public final class FeatureToggles {
             armorDurabilityHud = parseBool(props.getProperty("armorDurabilityHud"), armorDurabilityHud);
             clockHud = parseBool(props.getProperty("clockHud"), clockHud);
             jewelHud = parseBool(props.getProperty("jewelHud"), jewelHud);
+            jewelSockets = parseBool(props.getProperty("jewelSockets"), jewelSockets);
             saturationOverlay = parseBool(props.getProperty("saturationOverlay"), saturationOverlay);
             buffsMiningSpeed = parseBool(props.getProperty("buffsMiningSpeed"), buffsMiningSpeed);
             buffsDailyBonus = parseBool(props.getProperty("buffsDailyBonus"), buffsDailyBonus);
@@ -268,6 +272,7 @@ public final class FeatureToggles {
         props.setProperty("armorDurabilityHud", Boolean.toString(armorDurabilityHud));
         props.setProperty("clockHud", Boolean.toString(clockHud));
         props.setProperty("jewelHud", Boolean.toString(jewelHud));
+        props.setProperty("jewelSockets", Boolean.toString(jewelSockets));
         props.setProperty("saturationOverlay", Boolean.toString(saturationOverlay));
         props.setProperty("buffsMiningSpeed", Boolean.toString(buffsMiningSpeed));
         props.setProperty("buffsDailyBonus", Boolean.toString(buffsDailyBonus));
@@ -498,6 +503,14 @@ public final class FeatureToggles {
     public static void setJewelHud(boolean value) {
         if (jewelHud == value) return;
         jewelHud = value;
+        save();
+    }
+
+    public static boolean isJewelSocketsEnabled() { return jewelSockets; }
+
+    public static void setJewelSockets(boolean value) {
+        if (jewelSockets == value) return;
+        jewelSockets = value;
         save();
     }
 

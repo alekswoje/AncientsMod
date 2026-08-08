@@ -507,6 +507,24 @@ public final class NetworkHandler {
      * breaks, and grants a ping-bounded completion grace on early retarget.
      * Sent after the handshake on join and on every toggle change.
      */
+    /**
+     * Ask the server to socket the cursor stack into a jewel slot, or to take
+     * the jewel in one back out. Fired by the inventory-screen sockets; the
+     * server re-validates everything and answers with a fresh
+     * {@link Protocol#PKT_JEWEL_SLOTS} either way, so a refused click resyncs.
+     */
+    public static void sendJewelSocketRequest(byte op, int slot) {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            ClientPlayNetworking.send(new RawPayload(new byte[] {
+                    Protocol.PKT_JEWEL_SOCKET_REQ, op, (byte) (slot & 0xFF)
+            }));
+        } catch (Throwable t) {
+            AncientsMod.LOGGER.debug("send jewel socket request failed", t);
+        }
+    }
+
     public static void sendMinePredictState(boolean on) {
         if (!ServerAllowlist.isAllowed()) return;
         if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
