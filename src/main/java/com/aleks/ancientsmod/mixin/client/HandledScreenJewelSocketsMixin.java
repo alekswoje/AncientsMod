@@ -32,15 +32,9 @@ public abstract class HandledScreenJewelSocketsMixin {
         return (Object) this instanceof InventoryScreen;
     }
 
-    @Inject(method = "render", at = @At("TAIL"))
-    private void ancientsmod$renderJewelSockets(DrawContext ctx, int mouseX, int mouseY,
-                                                float delta, CallbackInfo ci) {
-        if (!ancientsmod$isInventory()) return;
-        JewelSockets.render(ctx, x, y, backgroundWidth, mouseX, mouseY);
-        // After the cells so it layers above them, and after the screen's own
-        // render so it isn't painted over by the item tooltip pass.
-        JewelSockets.renderTooltip(ctx, x, y, backgroundWidth, mouseX, mouseY);
-    }
+    // Rendering lives in InventoryScreenJewelRenderMixin — a TAIL inject here
+    // draws before InventoryScreen paints its own layer on top. Clicks stay
+    // here because InventoryScreen doesn't override mouseClicked.
 
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
     private void ancientsmod$clickJewelSockets(Click click, boolean doubled,

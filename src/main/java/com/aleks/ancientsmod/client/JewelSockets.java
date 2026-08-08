@@ -69,17 +69,21 @@ public final class JewelSockets {
     }
 
     /**
-     * Column origin: hugging the right edge of the inventory panel, flipping to
-     * the left edge when the right would run off-screen (small window / large
-     * GUI scale). Every caller goes through this so hit-testing and rendering
+     * Column origin: the LEFT of the inventory panel by default. The right side
+     * is where the screen stacks its status-effect widgets, so parking there
+     * means the sockets sit under a Dolphin's Grace icon the moment the player
+     * drinks anything. Falls back to the right edge only if the left would run
+     * off-screen. Every caller goes through this, so hit-testing and rendering
      * can't disagree about which side it's on.
      */
     private static int columnX(int panelX, int panelWidth) {
+        int left = panelX - PANEL_GAP - CELL;
+        if (left >= 0) return left;
         int right = panelX + panelWidth + PANEL_GAP;
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc != null && mc.getWindow() != null
                 && right + CELL > mc.getWindow().getScaledWidth()) {
-            return Math.max(0, panelX - PANEL_GAP - CELL);
+            return Math.max(0, left);
         }
         return right;
     }

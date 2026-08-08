@@ -13,6 +13,11 @@ public final class JewelState {
 
     public static void update(JewelSlotsPayload payload) {
         slots = payload.slots();
+        // Pushes are rare (join, handshake, socket changes, prestige), so this
+        // is a couple of lines a session and makes "is the HUD empty or is the
+        // packet missing?" answerable straight from the client log.
+        com.aleks.ancientsmod.AncientsMod.LOGGER.info("AncientsMod: jewel slots updated ({} slots)",
+                slots.size());
     }
 
     public static List<JewelSlotsPayload.Slot> slots() {

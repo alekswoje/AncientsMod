@@ -15,6 +15,7 @@
     "client.GameRendererZoomMixin",
     "client.HandledScreenItemLockMixin",
     "client.HandledScreenJewelSocketsMixin",
+    "client.InventoryScreenJewelRenderMixin",
     "client.HandledScreenLockKeyMixin",
     "client.HandledScreenSlotOverlayMixin",
     "client.HandledScreenTooltipSuppressMixin",
