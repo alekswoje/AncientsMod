@@ -337,6 +337,12 @@ public final class NetworkHandler {
                     OutpostStatePayload p = OutpostStatePayload.decode(buf);
                     OutpostState.update(p);
                 }
+                case Protocol.PKT_JEWEL_SLOTS -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.JEWEL_SLOTS)) return;
+                    com.aleks.ancientsmod.net.payload.JewelSlotsPayload p =
+                            com.aleks.ancientsmod.net.payload.JewelSlotsPayload.decode(buf);
+                    com.aleks.ancientsmod.client.hud.JewelState.update(p);
+                }
                 case Protocol.PKT_LOOT_SNAPSHOT_CHUNK -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.LOOT_CHUNK)) return;
                     int version = buf.readInt();

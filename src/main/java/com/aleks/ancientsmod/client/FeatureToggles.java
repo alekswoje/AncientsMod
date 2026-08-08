@@ -81,6 +81,9 @@ public final class FeatureToggles {
     /** Show the draggable Clock HUD (your own local wall-clock time). Off by default — extra HUD clutter. */
     private static volatile boolean clockHud = false;
 
+    /** Show the jewel sockets as extra hotbar-style slots. On by default — it mirrors real gear state. */
+    private static volatile boolean jewelHud = true;
+
     /** Draw a slim saturation strip above the vanilla hunger bar. Off by default — extra HUD clutter. */
     private static volatile boolean saturationOverlay = false;
 
@@ -214,6 +217,7 @@ public final class FeatureToggles {
             outpostHud = parseBool(props.getProperty("outpostHud"), outpostHud);
             armorDurabilityHud = parseBool(props.getProperty("armorDurabilityHud"), armorDurabilityHud);
             clockHud = parseBool(props.getProperty("clockHud"), clockHud);
+            jewelHud = parseBool(props.getProperty("jewelHud"), jewelHud);
             saturationOverlay = parseBool(props.getProperty("saturationOverlay"), saturationOverlay);
             buffsMiningSpeed = parseBool(props.getProperty("buffsMiningSpeed"), buffsMiningSpeed);
             buffsDailyBonus = parseBool(props.getProperty("buffsDailyBonus"), buffsDailyBonus);
@@ -263,6 +267,7 @@ public final class FeatureToggles {
         props.setProperty("outpostHud", Boolean.toString(outpostHud));
         props.setProperty("armorDurabilityHud", Boolean.toString(armorDurabilityHud));
         props.setProperty("clockHud", Boolean.toString(clockHud));
+        props.setProperty("jewelHud", Boolean.toString(jewelHud));
         props.setProperty("saturationOverlay", Boolean.toString(saturationOverlay));
         props.setProperty("buffsMiningSpeed", Boolean.toString(buffsMiningSpeed));
         props.setProperty("buffsDailyBonus", Boolean.toString(buffsDailyBonus));
@@ -485,6 +490,14 @@ public final class FeatureToggles {
     public static void setClockHud(boolean value) {
         if (clockHud == value) return;
         clockHud = value;
+        save();
+    }
+
+    public static boolean isJewelHudEnabled() { return jewelHud; }
+
+    public static void setJewelHud(boolean value) {
+        if (jewelHud == value) return;
+        jewelHud = value;
         save();
     }
 

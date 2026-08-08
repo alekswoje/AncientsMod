@@ -376,6 +376,33 @@ public final class Protocol {
     // servers never disagree on packet identity.
 
     /**
+     * The player's three jewel sockets (server → mod), driving the jewel-slot
+     * HUD. Pushed on join, on every socket mutation (equip / unequip / death
+     * roll / wipe) and on prestige-up, since prestige is what unlocks slots 2
+     * and 3.
+     *
+     * <p>Body: {@code count}, then per slot {@code state}
+     * ({@link #JEWEL_STATE_LOCKED} / {@link #JEWEL_STATE_EMPTY} /
+     * {@link #JEWEL_STATE_FILLED}), {@code requiredPrestige}, {@code
+     * rarityOrdinal}, {@code familyName}, {@code statCount} and that many stat
+     * lines. Every field is present for every slot regardless of state.
+     *
+     * <p>Byte 51 is the first free id above the reserved block (28-30, 46, 50).
+     */
+    public static final byte PKT_JEWEL_SLOTS = 51;
+    public static final int MAX_JEWEL_SLOTS = 3;
+    public static final int MAX_JEWEL_STATS = 3;
+    public static final int JEWEL_MAX_FAMILY_CHARS = 24;
+    public static final int JEWEL_MAX_STAT_CHARS = 64;
+    public static final int RATE_JEWEL_SLOTS_PER_SEC = 5;
+    /** Slot is not unlocked yet — {@code requiredPrestige} says what it wants. */
+    public static final int JEWEL_STATE_LOCKED = 0;
+    /** Unlocked, nothing socketed. */
+    public static final int JEWEL_STATE_EMPTY = 1;
+    /** Holds a jewel — {@code rarityOrdinal} and the stat lines are populated. */
+    public static final int JEWEL_STATE_FILLED = 2;
+
+    /**
      * One chunk of the loot-browser catalog snapshot (server → mod), pushed in
      * response to {@link #PKT_LOOT_REQ} and again on {@code /loottablesplit
      * reload} or a fresh discovery. The full body is split into ordered chunks;

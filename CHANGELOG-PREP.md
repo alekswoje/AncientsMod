@@ -19,6 +19,10 @@
 - Events HUD now shows the **Mining Rush** timer by default
 - Events HUD has a **Skywars** row that fills in once the server starts sending that timer
 - Collapsed booster rows now count down to the **lowest** remaining time instead of the highest
+- New **Jewel Slots** HUD showing your three jewel sockets as extra hotbar style slots, next to the hotbar by default
+- Socketed jewels show their gem icon and their rarity colours the slot border
+- Locked jewel slots show a padlock and the prestige they need to unlock
+- Jewel Slots HUD can stack vertically, list the stats on each socketed jewel, and stay visible while every slot is empty
 
 ## Rendering & Visuals
 
