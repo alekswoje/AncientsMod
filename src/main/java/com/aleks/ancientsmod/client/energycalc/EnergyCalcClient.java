@@ -17,7 +17,9 @@ import java.util.Locale;
  * with arguments passes straight through and still answers in chat. Same
  * bare-command-only rule as {@code PvClient} and {@code LootClient}.
  *
- * <p>No packet is involved: the screen reads the player's own items.
+ * <p>The screen reads the player's own items for its live rows, and requests the
+ * server-priced gear/pickaxe reference table ({@code PKT_ENERGY_REFERENCE_REQ}) for the
+ * cost curves and the prestige ladder, which are not derivable client-side.
  */
 public final class EnergyCalcClient {
 

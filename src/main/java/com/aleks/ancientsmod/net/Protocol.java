@@ -395,6 +395,35 @@ public final class Protocol {
     public static final int JEWEL_MAX_FAMILY_CHARS = 24;
     public static final int JEWEL_MAX_STAT_CHARS = 64;
     public static final int RATE_JEWEL_SLOTS_PER_SEC = 5;
+
+    /**
+     * The gear/pickaxe energy reference table, priced from live server config. Sent only
+     * in reply to {@link #PKT_ENERGY_REFERENCE_REQ} — it is a few KB and only the energy
+     * calculator screen consumes it.
+     *
+     * <p>Everything here is server-authoritative on purpose: the upgrade coefficients,
+     * exponents, gear max levels and prestige ladder all live in server config and get
+     * re-tuned, so the client must never reconstruct them.
+     *
+     * <p>Wire format after the type byte:
+     * <pre>
+     *   byte    energyTaxPercent            // 0-100
+     *   varint  gearTierCount
+     *     string label; varint maxLevel; varint curveLen; varlong cumulative[curveLen]
+     *   varint  pickTierCount
+     *     string label
+     *     varint curveLen;   { varint level; varlong cumulative }
+     *     varint ladderLen;  { varint prestige; varlong energy; string oreLabel; varlong oreCount }
+     * </pre>
+     */
+    public static final byte PKT_ENERGY_REFERENCE = 52;
+    public static final int RATE_ENERGY_REFERENCE_PER_SEC = 4;
+    /** Cap on label strings inside the reference table (mirrors plugin). */
+    public static final int ENERGY_REF_MAX_LABEL_CHARS = 32;
+    /** Bounds — decode drops anything larger rather than allocating on a hostile count. */
+    public static final int ENERGY_REF_MAX_TIERS = 16;
+    public static final int ENERGY_REF_MAX_CURVE = 256;
+    public static final int ENERGY_REF_MAX_LADDER = 32;
     /** Slot is not unlocked yet — {@code requiredPrestige} says what it wants. */
     public static final int JEWEL_STATE_LOCKED = 0;
     /** Unlocked, nothing socketed. */
@@ -1074,6 +1103,11 @@ public final class Protocol {
      *  to {@link #PKT_RIFT_PRELOAD}, echoing its {@code int requestId}. Byte 145 is
      *  free on dev/master and season2 alike. Wire: {@code int requestId}. */
     public static final byte PKT_RIFT_READY = (byte) 145;
+
+    /** C2S — "the energy calculator screen just opened; send me the reference table."
+     *  Intent only, no payload; the server rate-limits it to 1Hz. Reply is one
+     *  {@link #PKT_ENERGY_REFERENCE}. */
+    public static final byte PKT_ENERGY_REFERENCE_REQ = (byte) 146;
 
     // --- Hard size caps (wire-level) ---
     /** Maximum bytes for any single cosmetic S2C payload. Larger packets are dropped. */

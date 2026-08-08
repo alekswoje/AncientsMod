@@ -343,6 +343,12 @@ public final class NetworkHandler {
                             com.aleks.ancientsmod.net.payload.JewelSlotsPayload.decode(buf);
                     com.aleks.ancientsmod.client.hud.JewelState.update(p);
                 }
+                case Protocol.PKT_ENERGY_REFERENCE -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.ENERGY_REFERENCE)) return;
+                    com.aleks.ancientsmod.net.payload.EnergyReferencePayload p =
+                            com.aleks.ancientsmod.net.payload.EnergyReferencePayload.decode(buf);
+                    com.aleks.ancientsmod.client.energycalc.EnergyReferenceState.update(p);
+                }
                 case Protocol.PKT_LOOT_SNAPSHOT_CHUNK -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.LOOT_CHUNK)) return;
                     int version = buf.readInt();
@@ -542,6 +548,21 @@ public final class NetworkHandler {
             ClientPlayNetworking.send(new RawPayload(new byte[] { Protocol.PKT_BUFF_REFRESH_REQ }));
         } catch (Throwable t) {
             AncientsMod.LOGGER.debug("send buff refresh failed", t);
+        }
+    }
+
+    /**
+     * Ask for the gear/pickaxe energy reference table. Intent only — the server prices the
+     * table itself and rate-limits the request to 1Hz. Sent when the energy calculator
+     * screen opens.
+     */
+    public static void sendEnergyReferenceRequest() {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            ClientPlayNetworking.send(new RawPayload(new byte[] { Protocol.PKT_ENERGY_REFERENCE_REQ }));
+        } catch (Throwable t) {
+            AncientsMod.LOGGER.debug("send energy reference request failed", t);
         }
     }
 

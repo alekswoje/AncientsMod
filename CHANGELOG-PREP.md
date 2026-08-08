@@ -36,6 +36,9 @@
 ## UI & Screens
 
 - `/energycalc` now opens an in-game screen listing level, **next level energy cost** and banked energy for every Ancient item you hold or wear
+- The `/energycalc` screen has a **Gear Tiers** tab showing the max level and the total energy to max a fresh piece of every tier
+- The `/energycalc` screen has a **Pickaxe Prestige** tab showing the energy and blocks each prestige step needs, for every pickaxe tier
+- The **To max** column now fills in, showing the energy left on the piece you are wearing and the next prestige cost on the pickaxe you hold
 - `/energycalc <targetLevel>` still goes to the server for its full cost breakdown
 - `/buffs` now opens with a **mining speed** line showing your speed multiplier and blocks per second
 - `/buffs` now opens with a **daily bonus** line showing the bonus, its block cap and your progress

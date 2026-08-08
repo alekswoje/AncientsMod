@@ -19,13 +19,16 @@ import org.jetbrains.annotations.Nullable;
  * the same trick {@code PickaxeBlocksTooltip} uses for the ore tally.
  *
  * <h2>What is deliberately absent</h2>
- * The server never puts the <i>cost curve</i> on the item, only the next step of
- * it. So {@link #energyToNextLevel} is real, but "total energy to max", the pickaxe
- * prestige energy ladder and the prestige ore requirements are not readable here
- * and must not be reconstructed client-side — the coefficients live in
- * {@code config/gear.yml} + {@code config/economy.yml} and get re-tuned. Those
- * figures stay blank until the server sends them; see
- * {@link EnergyCalcScreen} for the fields it would take.
+ * The server never puts the <i>cost curve</i> on the item, only the next step of it. So
+ * {@link #energyToNextLevel} is real, but "total energy to max", the pickaxe prestige
+ * energy ladder and the prestige ore requirements are not readable here and must not be
+ * reconstructed client-side — the coefficients live in {@code config/gear.yml} +
+ * {@code config/economy.yml} and get re-tuned.
+ *
+ * <p>Those figures now arrive separately, as the server-priced reference table in
+ * {@link EnergyReferenceState} ({@code PKT_ENERGY_REFERENCE}). {@link EnergyCalcScreen}
+ * joins the two: this record supplies the item's level, the table supplies its tier's
+ * cost curve, and subtracting gives what is left to pay.
  */
 public record AncientItemStats(
         String displayName,
@@ -53,10 +56,12 @@ public record AncientItemStats(
     private static final String KEY_MAX_OVERRIDE   = "prisonscore:item_max_ancient_level";
 
     /**
-     * Optional total-energy-to-max key. <b>PrisonsCore does not write this today</b>
-     * — it is the cheapest of the two ways to close the gap (the other being a new
-     * {@code prisonsmod:v1} packet), and reading for it now means a one-line server
-     * change lights the column up with no mod release. Absent = column reads "—".
+     * Optional per-item total-energy-to-max key. PrisonsCore does not write it — the
+     * reference table ({@code PKT_ENERGY_REFERENCE}) covers the same ground for every
+     * tier at once. Kept as a read because it is a strictly better source when present:
+     * it would be correct even for an item whose cap is not its tier's (a level-capped
+     * quest gift, or a piece carrying bonus enchant slots), which the tier curve cannot
+     * price. Absent = the screen falls back to the tier curve.
      */
     private static final String KEY_ENERGY_TO_MAX  = "prisonscore:prisons_energy_to_max";
 
