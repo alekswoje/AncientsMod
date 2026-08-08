@@ -140,6 +140,31 @@ public final class AncientsModClient implements ClientModInitializer {
         // Auto-rejoin overlay: attach a per-screen render callback whenever the
         // vanilla DisconnectedScreen is opened.
         ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> AutoRejoinManager.onScreenInit(screen));
+        // Jewel sockets in the survival inventory. Deliberately the Fabric
+        // screen API rather than a mixin on render: afterRender fires after the
+        // screen has drawn everything (status effects, recipe book included),
+        // so the sockets can't be painted over — a TAIL inject on
+        // HandledScreen#render was, and shadowing InventoryScreen's inherited
+        // layout fields fails outright. Panel geometry comes from an accessor.
+        ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> {
+            if (!(screen instanceof net.minecraft.client.gui.screen.ingame.InventoryScreen)) return;
+            com.aleks.ancientsmod.mixin.client.HandledScreenAccessor panel =
+                    (com.aleks.ancientsmod.mixin.client.HandledScreenAccessor) screen;
+            ScreenEvents.afterRender(screen).register((s, ctx, mouseX, mouseY, delta) -> {
+                JewelSockets.render(ctx, panel.ancientsmod$panelX(), panel.ancientsmod$panelY(),
+                        panel.ancientsmod$panelWidth(), mouseX, mouseY);
+                JewelSockets.renderTooltip(ctx, panel.ancientsmod$panelX(), panel.ancientsmod$panelY(),
+                        panel.ancientsmod$panelWidth(), mouseX, mouseY);
+            });
+            net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents.allowMouseClick(screen)
+                    .register((s, click) -> {
+                        int button = click.button();
+                        if (button != 0 && button != 1) return true;
+                        // false = swallow the click, so the cursor stack isn't dropped.
+                        return !JewelSockets.onClick(panel.ancientsmod$panelX(), panel.ancientsmod$panelY(),
+                                panel.ancientsmod$panelWidth(), click.x(), click.y());
+                    });
+        });
         // Watch system chat for rift queue state-change announcements so the
         // texture pack can pre-load during the queue wait rather than stalling
         // the player when the rift actually starts.
