@@ -3,6 +3,7 @@ package com.aleks.ancientsmod.client.hud;
 import com.aleks.ancientsmod.client.FeatureToggles;
 import com.aleks.ancientsmod.net.payload.JewelSlotsPayload;
 import net.minecraft.client.font.TextRenderer;
+import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.component.DataComponentTypes;
@@ -17,11 +18,13 @@ import java.util.List;
  * Jewel sockets rendered as extra hotbar-style slots — the client-side mirror
  * of the server's three global jewel slots.
  *
- * <p>Each slot draws like a vanilla inventory cell: a socketed jewel shows its
- * gem icon (the same per-rarity {@code minecraft:jewel_<rarity>} model the
- * server puts on the item, so the pack art matches exactly), an unlocked but
- * empty slot shows a faint outline, and a locked slot shows a padlock plus the
- * prestige it wants.
+ * <p>Slots are drawn from the vanilla hotbar's own sprites so they sit beside
+ * it as if they belonged there, and restyle with whatever pack is loaded. A
+ * socketed jewel shows its gem icon (the same per-rarity
+ * {@code minecraft:jewel_<rarity>} model the server puts on the item, so the
+ * pack art matches exactly) under the hotbar selection ring tinted to its
+ * rarity; an unlocked empty slot is just the frame, like an empty hotbar cell;
+ * a locked slot shows a padlock plus the prestige it wants.
  *
  * <p>Purely a display of server state — nothing here can equip or move a jewel.
  * Sockets are mutated with {@code /jewels} and validated server-side.
@@ -39,12 +42,28 @@ public final class JewelHud extends HudElement {
     /** Keep rendering when every slot is empty. */
     public static final String KEY_SHOW_WHEN_EMPTY = "jewel_show_when_empty";
 
-    private static final int SLOT = 20;
-    private static final int GAP = 2;
+    /**
+     * Vanilla hotbar chrome, so the sockets read as part of the hotbar instead
+     * of a bolted-on overlay — and so they restyle with the player's pack.
+     * {@code hud/hotbar} is 182x22: a 1px frame around nine 20px cells. There's
+     * no single-cell sprite, so one standalone cell is composed from the bar's
+     * two ends (11px each), which keeps the capped edges and hides the seam in
+     * the uniform middle.
+     */
+    private static final Identifier HOTBAR_TEXTURE = Identifier.ofVanilla("hud/hotbar");
+    private static final Identifier HOTBAR_SELECTION = Identifier.ofVanilla("hud/hotbar_selection");
+    private static final int HOTBAR_TEX_W = 182, HOTBAR_TEX_H = 22;
+    private static final int CAP = 11;
 
-    private static final int SLOT_BG        = 0xB0101014;
-    private static final int SLOT_BG_LOCKED = 0xB01A0F12;
-    private static final int SLOT_BORDER    = 0xFF3A3F4B;
+    /** Full vanilla cell: 1px frame + 20px content + 1px frame. */
+    private static final int SLOT = 22;
+    /** Flush, like the hotbar's own cells. */
+    private static final int GAP = 0;
+    /** Where the 16x16 icon sits inside the cell (vanilla draws items at +3). */
+    private static final int ITEM_INSET = 3;
+    /** hud/hotbar_selection is 24x24 and overhangs the cell by 1px all round. */
+    private static final int SELECTION = 24;
+
     private static final int LOCK_COLOR     = 0xFF7C838F;
     private static final int CAPTION_COLOR  = 0xFFBFC4CC;
     private static final int STAT_COLOR     = 0xFF9BE59B;
@@ -148,7 +167,8 @@ public final class JewelHud extends HudElement {
     }
 
     @Override public int defaultX(int screenWidth)  { return screenWidth / 2 + 95; }
-    @Override public int defaultY(int screenHeight) { return screenHeight - 23; }
+    /** Sits on the hotbar's own baseline: vanilla draws it 22px off the bottom. */
+    @Override public int defaultY(int screenHeight) { return screenHeight - 22; }
 
     @Override
     public void render(DrawContext ctx, TextRenderer fr, float tickDelta) {
@@ -177,31 +197,33 @@ public final class JewelHud extends HudElement {
     }
 
     private void drawSlot(DrawContext ctx, TextRenderer fr, JewelSlotsPayload.Slot slot, int x, int y) {
-        boolean locked = slot.isLocked();
-        ctx.fill(x, y, x + SLOT, y + SLOT, locked ? SLOT_BG_LOCKED : SLOT_BG);
+        // Vanilla cell, composed from the hotbar bar's two capped ends.
+        ctx.drawGuiTexture(RenderPipelines.GUI_TEXTURED, HOTBAR_TEXTURE,
+                HOTBAR_TEX_W, HOTBAR_TEX_H, 0, 0, x, y, CAP, SLOT);
+        ctx.drawGuiTexture(RenderPipelines.GUI_TEXTURED, HOTBAR_TEXTURE,
+                HOTBAR_TEX_W, HOTBAR_TEX_H, HOTBAR_TEX_W - CAP, 0, x + CAP, y, CAP, SLOT);
 
-        // 1px border, tinted to the socketed jewel's rarity when filled.
-        int border = slot.isFilled() ? rarityColor(slot.rarityOrdinal()) : SLOT_BORDER;
-        ctx.fill(x, y, x + SLOT, y + 1, border);
-        ctx.fill(x, y + SLOT - 1, x + SLOT, y + SLOT, border);
-        ctx.fill(x, y, x + 1, y + SLOT, border);
-        ctx.fill(x + SLOT - 1, y, x + SLOT, y + SLOT, border);
+        int cx = x + ITEM_INSET;
+        int cy = y + ITEM_INSET;
 
-        if (locked) {
-            drawPadlock(ctx, x + SLOT / 2 - 3, y + SLOT / 2 - 4);
+        if (slot.isLocked()) {
+            ctx.fill(cx, cy, cx + 16, cy + 16, 0x99101014);
+            drawPadlock(ctx, cx + 5, cy + 4);
             if (slot.requiredPrestige() > 0) {
                 String tag = "P" + slot.requiredPrestige();
                 ctx.drawText(fr, Text.literal(tag),
-                        x + SLOT - 1 - fr.getWidth(tag), y + SLOT - 8, LOCK_COLOR, true);
+                        x + SLOT - 2 - fr.getWidth(tag), y + SLOT - 9, LOCK_COLOR, true);
             }
             return;
         }
-        if (!slot.isFilled()) {
-            // Empty but unlocked — a faint centre dot reads as "socket here".
-            ctx.fill(x + SLOT / 2 - 1, y + SLOT / 2 - 1, x + SLOT / 2 + 1, y + SLOT / 2 + 1, 0x40FFFFFF);
-            return;
-        }
-        ctx.drawItem(gemFor(slot.rarityOrdinal()), x + 2, y + 2);
+        if (!slot.isFilled()) return; // an empty vanilla cell is just the frame
+
+        ctx.drawItem(gemFor(slot.rarityOrdinal()), cx, cy);
+        // The hotbar's own selection ring, tinted to the jewel's rarity — keeps
+        // the rarity readable at a glance using vanilla art rather than a
+        // hand-drawn border.
+        ctx.drawGuiTexture(RenderPipelines.GUI_TEXTURED, HOTBAR_SELECTION,
+                x - 1, y - 1, SELECTION, SELECTION, rarityColor(slot.rarityOrdinal()));
     }
 
     /** Tiny 7x9 padlock drawn from rectangles — no font glyph or texture needed. */
@@ -216,8 +238,9 @@ public final class JewelHud extends HudElement {
         ctx.fill(x + 3, y + 5, x + 4, y + 7, 0xFF20242C);
     }
 
+    /** Tint for the selection ring; white leaves the vanilla sprite untouched. */
     private static int rarityColor(int ordinal) {
-        if (ordinal < 0 || ordinal >= RARITY_COLORS.length) return SLOT_BORDER;
+        if (ordinal < 0 || ordinal >= RARITY_COLORS.length) return 0xFFFFFFFF;
         return RARITY_COLORS[ordinal];
     }
 

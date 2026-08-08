@@ -28,6 +28,9 @@ public interface HandledScreenAccessor {
     @Accessor("backgroundWidth")
     int ancientsmod$panelWidth();
 
+    @Accessor("backgroundHeight")
+    int ancientsmod$panelHeight();
+
     /**
      * The slot under a point, or null. Private on HandledScreen, which an
      * {@code @Invoker} reaches fine; needed to tell a shift-click on a jewel

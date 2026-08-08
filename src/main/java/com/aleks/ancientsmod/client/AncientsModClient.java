@@ -155,12 +155,10 @@ public final class AncientsModClient implements ClientModInitializer {
             // sockets ON TOP of an item being dragged. Nothing else paints in
             // this strip, so early is safe.
             ScreenEvents.afterBackground(screen).register((s, ctx, mouseX, mouseY, delta) ->
-                    JewelSockets.render(ctx, panel.ancientsmod$panelX(), panel.ancientsmod$panelY(),
-                            panel.ancientsmod$panelWidth(), mouseX, mouseY));
+                    JewelSockets.render(ctx, panel, mouseX, mouseY));
             // The tooltip still wants to be last so it sits over everything.
             ScreenEvents.afterRender(screen).register((s, ctx, mouseX, mouseY, delta) ->
-                    JewelSockets.renderTooltip(ctx, panel.ancientsmod$panelX(), panel.ancientsmod$panelY(),
-                            panel.ancientsmod$panelWidth(), mouseX, mouseY));
+                    JewelSockets.renderTooltip(ctx, panel, mouseX, mouseY));
             JewelSockets.resetGesture();
             net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents.allowMouseClick(screen)
                     .register((s, click) -> {
@@ -170,8 +168,7 @@ public final class AncientsModClient implements ClientModInitializer {
                         // 1.21.11, the Click record carries the modifiers now.
                         boolean shift = (click.modifiers() & 0x0001) != 0;
                         // false = swallow the click, so the cursor stack isn't dropped.
-                        if (JewelSockets.onClick(panel.ancientsmod$panelX(), panel.ancientsmod$panelY(),
-                                panel.ancientsmod$panelWidth(), click.x(), click.y(), shift)) {
+                        if (JewelSockets.onClick(panel, click.x(), click.y(), shift)) {
                             return false;
                         }
                         // Shift-click a jewel in the bag: straight into the
@@ -185,9 +182,7 @@ public final class AncientsModClient implements ClientModInitializer {
             // cursor stack on the floor — and the resulting desync made the
             // client replay the held-item equip animation.
             net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents.allowMouseRelease(screen)
-                    .register((s, click) ->
-                            !JewelSockets.onRelease(panel.ancientsmod$panelX(), panel.ancientsmod$panelY(),
-                                    panel.ancientsmod$panelWidth(), click.x(), click.y()));
+                    .register((s, click) -> !JewelSockets.onRelease(panel, click.x(), click.y()));
             net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents.allowMouseDrag(screen)
                     .register((s, click, dx, dy) -> !JewelSockets.onDrag());
         });

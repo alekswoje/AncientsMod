@@ -104,10 +104,11 @@ public final class JewelSockets {
      * off-screen. Every caller goes through this, so hit-testing and rendering
      * can't disagree about which side it's on.
      */
-    private static int columnX(int panelX, int panelWidth) {
+    private static int columnX(HandledScreenAccessor panel) {
+        int panelX = panel.ancientsmod$panelX();
         int left = panelX - PANEL_GAP - CELL - FRAME;
         if (left >= FRAME) return left;
-        int right = panelX + panelWidth + PANEL_GAP + FRAME;
+        int right = panelX + panel.ancientsmod$panelWidth() + PANEL_GAP + FRAME;
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc != null && mc.getWindow() != null
                 && right + CELL + FRAME > mc.getWindow().getScaledWidth()) {
@@ -116,32 +117,38 @@ public final class JewelSockets {
         return right;
     }
 
-    private static int columnY(int panelY) {
-        return panelY + 17;
+    /**
+     * Bottom-aligned with the inventory panel: the frame's lower edge lines up
+     * with the panel's, so the column reads as anchored to the screen rather
+     * than floating alongside its top.
+     */
+    private static int columnY(HandledScreenAccessor panel) {
+        int bottom = panel.ancientsmod$panelY() + panel.ancientsmod$panelHeight();
+        return bottom - FRAME - slotsHeight(JewelState.slots().size());
     }
 
-    private static int slotY(int panelY, int index) {
-        return columnY(panelY) + index * (CELL + SLOT_GAP);
+    private static int slotY(HandledScreenAccessor panel, int index) {
+        return columnY(panel) + index * (CELL + SLOT_GAP);
     }
 
     /** True when the pointer is anywhere on the widget, frame border included. */
-    public static boolean contains(int panelX, int panelY, int panelWidth, double mouseX, double mouseY) {
+    public static boolean contains(HandledScreenAccessor panel, double mouseX, double mouseY) {
         if (!enabled()) return false;
-        int x = columnX(panelX, panelWidth);
-        int y = columnY(panelY);
+        int x = columnX(panel);
+        int y = columnY(panel);
         int h = slotsHeight(JewelState.slots().size());
         return mouseX >= x - FRAME && mouseX < x + CELL + FRAME
                 && mouseY >= y - FRAME && mouseY < y + h + FRAME;
     }
 
     /** Slot index under the mouse, or -1. */
-    public static int slotAt(int panelX, int panelY, int panelWidth, double mouseX, double mouseY) {
+    public static int slotAt(HandledScreenAccessor panel, double mouseX, double mouseY) {
         if (!enabled()) return -1;
-        int x = columnX(panelX, panelWidth);
+        int x = columnX(panel);
         if (mouseX < x || mouseX >= x + CELL) return -1;
         List<JewelSlotsPayload.Slot> slots = JewelState.slots();
         for (int i = 0; i < slots.size(); i++) {
-            int y = slotY(panelY, i);
+            int y = slotY(panel, i);
             if (mouseY >= y && mouseY < y + CELL) return i;
         }
         return -1;
@@ -154,16 +161,16 @@ public final class JewelSockets {
      * dragged item. Nothing else draws in this strip, so being early costs
      * nothing and the held item correctly floats above.
      */
-    public static void render(DrawContext ctx, int panelX, int panelY, int panelWidth,
+    public static void render(DrawContext ctx, HandledScreenAccessor panel,
                               int mouseX, int mouseY) {
         if (!enabled()) return;
         List<JewelSlotsPayload.Slot> slots = JewelState.slots();
-        int x = columnX(panelX, panelWidth);
-        drawFrame(ctx, x, columnY(panelY), CELL, slotsHeight(slots.size()));
+        int x = columnX(panel);
+        drawFrame(ctx, x, columnY(panel), CELL, slotsHeight(slots.size()));
 
         for (int i = 0; i < slots.size(); i++) {
             JewelSlotsPayload.Slot slot = slots.get(i);
-            int y = slotY(panelY, i);
+            int y = slotY(panel, i);
 
             // Pack-accurate empty cell, sampled from the loaded inventory texture.
             ctx.drawTexture(RenderPipelines.GUI_TEXTURED, INVENTORY_TEXTURE,
@@ -187,9 +194,9 @@ public final class JewelSockets {
     }
 
     /** Tooltip for the hovered socket. Call after render, before the screen's own tooltip. */
-    public static void renderTooltip(DrawContext ctx, int panelX, int panelY, int panelWidth,
+    public static void renderTooltip(DrawContext ctx, HandledScreenAccessor panel,
                                      int mouseX, int mouseY) {
-        int index = slotAt(panelX, panelY, panelWidth, mouseX, mouseY);
+        int index = slotAt(panel, mouseX, mouseY);
         if (index < 0) return;
         List<JewelSlotsPayload.Slot> slots = JewelState.slots();
         if (index >= slots.size()) return;
@@ -239,12 +246,12 @@ public final class JewelSockets {
      * bin the cursor stack. A click that can't do anything has to end up doing
      * nothing rather than falling through.
      */
-    public static boolean onClick(int panelX, int panelY, int panelWidth,
+    public static boolean onClick(HandledScreenAccessor panel,
                                   double mouseX, double mouseY, boolean shift) {
-        if (!contains(panelX, panelY, panelWidth, mouseX, mouseY)) return false;
+        if (!contains(panel, mouseX, mouseY)) return false;
         pressSwallowed = true;
 
-        int index = slotAt(panelX, panelY, panelWidth, mouseX, mouseY);
+        int index = slotAt(panel, mouseX, mouseY);
         if (index < 0) return true;                        // on the frame, not a cell
         List<JewelSlotsPayload.Slot> slots = JewelState.slots();
         if (index >= slots.size()) return true;
@@ -312,13 +319,13 @@ public final class JewelSockets {
      * swallowed press wherever the pointer ended up — dragging off the widget
      * mid-click must not turn into a drop either.
      */
-    public static boolean onRelease(int panelX, int panelY, int panelWidth,
+    public static boolean onRelease(HandledScreenAccessor panel,
                                     double mouseX, double mouseY) {
         if (pressSwallowed) {
             pressSwallowed = false;
             return true;
         }
-        return contains(panelX, panelY, panelWidth, mouseX, mouseY);
+        return contains(panel, mouseX, mouseY);
     }
 
     /** Drags belonging to a swallowed press — keeps quick-craft from starting. */
