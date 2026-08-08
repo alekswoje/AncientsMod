@@ -184,7 +184,17 @@ public final class JewelSockets {
                     .formatted(Formatting.GRAY));
         }
         MinecraftClient mc = MinecraftClient.getInstance();
-        ctx.drawTooltip(mc.textRenderer, lines, mouseX, mouseY);
+        if (mc == null || mc.textRenderer == null) return;
+        // drawTooltip() DEFERS to a pass the screen already flushed by the time
+        // afterRender fires, so it silently never appears. Drawing outside a
+        // screen's own render has to go through drawTooltipImmediately — same
+        // route InteractiveItemTooltip uses.
+        List<net.minecraft.client.gui.tooltip.TooltipComponent> comps = new ArrayList<>(lines.size());
+        for (Text line : lines) {
+            comps.add(net.minecraft.client.gui.tooltip.TooltipComponent.of(line.asOrderedText()));
+        }
+        ctx.drawTooltipImmediately(mc.textRenderer, comps, mouseX, mouseY,
+                net.minecraft.client.gui.tooltip.HoveredTooltipPositioner.INSTANCE, null);
     }
 
     /**
