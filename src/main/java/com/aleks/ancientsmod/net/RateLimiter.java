@@ -50,7 +50,6 @@ public final class RateLimiter {
         CELLTERM_OPEN(Protocol.RATE_CELLTERM_OPEN_PER_SEC),
         POWERBALL(Protocol.RATE_POWERBALL_PER_SEC),
         OUTPOST_STATE(Protocol.RATE_OUTPOST_STATE_PER_SEC),
-        JEWEL_SLOTS(Protocol.RATE_JEWEL_SLOTS_PER_SEC),
         ENERGY_REFERENCE(Protocol.RATE_ENERGY_REFERENCE_PER_SEC);
 
         final int perSecond;

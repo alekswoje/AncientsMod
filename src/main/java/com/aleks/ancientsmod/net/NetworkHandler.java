@@ -338,7 +338,14 @@ public final class NetworkHandler {
                     OutpostState.update(p);
                 }
                 case Protocol.PKT_JEWEL_SLOTS -> {
-                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.JEWEL_SLOTS)) return;
+                    // Deliberately NOT rate-limited. This is a last-write-wins
+                    // snapshot of all three sockets, so dropping one doesn't
+                    // shed load in any useful way — it freezes the display on
+                    // stale data until some later push happens through, which
+                    // showed up as a jewel still drawn in a socket the server
+                    // had already emptied. Shift-clicking in and out beats
+                    // 5/sec easily. The payload is tiny and its reads are
+                    // bounded, so decoding every one is the cheap option.
                     com.aleks.ancientsmod.net.payload.JewelSlotsPayload p =
                             com.aleks.ancientsmod.net.payload.JewelSlotsPayload.decode(buf);
                     com.aleks.ancientsmod.client.hud.JewelState.update(p);

@@ -395,7 +395,9 @@ public final class Protocol {
     public static final int JEWEL_MAX_FAMILY_CHARS = 24;
     /** Stat lines arrive with their colour codes. Must match the server's cap. */
     public static final int JEWEL_MAX_STAT_CHARS = 96;
-    public static final int RATE_JEWEL_SLOTS_PER_SEC = 5;
+    // No RATE_ constant: PKT_JEWEL_SLOTS is a last-write-wins snapshot, so
+    // dropping one only leaves the sockets showing stale state. See the
+    // handler in NetworkHandler.
 
     /**
      * The gear/pickaxe energy reference table, priced from live server config. Sent only
