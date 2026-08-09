@@ -103,6 +103,13 @@ public final class AncientsModClient implements ClientModInitializer {
             // whose loot packets are renumbered (season2 vs master) renders the
             // prior server's stale snapshot, since the fresh one never arrives.
             com.aleks.ancientsmod.client.loot.LootClient.reset();
+            // Same for the jewel sockets. The allowlist covers the whole
+            // network, so without this the HUD and the inventory sockets kept
+            // drawing the last backend's jewels on the hub — which has no
+            // jewel system at all — and would have shown dev's sockets after
+            // hopping to main. Cleared here, they stay hidden until the
+            // backend we actually landed on pushes its own state.
+            com.aleks.ancientsmod.client.hud.JewelState.clear();
             if (ServerAllowlist.isAllowed()) {
                 AncientsMod.LOGGER.info("AncientsMod active on this server");
                 UpdateChecker.checkAsync(client);
@@ -209,6 +216,7 @@ public final class AncientsModClient implements ClientModInitializer {
             com.aleks.ancientsmod.client.Fullbright.clear();
             com.aleks.ancientsmod.client.wiki.InteractiveItemTooltip.reset();
             com.aleks.ancientsmod.client.loot.LootClient.reset();
+            com.aleks.ancientsmod.client.hud.JewelState.clear();
             com.aleks.ancientsmod.client.cellterm.CellTermClient.reset();
             com.aleks.ancientsmod.client.pv.PvClient.reset();
             com.aleks.ancientsmod.client.energycalc.EnergyReferenceState.clear();
