@@ -45,23 +45,26 @@ public final class JewelHud extends HudElement {
      * Vanilla hotbar chrome, so the sockets read as part of the hotbar instead
      * of a bolted-on overlay — and so they restyle with the player's pack.
      *
-     * <p>{@code hud/hotbar} is 182x22: a 1px end cap, then nine 20px cells, then
-     * a 1px end cap. We deliberately slice the CELLS ONLY and leave both caps
-     * out. Including them made the widget 2px wider than the cells it holds, so
-     * the first and last jewel cell each carried an end cap and rendered a pixel
-     * wider than the mid-hotbar cells they sit next to. Cells-only means every
-     * jewel cell is an interior hotbar cell at a true 20px pitch.
+     * <p>Measured off the sprite rather than assumed: {@code hud/hotbar} is
+     * 182x22, laid out as a 1px dark outline then nine 20px cells (a 19px cell
+     * body plus the 1px outline that its neighbour shares), with one extra
+     * outline doubled onto the right end.
+     *
+     * <p>So n cells is {@code 1 + n*20} — the leading outline plus each cell and
+     * its closing one. Taking {@code 1 + n*20 + 1} (both of vanilla's end caps)
+     * makes the widget a pixel wider than its cells warrant; taking {@code n*20}
+     * (cells only) leaves both ends without an outline and reads as clipped.
      */
     private static final Identifier HOTBAR_TEXTURE = Identifier.ofVanilla("hud/hotbar");
     private static final int HOTBAR_TEX_W = 182, HOTBAR_TEX_H = 22;
-    /** Texture x where the cells start, just past the left end cap. */
-    private static final int U_CELLS = 1;
-    /** One cell, divider included — measured off the sprite, not assumed. */
+    /** The 1px outline that opens the bar and repeats between cells. */
+    private static final int EDGE = 1;
+    /** One cell, its shared closing outline included. */
     private static final int CELL = 20;
     /** Full bar height; the top/bottom frame runs the whole bar, so it stays. */
     private static final int SLOT = 22;
-    /** Vanilla puts hotbar items at bar +3,+3, which is +2,+3 within a cell. */
-    private static final int ITEM_INSET_X = 2;
+    /** Vanilla puts hotbar items at bar +3,+3 (confirmed against renderHotbar). */
+    private static final int ITEM_INSET_X = EDGE + 2;
     private static final int ITEM_INSET_Y = 3;
 
     private static final int LOCK_COLOR     = 0xFF7C838F;
@@ -112,7 +115,7 @@ public final class JewelHud extends HudElement {
 
     private int slotsWidth() {
         int n = Math.max(1, slots().size());
-        return vertical() ? CELL : n * CELL;
+        return EDGE + (vertical() ? CELL : n * CELL);
     }
 
     private int slotsHeight() {
@@ -193,10 +196,10 @@ public final class JewelHud extends HudElement {
         }
     }
 
-    /** {@code n} interior hotbar cells, end caps excluded. */
+    /** {@code n} hotbar cells: the leading outline, then each cell and its own. */
     private static void drawCells(DrawContext ctx, int x, int y, int n) {
         ctx.drawGuiTexture(RenderPipelines.GUI_TEXTURED, HOTBAR_TEXTURE,
-                HOTBAR_TEX_W, HOTBAR_TEX_H, U_CELLS, 0, x, y, n * CELL, SLOT);
+                HOTBAR_TEX_W, HOTBAR_TEX_H, 0, 0, x, y, EDGE + n * CELL, SLOT);
     }
 
     /** Whatever goes inside a cell, drawn at its 16x16 content origin. */
