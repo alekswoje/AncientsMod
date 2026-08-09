@@ -35,6 +35,7 @@ public final class StatsHudSettingsScreen extends WidgetSettingsScreen {
                 case "hunter" -> "Show Hunter XP (XP/h + session total)";
                 case "mining" -> "Show mining (XP/h, Energy/h, $/h)";
                 case "session" -> "Show mining session (/miningtrack totals)";
+                case "sim" -> "Show mining sim (/miningsim live totals)";
                 case "blocks" -> "Show blocks (per-ore counts)";
                 case "kills"  -> "Show kills section";
                 case "drops"  -> "Show drops section (by rarity)";

@@ -223,6 +223,23 @@ public final class NetworkHandler {
                             com.aleks.ancientsmod.net.payload.MiningBlocksPayload.decode(buf);
                     com.aleks.ancientsmod.client.hud.MiningBlocksState.update(p);
                 }
+                case Protocol.PKT_MININGSIM_SNAPSHOT -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.MININGSIM)) return;
+                    com.aleks.ancientsmod.net.payload.MiningSimPayload p =
+                            com.aleks.ancientsmod.net.payload.MiningSimPayload.decode(buf);
+                    com.aleks.ancientsmod.client.hud.MiningSimState.update(p);
+                    // The final snapshot IS the session summary on a modded client — the
+                    // server suppressed the chat wall for us, so surface the screen. Only
+                    // when nothing else is open; stealing focus mid-inventory would be worse
+                    // than making the player type /simstats.
+                    if (p.isFinal()) {
+                        net.minecraft.client.MinecraftClient mc =
+                                net.minecraft.client.MinecraftClient.getInstance();
+                        if (mc != null && mc.currentScreen == null) {
+                            com.aleks.ancientsmod.client.screen.MiningSimScreen.openNow(null);
+                        }
+                    }
+                }
                 case Protocol.PKT_MINING_SESSION -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.MINING_SESSION)) return;
                     com.aleks.ancientsmod.net.payload.MiningSessionPayload p =
@@ -529,6 +546,23 @@ public final class NetworkHandler {
             }));
         } catch (Throwable t) {
             AncientsMod.LOGGER.debug("send jewel socket request failed", t);
+        }
+    }
+
+    /**
+     * Ask the server to pause, resume, stop or resend the {@code /miningsim} session.
+     * Fired by the mining-sim screen's buttons. The server re-checks that a session
+     * exists and answers with a fresh snapshot, so a refused click just resyncs.
+     */
+    public static void sendMiningSimCommand(byte action) {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            ClientPlayNetworking.send(new RawPayload(new byte[] {
+                    Protocol.PKT_MININGSIM_CMD, action
+            }));
+        } catch (Throwable t) {
+            AncientsMod.LOGGER.debug("send miningsim command failed", t);
         }
     }
 

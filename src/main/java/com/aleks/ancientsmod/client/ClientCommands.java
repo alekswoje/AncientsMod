@@ -42,6 +42,13 @@ public final class ClientCommands {
                     ClientCommandManager.literal("muffler")
                             .executes(ctx -> openMuffler())
             );
+            // /simstats — the mining-sim session view. Deliberately NOT /miningsim:
+            // that one is the server's, and shadowing it client-side would swallow
+            // "/miningsim on" before it ever reached the server.
+            dispatcher.register(
+                    ClientCommandManager.literal("simstats")
+                            .executes(ctx -> openMiningSim())
+            );
         });
     }
 
@@ -54,6 +61,17 @@ public final class ClientCommands {
         client.send(() -> {
             if (client.currentScreen == null) {
                 client.setScreen(new SettingsScreen(null));
+            }
+        });
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private static int openMiningSim() {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null) return 0;
+        client.send(() -> {
+            if (client.currentScreen == null) {
+                client.setScreen(new com.aleks.ancientsmod.client.screen.MiningSimScreen(null));
             }
         });
         return Command.SINGLE_SUCCESS;

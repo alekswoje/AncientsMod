@@ -12,6 +12,7 @@
 
 - Removed the dungeon timer HUD and the Tartarus Vision skill tree screen (dungeons are removed from the server next season)
 - New **Armor Durability** HUD showing the uses left on each worn piece, off by default
+- The Stats HUD has a **Mining sim** section showing live `/miningsim` totals and per-hour rates while a session runs, and it says **PAUSED** when the session is paused
 - Armor Durability HUD can also track your held and offhand item, show percent instead of uses, and stay hidden until a piece drops below a chosen percent
 - New **Clock** HUD showing your own local time, off by default
 - Clock HUD supports 12 or 24 hour format, seconds, timezone and date
@@ -42,6 +43,12 @@
 - `/energycalc` now opens an in-game screen listing level, **next level energy cost** and banked energy for every Ancient item you hold or wear
 - The `/energycalc` screen has a **Gear Tiers** tab showing the max level and the total energy to max a fresh piece of every tier
 - The `/energycalc` screen has a **Pickaxe Prestige** tab showing the energy and blocks each prestige step needs, for every pickaxe tier
+- `/simstats` opens a **Mining Simulation** screen that replaces the `/miningsim` chat summary, and it opens on its own when a session ends
+- The Mining Simulation screen has **Pause**, **Resume** and **Stop** buttons, so a session can be held without leaving the game
+- The Mining Simulation screen's **Sources** tab lists every reward by the proc chain that earned it, with the origin highlighted
+- The **Sources** and **Procs** tabs sort by any column, newest click reversing the order
+- The Mining Simulation screen has a **Graph** tab plotting XP, energy and money per hour across the session
+- The Mining Simulation screen has a **History** tab that keeps finished sessions, and picking two shows the difference in each rate
 - The **To max** column now fills in, showing the energy left on the piece you are wearing and the next prestige cost on the pickaxe you hold
 - `/energycalc <targetLevel>` still goes to the server for its full cost breakdown
 - `/buffs` now opens with a **mining speed** line showing your speed multiplier and blocks per second

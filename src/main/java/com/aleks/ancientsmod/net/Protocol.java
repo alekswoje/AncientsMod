@@ -447,6 +447,47 @@ public final class Protocol {
     public static final byte JEWEL_OP_UNSOCKET = 1;
 
     /**
+     * S2C — live {@code /miningsim} session snapshot, pushed at 1 Hz while a session
+     * exists and once more when it ends. This is what replaces the chat summary.
+     *
+     * <p>Source labels are full proc chains ({@code "Proc Party > Shatter > Powerball"}):
+     * split on {@code " > "} to get origin and the path beneath it.
+     *
+     * <p>Wire after the type byte:
+     * <pre>
+     *   byte     flags        bit0 paused, bit1 final
+     *   varlong  elapsedMs
+     *   varlong  miningElapsedMs
+     *   varlong  totalXp
+     *   varlong  totalEnergy
+     *   varlong  totalMoneyMillis   (money x1000)
+     *   varint   sourceCount        (<= MAX_MININGSIM_ROWS)
+     *     varint+string source
+     *     varlong xp / varlong energy / varlong moneyMillis
+     *   varint   procCount          (<= MAX_MININGSIM_ROWS)
+     *     varint+string name
+     *     varint  count
+     * </pre>
+     */
+    public static final byte PKT_MININGSIM_SNAPSHOT = 53;
+
+    /** Row cap in either table of {@link #PKT_MININGSIM_SNAPSHOT}. Must match the server. */
+    public static final int MAX_MININGSIM_ROWS = 64;
+    /** Label cap in {@link #PKT_MININGSIM_SNAPSHOT}. Must match the server. */
+    public static final int MAX_MININGSIM_LABEL_CHARS = 96;
+
+    /**
+     * C2S — mining-sim screen asking the server to change session state.
+     * Wire: {@code byte action}.
+     */
+    public static final byte PKT_MININGSIM_CMD = (byte) 148;
+
+    public static final byte MININGSIM_ACTION_PAUSE   = 0;
+    public static final byte MININGSIM_ACTION_RESUME  = 1;
+    public static final byte MININGSIM_ACTION_STOP    = 2;
+    public static final byte MININGSIM_ACTION_REFRESH = 3;
+
+    /**
      * One chunk of the loot-browser catalog snapshot (server → mod), pushed in
      * response to {@link #PKT_LOOT_REQ} and again on {@code /loottablesplit
      * reload} or a fresh discovery. The full body is split into ordered chunks;
@@ -1237,6 +1278,8 @@ public final class Protocol {
     public static final int RATE_MINING_BLOCKS_PER_SEC = 5;
     /** Mining-session heartbeat — same 1 Hz shape as mining stats. */
     public static final int RATE_MINING_SESSION_PER_SEC = 5;
+    /** 1 Hz heartbeat plus the occasional refresh reply; 5/s leaves ample headroom. */
+    public static final int RATE_MININGSIM_PER_SEC = 5;
     // NB: RATE_MINE_SPEEDS_PER_SEC / RATE_CLICKLOCK_STATE_PER_SEC live next to
     // their packet ids above (PKT_MINE_SPEEDS / PKT_CLICKLOCK_STATE).
     /** Per-block-break + right-click. A meteorite is 200–300 blocks; cap at theoretical max mining cadence. */

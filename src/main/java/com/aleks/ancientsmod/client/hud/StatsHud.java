@@ -1,6 +1,7 @@
 package com.aleks.ancientsmod.client.hud;
 
 import com.aleks.ancientsmod.client.FeatureToggles;
+import com.aleks.ancientsmod.net.payload.MiningSimPayload;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
@@ -52,11 +53,13 @@ public final class StatsHud extends HudElement {
     private static final List<String> RARITY_ORDER =
             List.of("mythic", "legendary", "epic", "rare", "uncommon", "common");
 
-    public static final List<String> ALL_SECTIONS = List.of("world", "hunter", "mining", "session", "blocks", "kills", "drops");
+    public static final List<String> ALL_SECTIONS = List.of("world", "hunter", "mining", "session", "sim", "blocks", "kills", "drops");
     /** Blocks and session are opt-in, so they are NOT in the default set —
      *  existing users don't suddenly get a new section until they enable it. */
     public static final Set<String> DEFAULT_SECTIONS =
-            new LinkedHashSet<>(List.of("world", "hunter", "mining", "kills", "drops"));
+            // "sim" is on by default: it costs nothing until a /miningsim session exists,
+            // and a session running invisibly is the failure mode worth avoiding.
+            new LinkedHashSet<>(List.of("world", "hunter", "mining", "sim", "kills", "drops"));
 
     /** Mining-session row accent colours, matched to the live mining section. */
     private static final int SESSION_ACCENT_XP     = 0xFF8AE08A;
@@ -106,9 +109,11 @@ public final class StatsHud extends HudElement {
         boolean miningLive = sections.contains("mining") && MiningStatsState.isLive();
         boolean blocksLive = sections.contains("blocks") && MiningBlocksState.isLive() && !blockRows().isEmpty();
         boolean sessionLive = sections.contains("session") && MiningSessionState.isLive();
+        boolean simLive = sections.contains("sim") && MiningSimState.liveSession() != null;
         return miningLive
             || blocksLive
             || sessionLive
+            || simLive
             || !PveStatsState.kills().isEmpty()
             || !PveStatsState.drops().isEmpty()
             || PveStatsState.sessionHunterXp() > 0
@@ -197,6 +202,13 @@ public final class StatsHud extends HudElement {
                 if (w > widest) widest = w;
             }
         }
+        if (sections.contains("sim") && MiningSimState.liveSession() != null) {
+            widest = Math.max(widest, fr.getWidth(simHeader()));
+            for (MiningRow r : simRows()) {
+                int w = fr.getWidth(r.label) + colGap + fr.getWidth(r.value);
+                if (w > widest) widest = w;
+            }
+        }
         if (sections.contains("blocks") && MiningBlocksState.isLive()) {
             widest = Math.max(widest, fr.getWidth(blocksHeader()));
             for (MiningRow r : blockRows()) {
@@ -229,6 +241,10 @@ public final class StatsHud extends HudElement {
         if (sections.contains("session") && MiningSessionState.isLive()) {
             int sr = sessionRows().size();
             if (sr > 0) rows += 1 + sr; // sub-header + metric rows
+        }
+        if (sections.contains("sim") && MiningSimState.liveSession() != null) {
+            int qr = simRows().size();
+            if (qr > 0) rows += 1 + qr; // sub-header + metric rows
         }
         if (sections.contains("blocks") && MiningBlocksState.isLive()) {
             int br = blockRows().size();
@@ -282,6 +298,24 @@ public final class StatsHud extends HudElement {
                 ctx.drawText(fr, Text.literal(sessionHeader()), padX + stripW + stripGap, rowY + 2, SUBHEADER, true);
                 rowY += rowH;
                 for (MiningRow r : sr) {
+                    ctx.fill(padX, rowY, padX + stripW, rowY + rowH - 2, r.accent);
+                    int textX = padX + stripW + stripGap;
+                    int textY = rowY + 2;
+                    int valW = fr.getWidth(r.value);
+                    ctx.drawText(fr, Text.literal(r.value), w - padX - valW, textY, VALUE_COLOR, true);
+                    ctx.drawText(fr, Text.literal(r.label), textX, textY,
+                            (r.accent & 0x00FFFFFF) | 0xFF000000, true);
+                    rowY += rowH;
+                }
+            }
+        }
+
+        if (sections.contains("sim") && MiningSimState.liveSession() != null) {
+            List<MiningRow> qr = simRows();
+            if (!qr.isEmpty()) {
+                ctx.drawText(fr, Text.literal(simHeader()), padX + stripW + stripGap, rowY + 2, SUBHEADER, true);
+                rowY += rowH;
+                for (MiningRow r : qr) {
                     ctx.fill(padX, rowY, padX + stripW, rowY + rowH - 2, r.accent);
                     int textX = padX + stripW + stripGap;
                     int textY = rowY + 2;
@@ -376,6 +410,34 @@ public final class StatsHud extends HudElement {
     }
 
     /** "Session (running) · 12m 30s" / "Session (paused) · 12m 30s". */
+    /**
+     * Mining-sim header. Says PAUSED loudly, because a paused session records nothing
+     * and the single worst outcome here is mining for ten minutes without noticing.
+     */
+    private String simHeader() {
+        MiningSimPayload s = MiningSimState.latest();
+        if (s == null) return "Mining sim";
+        return (s.paused() ? "Mining sim (PAUSED) · " : "Mining sim · ") + formatDuration(s.elapsedMs());
+    }
+
+    /** Live sim totals with their per-hour rates — the same trio the chat summary led with. */
+    private List<MiningRow> simRows() {
+        List<MiningRow> out = new ArrayList<>(3);
+        MiningSimPayload s = MiningSimState.liveSession();
+        if (s == null) return out;
+        addSimRow(out, "XP", s.totalXp(), s.perHour(s.totalXp()), SESSION_ACCENT_XP, false);
+        addSimRow(out, "Energy", s.totalEnergy(), s.perHour(s.totalEnergy()), SESSION_ACCENT_ENERGY, false);
+        addSimRow(out, "$", Math.round(s.totalMoney()), Math.round(s.moneyPerHour()), SESSION_ACCENT_MONEY, true);
+        return out;
+    }
+
+    private void addSimRow(List<MiningRow> out, String label, long total, long perHour, int accent, boolean money) {
+        if (total <= 0) return;
+        String p = money ? "$" : "";
+        String val = p + formatCompact(total) + "  " + p + formatCompact(perHour) + "/h";
+        out.add(new MiningRow(label, val, accent));
+    }
+
     private String sessionHeader() {
         String state = MiningSessionState.isRunning() ? "running" : "paused";
         return "Session (" + state + ") · " + formatDuration(MiningSessionState.elapsedMs());

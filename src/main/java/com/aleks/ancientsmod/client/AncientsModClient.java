@@ -212,6 +212,7 @@ public final class AncientsModClient implements ClientModInitializer {
             com.aleks.ancientsmod.client.cellterm.CellTermClient.reset();
             com.aleks.ancientsmod.client.pv.PvClient.reset();
             com.aleks.ancientsmod.client.energycalc.EnergyReferenceState.clear();
+            com.aleks.ancientsmod.client.hud.MiningSimState.reset();
             lastWorldKey = null;
         });
 
