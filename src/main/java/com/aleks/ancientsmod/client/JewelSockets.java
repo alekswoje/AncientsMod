@@ -67,7 +67,7 @@ public final class JewelSockets {
             "legendary", "godly", "divine", "exceptional",
     };
 
-    private static final ItemStack[] GEM_CACHE = new ItemStack[RARITY_IDS.length];
+    private static final java.util.Map<String, ItemStack> GEM_CACHE = new java.util.HashMap<>();
 
     /**
      * True while a press we swallowed is still waiting for its release.
@@ -183,7 +183,7 @@ public final class JewelSockets {
                 ctx.fill(cx, cy, cx + 16, cy + 16, 0x99101014);
                 drawPadlock(ctx, cx + 5, cy + 4);
             } else if (slot.isFilled()) {
-                ctx.drawItem(gemFor(slot.rarityOrdinal()), cx, cy);
+                ctx.drawItem(gemFor(slot.rarityOrdinal(), slot.familyName()), cx, cy);
             }
 
             // Vanilla-style hover highlight.
@@ -288,13 +288,26 @@ public final class JewelSockets {
         return (ordinal < 0 || ordinal >= RARITY_IDS.length) ? 0 : ordinal;
     }
 
-    private static ItemStack gemFor(int ordinal) {
+    /**
+     * The gem icon for a socket: shape by type, colour by rarity.
+     *
+     * <p>The wire carries the type's display name rather than its id, and the
+     * two differ only in case ("Gaian" / "gaian"), so lowercasing gets us the
+     * texture key without spending a protocol field on it. Anything we don't
+     * recognise falls back to the type-less gem, so an older or newer server
+     * still renders something sensible instead of a missing model.
+     */
+    private static ItemStack gemFor(int ordinal, String typeName) {
         int idx = clampOrdinal(ordinal);
-        ItemStack cached = GEM_CACHE[idx];
+        String type = typeName == null ? "" : typeName.trim().toLowerCase(java.util.Locale.ROOT);
+        String model = (type.equals("gaian") || type.equals("therian"))
+                ? "jewel_" + type + "_" + RARITY_IDS[idx]
+                : "jewel_" + RARITY_IDS[idx];
+        ItemStack cached = GEM_CACHE.get(model);
         if (cached != null) return cached;
         ItemStack stack = new ItemStack(Items.AMETHYST_SHARD);
-        stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("minecraft", "jewel_" + RARITY_IDS[idx]));
-        GEM_CACHE[idx] = stack;
+        stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("minecraft", model));
+        GEM_CACHE.put(model, stack);
         return stack;
     }
 
