@@ -455,7 +455,7 @@ public final class Protocol {
      *
      * <p>Wire after the type byte:
      * <pre>
-     *   byte     flags        bit0 paused, bit1 final
+     *   byte     flags        bit0 paused, bit1 final, bit2 no session
      *   varlong  elapsedMs
      *   varlong  miningElapsedMs
      *   varlong  totalXp
@@ -477,8 +477,17 @@ public final class Protocol {
     public static final int MAX_MININGSIM_LABEL_CHARS = 96;
 
     /**
-     * C2S — mining-sim screen asking the server to change session state.
-     * Wire: {@code byte action}.
+     * S2C — "open the mining-sim screen", sent when the player runs {@code /miningsim}
+     * with no arguments. On a modded client the screen is the whole command surface, so
+     * the server hands the interaction over rather than printing status to chat.
+     * Intent only; a snapshot follows separately.
+     */
+    public static final byte PKT_MININGSIM_OPEN = 54;
+
+    /**
+     * C2S — mining-sim screen driving the session.
+     * Wire: {@code byte action; byte autoStopMinutes} — the second byte is read only for
+     * {@link #MININGSIM_ACTION_START} (0 = no auto-stop).
      */
     public static final byte PKT_MININGSIM_CMD = (byte) 148;
 
@@ -486,6 +495,7 @@ public final class Protocol {
     public static final byte MININGSIM_ACTION_RESUME  = 1;
     public static final byte MININGSIM_ACTION_STOP    = 2;
     public static final byte MININGSIM_ACTION_REFRESH = 3;
+    public static final byte MININGSIM_ACTION_START   = 4;
 
     /**
      * One chunk of the loot-browser catalog snapshot (server → mod), pushed in

@@ -46,6 +46,15 @@ public final class MiningSimState {
     public static void update(MiningSimPayload p) {
         if (p == null) return;
 
+        // "No session" clears the live view but keeps the archive — otherwise opening the
+        // screen after a session ended would wipe the history you opened it to look at.
+        if (p.noSession()) {
+            latest = null;
+            receivedMs = 0L;
+            HISTORY.clear();
+            return;
+        }
+
         // A snapshot whose elapsed clock went backwards means the previous session ended
         // and a new one started without us seeing the final packet (relog, backend hop).
         MiningSimPayload prev = latest;

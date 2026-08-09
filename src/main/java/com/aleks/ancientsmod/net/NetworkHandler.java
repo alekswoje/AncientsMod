@@ -240,6 +240,12 @@ public final class NetworkHandler {
                         }
                     }
                 }
+                case Protocol.PKT_MININGSIM_OPEN -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.MININGSIM)) return;
+                    // The player asked for this by running /miningsim, so open even if
+                    // another screen is up — unlike the auto-open on session end.
+                    com.aleks.ancientsmod.client.screen.MiningSimScreen.openNow(null);
+                }
                 case Protocol.PKT_MINING_SESSION -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.MINING_SESSION)) return;
                     com.aleks.ancientsmod.net.payload.MiningSessionPayload p =
@@ -555,11 +561,17 @@ public final class NetworkHandler {
      * exists and answers with a fresh snapshot, so a refused click just resyncs.
      */
     public static void sendMiningSimCommand(byte action) {
+        sendMiningSimCommand(action, 0);
+    }
+
+    /** {@code autoStopMinutes} is read by the server only for the START action. */
+    public static void sendMiningSimCommand(byte action, int autoStopMinutes) {
         if (!ServerAllowlist.isAllowed()) return;
         if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
         try {
             ClientPlayNetworking.send(new RawPayload(new byte[] {
-                    Protocol.PKT_MININGSIM_CMD, action
+                    Protocol.PKT_MININGSIM_CMD, action,
+                    (byte) Math.max(0, Math.min(255, autoStopMinutes))
             }));
         } catch (Throwable t) {
             AncientsMod.LOGGER.debug("send miningsim command failed", t);

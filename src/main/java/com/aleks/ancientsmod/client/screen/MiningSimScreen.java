@@ -61,6 +61,17 @@ public final class MiningSimScreen extends Screen {
     private int compareA = -1;
     private int compareB = -1;
 
+    /** Auto-stop choices offered next to Start, in minutes. 0 = run until stopped. */
+    private static final int[] AUTO_STOP_CHOICES = {0, 3, 5, 10, 30};
+    private int autoStopIndex = 0;
+
+    /**
+     * Session state the buttons were last built for. The server answers actions
+     * asynchronously, so rather than guessing after a click we rebuild whenever the
+     * observed state actually changes — the buttons can never disagree with the server.
+     */
+    private String builtForState = "";
+
     public MiningSimScreen(@Nullable Screen parent) {
         super(Text.literal("Mining Simulation"));
         this.parent = parent;
@@ -91,28 +102,58 @@ public final class MiningSimScreen extends Screen {
         int btnY = this.height - PADDING - 24;
         boolean live = MiningSimState.liveSession() != null;
         boolean paused = MiningSimState.isPaused();
+        builtForState = stateSignature();
 
         if (live) {
             GlassButton pause = new GlassButton(this.width / 2 - 158, btnY, 100, 20,
-                    Text.literal(paused ? "Resume" : "Pause"), () -> {
-                NetworkHandler.sendMiningSimCommand(paused
-                        ? Protocol.MININGSIM_ACTION_RESUME
-                        : Protocol.MININGSIM_ACTION_PAUSE);
-                // The server answers with a fresh snapshot; re-init once it lands so the
-                // button label flips. Cheap enough to just rebuild on the next open frame.
-                this.clearAndInit();
-            });
+                    Text.literal(paused ? "Resume" : "Pause"), () ->
+                    NetworkHandler.sendMiningSimCommand(paused
+                            ? Protocol.MININGSIM_ACTION_RESUME
+                            : Protocol.MININGSIM_ACTION_PAUSE));
             addDrawableChild(paused ? pause.primary() : pause);
 
             addDrawableChild(new GlassButton(this.width / 2 - 52, btnY, 100, 20,
-                    Text.literal("Stop"), () -> {
-                NetworkHandler.sendMiningSimCommand(Protocol.MININGSIM_ACTION_STOP);
+                    Text.literal("Stop"), () ->
+                    NetworkHandler.sendMiningSimCommand(Protocol.MININGSIM_ACTION_STOP)));
+        } else {
+            addDrawableChild(new GlassButton(this.width / 2 - 158, btnY, 100, 20,
+                    Text.literal("Auto-stop: " + autoStopLabel()), () -> {
+                autoStopIndex = (autoStopIndex + 1) % AUTO_STOP_CHOICES.length;
                 this.clearAndInit();
             }));
+
+            addDrawableChild(new GlassButton(this.width / 2 - 52, btnY, 100, 20,
+                    Text.literal("Start"), () ->
+                    NetworkHandler.sendMiningSimCommand(Protocol.MININGSIM_ACTION_START,
+                            AUTO_STOP_CHOICES[autoStopIndex])).primary());
         }
 
-        addDrawableChild(new GlassButton(this.width / 2 + (live ? 54 : -50), btnY, 100, 20,
-                Text.literal("Done"), this::close).primary());
+        addDrawableChild(new GlassButton(this.width / 2 + 54, btnY, 100, 20,
+                Text.literal("Done"), this::close));
+    }
+
+    private String autoStopLabel() {
+        int m = AUTO_STOP_CHOICES[autoStopIndex];
+        return m == 0 ? "off" : m + "m";
+    }
+
+    /**
+     * Cheap fingerprint of everything the button row depends on. Compared each tick so
+     * the row rebuilds the moment the server's answer lands, rather than on a guess made
+     * at click time that a refused action would leave wrong.
+     */
+    private String stateSignature() {
+        MiningSimPayload s = MiningSimState.liveSession();
+        if (s == null) return "none";
+        return "live:" + s.paused();
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+        if (!stateSignature().equals(builtForState)) {
+            this.clearAndInit();
+        }
     }
 
     private GlassButton tabButton(int x, int y, int w, String label, Tab target) {
@@ -156,7 +197,7 @@ public final class MiningSimScreen extends Screen {
 
     private String headline(@Nullable MiningSimPayload snap) {
         if (snap == null) {
-            return "No session. Run /miningsim on to start one.";
+            return "No session running — press Start.";
         }
         if (snap.isFinal()) {
             return "Session ended after " + formatDuration(snap.elapsedMs());

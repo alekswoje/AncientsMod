@@ -43,8 +43,9 @@
 - `/energycalc` now opens an in-game screen listing level, **next level energy cost** and banked energy for every Ancient item you hold or wear
 - The `/energycalc` screen has a **Gear Tiers** tab showing the max level and the total energy to max a fresh piece of every tier
 - The `/energycalc` screen has a **Pickaxe Prestige** tab showing the energy and blocks each prestige step needs, for every pickaxe tier
-- `/simstats` opens a **Mining Simulation** screen that replaces the `/miningsim` chat summary, and it opens on its own when a session ends
-- The Mining Simulation screen has **Pause**, **Resume** and **Stop** buttons, so a session can be held without leaving the game
+- `/miningsim` now opens a **Mining Simulation** screen instead of printing to chat, and it opens on its own when a session ends. `/simstats` opens the same screen
+- The Mining Simulation screen has **Start**, **Pause**, **Resume** and **Stop** buttons, so a whole session runs from the screen without typing a command
+- **Start** has an **Auto-stop** selector for **3m**, **5m**, **10m** or **30m** of active mining, or off
 - The Mining Simulation screen's **Sources** tab lists every reward by the proc chain that earned it, with the origin highlighted
 - The **Sources** and **Procs** tabs sort by any column, newest click reversing the order
 - The Mining Simulation screen has a **Graph** tab plotting XP, energy and money per hour across the session

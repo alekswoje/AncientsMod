@@ -16,7 +16,7 @@ import java.util.List;
  *
  * <p>Money is carried as thousandths so a small $/hr doesn't round to zero on the wire.
  */
-public record MiningSimPayload(boolean paused, boolean isFinal,
+public record MiningSimPayload(boolean paused, boolean isFinal, boolean noSession,
                                long elapsedMs, long miningElapsedMs,
                                long totalXp, long totalEnergy, double totalMoney,
                                List<Row> sources, List<ProcRow> procs,
@@ -58,6 +58,7 @@ public record MiningSimPayload(boolean paused, boolean isFinal,
         int flags = buf.readByte() & 0xFF;
         boolean paused = (flags & 1) != 0;
         boolean isFinal = (flags & 2) != 0;
+        boolean noSession = (flags & 4) != 0;
 
         long elapsed = Math.max(0L, buf.readVarLong());
         long miningElapsed = Math.max(1L, buf.readVarLong());
@@ -83,7 +84,7 @@ public record MiningSimPayload(boolean paused, boolean isFinal,
             procs.add(new ProcRow(label, count));
         }
 
-        return new MiningSimPayload(paused, isFinal, elapsed, miningElapsed,
+        return new MiningSimPayload(paused, isFinal, noSession, elapsed, miningElapsed,
                 xp, energy, money, List.copyOf(sources), List.copyOf(procs),
                 System.currentTimeMillis());
     }
