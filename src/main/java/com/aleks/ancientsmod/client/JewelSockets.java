@@ -9,10 +9,8 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.component.DataComponentTypes;
-import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
-import net.minecraft.screen.slot.Slot;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
@@ -265,55 +263,6 @@ public final class JewelSockets {
         NetworkHandler.sendJewelSocketRequest(
                 shift ? Protocol.JEWEL_OP_UNSOCKET : Protocol.JEWEL_OP_SOCKET_CURSOR, index);
         return true;
-    }
-
-    /**
-     * Shift-clicking a jewel in the bag sends it to the first free socket
-     * rather than shuffling it between the hotbar and the inventory, which is
-     * never what anyone wanted that jewel to do.
-     *
-     * <p>Bails out to vanilla whenever the quick-socket can't apply — no free
-     * socket, not a jewel, not a bag slot — so shift-click keeps working
-     * normally on everything else. Returns true when we took the click.
-     */
-    public static boolean onInventoryShiftClick(HandledScreenAccessor screen,
-                                                double mouseX, double mouseY) {
-        if (!enabled() || !hasFreeSocket()) return false;
-        MinecraftClient mc = MinecraftClient.getInstance();
-        if (mc == null || mc.player == null) return false;
-
-        Slot slot = screen.ancientsmod$getSlotAt(mouseX, mouseY);
-        if (slot == null || slot.inventory != mc.player.getInventory()) return false;
-        // Bag + hotbar only: armour, offhand and the crafting grid are backed
-        // by the same inventory but aren't indices the server can read as one.
-        int index = slot.getIndex();
-        if (index < 0 || index >= PlayerInventory.MAIN_SIZE) return false;
-        if (!looksLikeJewel(slot.getStack())) return false;
-
-        pressSwallowed = true;
-        NetworkHandler.sendJewelSocketRequest(Protocol.JEWEL_OP_QUICK_SOCKET, index);
-        return true;
-    }
-
-    private static boolean hasFreeSocket() {
-        for (JewelSlotsPayload.Slot slot : JewelState.slots()) {
-            if (!slot.isLocked() && !slot.isFilled()) return true;
-        }
-        return false;
-    }
-
-    /**
-     * Best-effort check on the item art, only ever used to decide whether to
-     * intercept — the server re-reads the item and refuses anything that isn't
-     * really a jewel. Mystery jewels are excluded on purpose: those have to be
-     * opened before there's anything to socket.
-     */
-    private static boolean looksLikeJewel(ItemStack stack) {
-        if (stack == null || stack.isEmpty()) return false;
-        Identifier model = stack.get(DataComponentTypes.ITEM_MODEL);
-        if (model == null) return false;
-        String path = model.getPath();
-        return path.startsWith("jewel_") && !path.startsWith("jewel_mystery_");
     }
 
     /**
