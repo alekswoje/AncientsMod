@@ -36,6 +36,9 @@ public final class JewelHudSettingsScreen extends WidgetSettingsScreen {
         addToggle("Show while all slots empty",
                 jewels::showWhenEmpty,
                 v -> HudSettings.setBoolean(jewels.id(), JewelHud.KEY_SHOW_WHEN_EMPTY, v));
+        addToggle("Solid slot background",
+                jewels::opaque,
+                v -> HudSettings.setBoolean(jewels.id(), JewelHud.KEY_OPAQUE, v));
 
         BoosterHudSettingsScreen.addLookRows(this, jewels);
     }

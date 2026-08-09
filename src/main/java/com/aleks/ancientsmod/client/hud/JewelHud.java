@@ -2,7 +2,6 @@ package com.aleks.ancientsmod.client.hud;
 
 import com.aleks.ancientsmod.client.FeatureToggles;
 import com.aleks.ancientsmod.net.payload.JewelSlotsPayload;
-import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.client.gui.DrawContext;
@@ -41,6 +40,8 @@ public final class JewelHud extends HudElement {
     public static final String KEY_SHOW_STATS = "jewel_show_stats";
     /** Keep rendering when every slot is empty. */
     public static final String KEY_SHOW_WHEN_EMPTY = "jewel_show_when_empty";
+    /** Back the cells with a solid fill instead of letting the world through. */
+    public static final String KEY_OPAQUE = "jewel_opaque";
 
     /**
      * Vanilla hotbar chrome, so the sockets read as part of the hotbar instead
@@ -71,6 +72,14 @@ public final class JewelHud extends HudElement {
     private static final int ITEM_INSET_X = 2;
     private static final int ITEM_INSET_Y = 3;
 
+    /**
+     * Vanilla's own cell interior is rgba(37,36,4,186) — deliberately ~73%
+     * opaque, so the world shows through. That is fine on the hotbar, which
+     * sits mid-screen, but this row hangs off to one side over whatever
+     * happens to be behind it, and the two backdrops rarely match. Opt in to
+     * this fill and the cells read the same wherever the widget sits.
+     */
+    private static final int CELL_BACKDROP  = 0xFF25240A;
     private static final int LOCK_COLOR     = 0xFF7C838F;
     private static final int CAPTION_COLOR  = 0xFFBFC4CC;
     private static final int STAT_COLOR     = 0xFF9BE59B;
@@ -112,6 +121,7 @@ public final class JewelHud extends HudElement {
     public boolean showRequirement() { return HudSettings.getBoolean(id(), KEY_SHOW_REQUIREMENT, true); }
     public boolean showStats()       { return HudSettings.getBoolean(id(), KEY_SHOW_STATS, false); }
     public boolean showWhenEmpty()   { return HudSettings.getBoolean(id(), KEY_SHOW_WHEN_EMPTY, false); }
+    public boolean opaque()          { return HudSettings.getBoolean(id(), KEY_OPAQUE, false); }
 
     private static List<JewelSlotsPayload.Slot> slots() {
         return JewelState.slots();
@@ -166,41 +176,23 @@ public final class JewelHud extends HudElement {
     /** Sits on the hotbar's own baseline: vanilla draws it 22px off the bottom. */
     @Override public int defaultY(int screenHeight) { return screenHeight - 22; }
 
-    /** One-shot geometry dump — see {@link #logGeometryOnce}. */
-    private static boolean geometryLogged;
-
-    /**
-     * Logs, once per session, what this widget draws next to what vanilla draws
-     * for the hotbar. Eyeballing a compressed screenshot kept giving the wrong
-     * answer about which is bigger; these are the numbers that settle it.
-     */
-    private void logGeometryOnce(DrawContext ctx, int n) {
-        if (geometryLogged) return;
-        geometryLogged = true;
-        MinecraftClient mc = MinecraftClient.getInstance();
-        int sw = ctx.getScaledWindowWidth();
-        int sh = ctx.getScaledWindowHeight();
-        double guiScale = mc != null && mc.getWindow() != null ? mc.getWindow().getScaleFactor() : -1;
-        com.aleks.ancientsmod.AncientsMod.LOGGER.info(
-                "[JewelHud] scaledWindow={}x{} guiScale={} | jewel: x={} y={} w={} h={} cells={} pitch={} "
-                        + "| vanilla hotbar: x={} y={} w=182 h=22 pitch=20 | widgetScale={}",
-                sw, sh, guiScale,
-                HudPositions.getX(this, sw), HudPositions.getY(this, sh), slotsWidth(), slotsHeight(),
-                n, CELL,
-                sw / 2 - 91, sh - 22,
-                HudPositions.getScale(this));
-    }
-
     @Override
     public void render(DrawContext ctx, TextRenderer fr, float tickDelta) {
         List<JewelSlotsPayload.Slot> slots = slots();
         boolean vertical = vertical();
 
         int n = slots.size();
-        logGeometryOnce(ctx, n);
         // Chrome first, contents second. Horizontally the cells come out of the
         // sprite as one contiguous run, so the dividers land exactly where
         // vanilla puts them and no seam appears at the joins.
+        if (opaque()) {
+            // Under the sprite, so its frame and bevel still read normally.
+            for (int i = 0; i < n; i++) {
+                int bx = (vertical ? EDGE : i * CELL) + ITEM_INSET_X;
+                int by = (vertical ? i * SLOT : 0) + ITEM_INSET_Y;
+                ctx.fill(bx - 1, by - 1, bx + 17, by + 17, CELL_BACKDROP);
+            }
+        }
         if (vertical) {
             for (int i = 0; i < n; i++) drawStandaloneCell(ctx, 0, i * SLOT);
         } else {
