@@ -97,24 +97,26 @@ public final class JewelSockets {
     }
 
     /**
-     * Column origin: the LEFT of the inventory panel by default. The right side
-     * is where the screen stacks its status-effect widgets, so parking there
-     * means the sockets sit under a Dolphin's Grace icon the moment the player
-     * drinks anything. Falls back to the right edge only if the left would run
-     * off-screen. Every caller goes through this, so hit-testing and rendering
-     * can't disagree about which side it's on.
+     * Column origin: the RIGHT of the inventory panel, matching the side the
+     * in-game HUD row sits on. Having the sockets jump sides between the HUD
+     * and the inventory made them read as two unrelated things.
+     *
+     * <p>The cost is that the screen stacks its status-effect widgets down the
+     * right too, so with several effects running an icon can reach the column.
+     * The column is bottom-aligned and effects stack from the top, which keeps
+     * them apart for the first few. Falls back to the left only when the right
+     * would run off-screen. Every caller goes through this, so hit-testing and
+     * rendering can't disagree about which side it's on.
      */
     private static int columnX(HandledScreenAccessor panel) {
         int panelX = panel.ancientsmod$panelX();
-        int left = panelX - PANEL_GAP - CELL - FRAME;
-        if (left >= FRAME) return left;
         int right = panelX + panel.ancientsmod$panelWidth() + PANEL_GAP + FRAME;
         MinecraftClient mc = MinecraftClient.getInstance();
-        if (mc != null && mc.getWindow() != null
-                && right + CELL + FRAME > mc.getWindow().getScaledWidth()) {
-            return Math.max(FRAME, left);
+        if (mc == null || mc.getWindow() == null
+                || right + CELL + FRAME <= mc.getWindow().getScaledWidth()) {
+            return right;
         }
-        return right;
+        return Math.max(FRAME, panelX - PANEL_GAP - CELL - FRAME);
     }
 
     /**
