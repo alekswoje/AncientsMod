@@ -51,10 +51,13 @@ public final class JewelHud extends HudElement {
      * body plus the 1px outline that its neighbour shares), with one extra
      * outline doubled onto the right end.
      *
-     * <p>So n cells is {@code 1 + n*20} — the leading outline plus each cell and
-     * its closing one. Taking {@code 1 + n*20 + 1} (both of vanilla's end caps)
-     * makes the widget a pixel wider than its cells warrant; taking {@code n*20}
-     * (cells only) leaves both ends without an outline and reads as clipped.
+     * <p>Horizontally the widget is drawn as a CONTINUATION of the hotbar: the
+     * cell run plus the bar's real right cap, sat flush against the hotbar's
+     * right edge. Its left edge is deliberately left open because the hotbar's
+     * own right cap supplies that border. Every standalone-bar variant fought
+     * itself — with both end caps the widget carries more chrome than its cells
+     * warrant, and with neither the ends read as sliced off. As an extension
+     * there is only one cap to place and the cells stay on vanilla's 20px beat.
      */
     private static final Identifier HOTBAR_TEXTURE = Identifier.ofVanilla("hud/hotbar");
     private static final int HOTBAR_TEX_W = 182, HOTBAR_TEX_H = 22;
@@ -64,8 +67,8 @@ public final class JewelHud extends HudElement {
     private static final int CELL = 20;
     /** Full bar height; the top/bottom frame runs the whole bar, so it stays. */
     private static final int SLOT = 22;
-    /** Vanilla puts hotbar items at bar +3,+3 (confirmed against renderHotbar). */
-    private static final int ITEM_INSET_X = EDGE + 2;
+    /** Vanilla puts hotbar items at bar +3,+3, i.e. +2,+3 inside a cell. */
+    private static final int ITEM_INSET_X = 2;
     private static final int ITEM_INSET_Y = 3;
 
     private static final int LOCK_COLOR     = 0xFF7C838F;
@@ -116,7 +119,7 @@ public final class JewelHud extends HudElement {
 
     private int slotsWidth() {
         int n = Math.max(1, slots().size());
-        return EDGE + (vertical() ? CELL : n * CELL);
+        return vertical() ? EDGE + CELL + EDGE : n * CELL + EDGE;
     }
 
     private int slotsHeight() {
@@ -158,7 +161,8 @@ public final class JewelHud extends HudElement {
         return out;
     }
 
-    @Override public int defaultX(int screenWidth)  { return screenWidth / 2 + 95; }
+    /** Flush with the hotbar's right edge (vanilla draws it at centre - 91). */
+    @Override public int defaultX(int screenWidth)  { return screenWidth / 2 + 91; }
     /** Sits on the hotbar's own baseline: vanilla draws it 22px off the bottom. */
     @Override public int defaultY(int screenHeight) { return screenHeight - 22; }
 
@@ -198,12 +202,14 @@ public final class JewelHud extends HudElement {
         // sprite as one contiguous run, so the dividers land exactly where
         // vanilla puts them and no seam appears at the joins.
         if (vertical) {
-            for (int i = 0; i < n; i++) drawCells(ctx, 0, i * SLOT, 1);
+            for (int i = 0; i < n; i++) drawStandaloneCell(ctx, 0, i * SLOT);
         } else {
-            drawCells(ctx, 0, 0, n);
+            drawExtension(ctx, 0, 0, n);
         }
         for (int i = 0; i < n; i++) {
-            int x = (vertical ? 0 : i * CELL) + ITEM_INSET_X;
+            // Vertical cells carry a left cap of their own; the horizontal run
+            // borrows the hotbar's, so its cells start at the widget edge.
+            int x = (vertical ? EDGE : i * CELL) + ITEM_INSET_X;
             int y = (vertical ? i * SLOT : 0) + ITEM_INSET_Y;
             drawContents(ctx, fr, slots.get(i), x, y);
         }
@@ -223,10 +229,21 @@ public final class JewelHud extends HudElement {
         }
     }
 
-    /** {@code n} hotbar cells: the leading outline, then each cell and its own. */
-    private static void drawCells(DrawContext ctx, int x, int y, int n) {
+    /** {@code n} cells then the bar's right cap; the hotbar closes the left side. */
+    private static void drawExtension(DrawContext ctx, int x, int y, int n) {
+        int cells = n * CELL;
         ctx.drawGuiTexture(RenderPipelines.GUI_TEXTURED, HOTBAR_TEXTURE,
-                HOTBAR_TEX_W, HOTBAR_TEX_H, 0, 0, x, y, EDGE + n * CELL, SLOT);
+                HOTBAR_TEX_W, HOTBAR_TEX_H, EDGE, 0, x, y, cells, SLOT);
+        ctx.drawGuiTexture(RenderPipelines.GUI_TEXTURED, HOTBAR_TEXTURE,
+                HOTBAR_TEX_W, HOTBAR_TEX_H, HOTBAR_TEX_W - EDGE, 0, x + cells, y, EDGE, SLOT);
+    }
+
+    /** A cell capped on both sides — the vertical layout has no bar to lean on. */
+    private static void drawStandaloneCell(DrawContext ctx, int x, int y) {
+        ctx.drawGuiTexture(RenderPipelines.GUI_TEXTURED, HOTBAR_TEXTURE,
+                HOTBAR_TEX_W, HOTBAR_TEX_H, 0, 0, x, y, EDGE + CELL, SLOT);
+        ctx.drawGuiTexture(RenderPipelines.GUI_TEXTURED, HOTBAR_TEXTURE,
+                HOTBAR_TEX_W, HOTBAR_TEX_H, HOTBAR_TEX_W - EDGE, 0, x + EDGE + CELL, y, EDGE, SLOT);
     }
 
     /** Whatever goes inside a cell, drawn at its 16x16 content origin. */
