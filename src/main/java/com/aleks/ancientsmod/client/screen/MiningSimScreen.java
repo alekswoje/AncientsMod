@@ -2,6 +2,7 @@ package com.aleks.ancientsmod.client.screen;
 
 import com.aleks.ancientsmod.client.glass.GlassButton;
 import com.aleks.ancientsmod.client.glass.GlassRender;
+import com.aleks.ancientsmod.client.glass.GlassTextField;
 import com.aleks.ancientsmod.client.glass.GlassTheme;
 import com.aleks.ancientsmod.client.hud.MiningSimState;
 import com.aleks.ancientsmod.net.NetworkHandler;
@@ -11,8 +12,10 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.input.KeyInput;
 import net.minecraft.text.Text;
 import org.jetbrains.annotations.Nullable;
+import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -45,6 +48,8 @@ public final class MiningSimScreen extends Screen {
     private static final int ROW_H = 12;
     private static final int PANEL_W = 480;
     private static final int ROWS_VISIBLE = 14;
+    /** History rows leave room under them for the compare block. */
+    private static final int HISTORY_ROWS_VISIBLE = ROWS_VISIBLE - 5;
 
     private final @Nullable Screen parent;
 
@@ -64,6 +69,16 @@ public final class MiningSimScreen extends Screen {
     /** Auto-stop choices offered next to Start, in minutes. 0 = run until stopped. */
     private static final int[] AUTO_STOP_CHOICES = {0, 3, 5, 10, 30};
     private int autoStopIndex = 0;
+
+    /**
+     * Archived session being viewed, or -1 for the live/most-recent one. Loading an
+     * archive swaps every tab over to it, so an old run can be read exactly like a
+     * running one instead of only appearing as a single summary row.
+     */
+    private int viewingIndex = -1;
+
+    /** Rename field, non-null only while renaming the viewed session. */
+    private @Nullable GlassTextField renameField = null;
 
     /**
      * Session state the buttons were last built for. The server answers actions
@@ -104,6 +119,47 @@ public final class MiningSimScreen extends Screen {
         boolean paused = MiningSimState.isPaused();
         builtForState = stateSignature();
 
+        MiningSimState.ArchivedSession viewed = viewedArchive();
+        if (viewed != null) {
+            // Viewing an archived run: its controls replace the session controls, because
+            // Pause/Stop would be meaningless against a run that already finished.
+            if (renameField != null) {
+                addDrawableChild(renameField);
+                addDrawableChild(new GlassButton(this.width / 2 + 54, btnY, 100, 20,
+                        Text.literal("Save name"), this::commitRename).primary());
+            } else {
+                addDrawableChild(new GlassButton(this.width / 2 - 210, btnY, 100, 20,
+                        Text.literal("Rename"), () -> {
+                    GlassTextField f = new GlassTextField(this.textRenderer,
+                            this.width / 2 - 210, btnY, 204, 20, Text.literal("Session name"));
+                    f.setMaxLength(48);
+                    f.setText(viewed.label());
+                    f.setSelectionStart(0);
+                    f.setSelectionEnd(f.getText().length());
+                    renameField = f;
+                    this.clearAndInit();
+                    setFocused(renameField);
+                    renameField.setFocused(true);
+                }));
+                addDrawableChild(new GlassButton(this.width / 2 - 104, btnY, 100, 20,
+                        Text.literal("Delete"), () -> {
+                    MiningSimState.delete(viewingIndex);
+                    viewingIndex = -1;
+                    tab = Tab.HISTORY;
+                    this.clearAndInit();
+                }));
+                addDrawableChild(new GlassButton(this.width / 2 + 2, btnY, 100, 20,
+                        Text.literal("Back to live"), () -> {
+                    viewingIndex = -1;
+                    scrollOffset = 0;
+                    this.clearAndInit();
+                }).primary());
+                addDrawableChild(new GlassButton(this.width / 2 + 108, btnY, 100, 20,
+                        Text.literal("Done"), this::close));
+            }
+            return;
+        }
+
         if (live) {
             GlassButton pause = new GlassButton(this.width / 2 - 158, btnY, 100, 20,
                     Text.literal(paused ? "Resume" : "Pause"), () ->
@@ -137,15 +193,44 @@ public final class MiningSimScreen extends Screen {
         return m == 0 ? "off" : m + "m";
     }
 
+    /** The archived session being viewed, or null when showing the live/most-recent one. */
+    private MiningSimState.@Nullable ArchivedSession viewedArchive() {
+        if (viewingIndex < 0) return null;
+        List<MiningSimState.ArchivedSession> archive = MiningSimState.archive();
+        if (viewingIndex >= archive.size()) return null;
+        return archive.get(viewingIndex);
+    }
+
+    /** The snapshot every tab renders — the loaded archive if one is open, else the live one. */
+    private @Nullable MiningSimPayload viewedSnapshot() {
+        MiningSimState.ArchivedSession a = viewedArchive();
+        return a != null ? a.finalSnapshot() : MiningSimState.latest();
+    }
+
+    private List<MiningSimState.RatePoint> viewedHistory() {
+        MiningSimState.ArchivedSession a = viewedArchive();
+        return a != null ? a.history() : MiningSimState.history();
+    }
+
     /**
      * Cheap fingerprint of everything the button row depends on. Compared each tick so
      * the row rebuilds the moment the server's answer lands, rather than on a guess made
      * at click time that a refused action would leave wrong.
      */
     private String stateSignature() {
+        if (viewingIndex >= 0) return "archive:" + viewingIndex + ":" + (renameField != null);
         MiningSimPayload s = MiningSimState.liveSession();
         if (s == null) return "none";
         return "live:" + s.paused();
+    }
+
+    /** Commit the rename field's text and drop back to the normal control row. */
+    private void commitRename() {
+        if (renameField != null && viewingIndex >= 0) {
+            MiningSimState.rename(viewingIndex, renameField.getText());
+        }
+        renameField = null;
+        this.clearAndInit();
     }
 
     @Override
@@ -174,9 +259,11 @@ public final class MiningSimScreen extends Screen {
     public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
         GlassRender.menuBackdrop(ctx, this.width, this.height);
 
-        MiningSimPayload snap = MiningSimState.latest();
+        MiningSimPayload snap = viewedSnapshot();
+        MiningSimState.ArchivedSession viewed = viewedArchive();
 
-        ctx.drawCenteredTextWithShadow(textRenderer, Text.literal("Mining Simulation"),
+        ctx.drawCenteredTextWithShadow(textRenderer,
+                Text.literal(viewed != null ? "Mining Simulation — " + viewed.label() : "Mining Simulation"),
                 this.width / 2, PADDING + 2, GlassTheme.ACCENT_SOFT);
         ctx.drawCenteredTextWithShadow(textRenderer, Text.literal(headline(snap)),
                 this.width / 2, PADDING + 14, GlassTheme.textDim());
@@ -196,6 +283,10 @@ public final class MiningSimScreen extends Screen {
     }
 
     private String headline(@Nullable MiningSimPayload snap) {
+        MiningSimState.ArchivedSession viewed = viewedArchive();
+        if (viewed != null) {
+            return "Saved session · " + formatDuration(viewed.finalSnapshot().elapsedMs());
+        }
         if (snap == null) {
             return "No session running — press Start.";
         }
@@ -356,7 +447,7 @@ public final class MiningSimScreen extends Screen {
         int ph = panelH();
         GlassRender.panel(ctx, px, py, PANEL_W, ph);
 
-        List<MiningSimState.RatePoint> pts = MiningSimState.history();
+        List<MiningSimState.RatePoint> pts = viewedHistory();
         if (pts.size() < 2) {
             ctx.drawText(textRenderer, Text.literal("Not enough samples yet — the graph fills in as you mine."),
                     px + 8, py + 8, GlassTheme.textMuted(), false);
@@ -421,19 +512,20 @@ public final class MiningSimScreen extends Screen {
         int left = px + 8;
         int y = py + 6;
 
-        ctx.drawText(textRenderer, Text.literal("Finished sessions — click two to compare"),
+        ctx.drawText(textRenderer, Text.literal("Saved sessions — click to open, shift-click two to compare"),
                 left, y, GlassTheme.textDim(), false);
         y += 11;
         ctx.fill(px + 4, y, px + PANEL_W - 4, y + 1, GlassTheme.rim());
         y += 3;
 
         if (archive.isEmpty()) {
-            ctx.drawText(textRenderer, Text.literal("No finished sessions yet. Stop a session to archive it."),
+            ctx.drawText(textRenderer, Text.literal("No saved sessions yet. Stop a session to save it."),
                     left, y + 4, GlassTheme.textMuted(), false);
             return;
         }
 
-        for (int i = 0; i < archive.size() && i < ROWS_VISIBLE - 5; i++) {
+        int end = Math.min(archive.size(), scrollOffset + HISTORY_ROWS_VISIBLE);
+        for (int i = scrollOffset; i < end; i++) {
             MiningSimState.ArchivedSession s = archive.get(i);
             MiningSimPayload f = s.finalSnapshot();
             boolean picked = (i == compareA || i == compareB);
@@ -484,13 +576,34 @@ public final class MiningSimScreen extends Screen {
     // ── Input ───────────────────────────────────────────────────────────────
 
     @Override
+    public boolean keyPressed(KeyInput input) {
+        if (renameField != null) {
+            // Enter commits, Escape backs out of the rename rather than closing the whole
+            // screen — losing the screen because you changed your mind about a name would
+            // be a nasty way to lose your place.
+            if (input.key() == GLFW.GLFW_KEY_ENTER || input.key() == GLFW.GLFW_KEY_KP_ENTER) {
+                commitRename();
+                return true;
+            }
+            if (input.key() == GLFW.GLFW_KEY_ESCAPE) {
+                renameField = null;
+                this.clearAndInit();
+                return true;
+            }
+        }
+        return super.keyPressed(input);
+    }
+
+    @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
         int rows = switch (tab) {
-            case SOURCES -> sortedSources(MiningSimState.latest()).size();
-            case PROCS -> sortedProcs(MiningSimState.latest()).size();
+            case SOURCES -> sortedSources(viewedSnapshot()).size();
+            case PROCS -> sortedProcs(viewedSnapshot()).size();
+            case HISTORY -> MiningSimState.archive().size();
             default -> 0;
         };
-        int maxOffset = Math.max(0, rows - ROWS_VISIBLE);
+        int visible = tab == Tab.HISTORY ? HISTORY_ROWS_VISIBLE : ROWS_VISIBLE;
+        int maxOffset = Math.max(0, rows - visible);
         if (maxOffset <= 0) return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
         scrollOffset -= (int) Math.signum(verticalAmount);
         scrollOffset = Math.max(0, Math.min(maxOffset, scrollOffset));
@@ -521,17 +634,28 @@ public final class MiningSimScreen extends Screen {
 
             if (tab == Tab.HISTORY) {
                 int rowsTop = py + 20;
-                int idx = (int) ((my - rowsTop) / ROW_H);
+                int idx = scrollOffset + (int) ((my - rowsTop) / ROW_H);
+                if (my < rowsTop || idx >= scrollOffset + HISTORY_ROWS_VISIBLE) idx = -1;
                 List<MiningSimState.ArchivedSession> archive = MiningSimState.archive();
                 if (idx >= 0 && idx < archive.size() && mx >= px && mx < px + PANEL_W) {
-                    // Two-slot picker: newest click always lands in B, previous B shifts to A.
-                    if (idx == compareA) {
-                        compareA = -1;
-                    } else if (idx == compareB) {
-                        compareB = -1;
+                    // Screen.hasShiftDown() is gone in this mapping; the Click record
+                    // carries GLFW_MOD_SHIFT directly.
+                    if ((click.modifiers() & GLFW.GLFW_MOD_SHIFT) != 0) {
+                        // Two-slot picker: newest pick lands in B, previous B shifts to A.
+                        if (idx == compareA) {
+                            compareA = -1;
+                        } else if (idx == compareB) {
+                            compareB = -1;
+                        } else {
+                            compareA = compareB;
+                            compareB = idx;
+                        }
                     } else {
-                        compareA = compareB;
-                        compareB = idx;
+                        // Plain click opens the run — every tab switches over to it.
+                        viewingIndex = idx;
+                        tab = Tab.SOURCES;
+                        scrollOffset = 0;
+                        this.clearAndInit();
                     }
                     return true;
                 }

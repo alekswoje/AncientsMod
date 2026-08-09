@@ -49,7 +49,9 @@
 - The Mining Simulation screen's **Sources** tab lists every reward by the proc chain that earned it, with the origin highlighted
 - The **Sources** and **Procs** tabs sort by any column, newest click reversing the order
 - The Mining Simulation screen has a **Graph** tab plotting XP, energy and money per hour across the session
-- The Mining Simulation screen has a **History** tab that keeps finished sessions, and picking two shows the difference in each rate
+- The Mining Simulation screen has a **History** tab that keeps finished sessions, and shift-clicking two shows the difference in each rate
+- Clicking a saved session opens it, so its sources, procs and graph can be read exactly like a running one
+- Saved sessions can be **renamed** and **deleted**, and they now survive a relog
 - The **To max** column now fills in, showing the energy left on the piece you are wearing and the next prestige cost on the pickaxe you hold
 - `/energycalc <targetLevel>` still goes to the server for its full cost breakdown
 - `/buffs` now opens with a **mining speed** line showing your speed multiplier and blocks per second

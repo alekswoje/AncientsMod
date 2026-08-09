@@ -61,6 +61,7 @@ public final class AncientsModClient implements ClientModInitializer {
         com.aleks.ancientsmod.client.muffler.MufflerSettings.load();
         HudPositions.load();
         HudSettings.load();
+        com.aleks.ancientsmod.client.hud.MiningSimState.load();
         com.aleks.ancientsmod.client.buffs.BuffSandboxStore.load();
         ItemLocks.load();
         KeyBinds.register();
