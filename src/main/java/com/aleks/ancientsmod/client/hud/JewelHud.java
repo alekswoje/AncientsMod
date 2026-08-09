@@ -44,22 +44,25 @@ public final class JewelHud extends HudElement {
     /**
      * Vanilla hotbar chrome, so the sockets read as part of the hotbar instead
      * of a bolted-on overlay — and so they restyle with the player's pack.
-     * {@code hud/hotbar} is 182x22: a 1px frame around nine 20px cells. There's
-     * no single-cell sprite, so one standalone cell is composed from the bar's
-     * two ends (11px each), which keeps the capped edges and hides the seam in
-     * the uniform middle.
+     *
+     * <p>{@code hud/hotbar} is 182x22: a 1px end cap, then nine 20px cells, then
+     * a 1px end cap. We deliberately slice the CELLS ONLY and leave both caps
+     * out. Including them made the widget 2px wider than the cells it holds, so
+     * the first and last jewel cell each carried an end cap and rendered a pixel
+     * wider than the mid-hotbar cells they sit next to. Cells-only means every
+     * jewel cell is an interior hotbar cell at a true 20px pitch.
      */
     private static final Identifier HOTBAR_TEXTURE = Identifier.ofVanilla("hud/hotbar");
     private static final int HOTBAR_TEX_W = 182, HOTBAR_TEX_H = 22;
-    /** 182 = 1px frame + nine 20px cells + 1px frame. */
-    private static final int EDGE = 1;
+    /** Texture x where the cells start, just past the left end cap. */
+    private static final int U_CELLS = 1;
+    /** One cell, divider included — measured off the sprite, not assumed. */
     private static final int CELL = 20;
-    /** A standalone framed cell, used by the vertical layout only. */
-    private static final int SLOT = EDGE + CELL + EDGE;
-    /** Half a standalone cell, taken from each capped end of the bar. */
-    private static final int CAP = SLOT / 2;
-    /** Vanilla draws hotbar items 3px in from the bar edge, so 2px into a cell. */
-    private static final int ITEM_INSET = 2;
+    /** Full bar height; the top/bottom frame runs the whole bar, so it stays. */
+    private static final int SLOT = 22;
+    /** Vanilla puts hotbar items at bar +3,+3, which is +2,+3 within a cell. */
+    private static final int ITEM_INSET_X = 2;
+    private static final int ITEM_INSET_Y = 3;
 
     private static final int LOCK_COLOR     = 0xFF7C838F;
     private static final int CAPTION_COLOR  = 0xFFBFC4CC;
@@ -109,7 +112,7 @@ public final class JewelHud extends HudElement {
 
     private int slotsWidth() {
         int n = Math.max(1, slots().size());
-        return vertical() ? SLOT : n * CELL + 2 * EDGE;
+        return vertical() ? CELL : n * CELL;
     }
 
     private int slotsHeight() {
@@ -161,18 +164,17 @@ public final class JewelHud extends HudElement {
         boolean vertical = vertical();
 
         int n = slots.size();
-        // Frame first, contents second. Horizontally that is ONE continuous bar
-        // (the hotbar's own left frame + n cells + right frame) rather than n
-        // separately framed cells, which butted two edges together at every
-        // join and left a seam the real hotbar doesn't have.
+        // Chrome first, contents second. Horizontally the cells come out of the
+        // sprite as one contiguous run, so the dividers land exactly where
+        // vanilla puts them and no seam appears at the joins.
         if (vertical) {
-            for (int i = 0; i < n; i++) drawStandaloneCell(ctx, 0, i * SLOT);
+            for (int i = 0; i < n; i++) drawCells(ctx, 0, i * SLOT, 1);
         } else {
-            drawBar(ctx, 0, 0, n);
+            drawCells(ctx, 0, 0, n);
         }
         for (int i = 0; i < n; i++) {
-            int x = (vertical ? 0 : i * CELL) + EDGE + ITEM_INSET;
-            int y = (vertical ? i * SLOT : 0) + EDGE + ITEM_INSET;
+            int x = (vertical ? 0 : i * CELL) + ITEM_INSET_X;
+            int y = (vertical ? i * SLOT : 0) + ITEM_INSET_Y;
             drawContents(ctx, fr, slots.get(i), x, y);
         }
 
@@ -191,21 +193,10 @@ public final class JewelHud extends HudElement {
         }
     }
 
-    /** {@code n} cells as one bar: the texture's left frame + cells + right frame. */
-    private static void drawBar(DrawContext ctx, int x, int y, int n) {
-        int body = EDGE + n * CELL;
+    /** {@code n} interior hotbar cells, end caps excluded. */
+    private static void drawCells(DrawContext ctx, int x, int y, int n) {
         ctx.drawGuiTexture(RenderPipelines.GUI_TEXTURED, HOTBAR_TEXTURE,
-                HOTBAR_TEX_W, HOTBAR_TEX_H, 0, 0, x, y, body, SLOT);
-        ctx.drawGuiTexture(RenderPipelines.GUI_TEXTURED, HOTBAR_TEXTURE,
-                HOTBAR_TEX_W, HOTBAR_TEX_H, HOTBAR_TEX_W - EDGE, 0, x + body, y, EDGE, SLOT);
-    }
-
-    /** One framed cell, composed from the bar's two capped ends (vertical only). */
-    private static void drawStandaloneCell(DrawContext ctx, int x, int y) {
-        ctx.drawGuiTexture(RenderPipelines.GUI_TEXTURED, HOTBAR_TEXTURE,
-                HOTBAR_TEX_W, HOTBAR_TEX_H, 0, 0, x, y, CAP, SLOT);
-        ctx.drawGuiTexture(RenderPipelines.GUI_TEXTURED, HOTBAR_TEXTURE,
-                HOTBAR_TEX_W, HOTBAR_TEX_H, HOTBAR_TEX_W - CAP, 0, x + CAP, y, CAP, SLOT);
+                HOTBAR_TEX_W, HOTBAR_TEX_H, U_CELLS, 0, x, y, n * CELL, SLOT);
     }
 
     /** Whatever goes inside a cell, drawn at its 16x16 content origin. */
