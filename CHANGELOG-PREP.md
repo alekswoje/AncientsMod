@@ -11,6 +11,7 @@
 ## HUDs
 
 - Removed the dungeon timer HUD and the Tartarus Vision skill tree screen (dungeons are removed from the server next season)
+- Removed the caravan, warlord caravan and caravan escort kill counters from the Stats HUD (caravans are removed from the server)
 - New **Armor Durability** HUD showing the uses left on each worn piece, off by default
 - The Stats HUD has a **Mining sim** section showing live `/miningsim` totals and per-hour rates while a session runs, and it says **PAUSED** when the session is paused
 - Armor Durability HUD can also track your held and offhand item, show percent instead of uses, and stay hidden until a piece drops below a chosen percent
@@ -40,6 +41,7 @@
 
 ## UI & Screens
 
+- Removed the **Caravan combat** bundle from the muffler settings screen
 - `/energycalc` now opens an in-game screen listing level, **next level energy cost** and banked energy for every Ancient item you hold or wear
 - The `/energycalc` screen has a **Gear Tiers** tab showing the max level and the total energy to max a fresh piece of every tier
 - The `/energycalc` screen has a **Pickaxe Prestige** tab showing the energy and blocks each prestige step needs, for every pickaxe tier

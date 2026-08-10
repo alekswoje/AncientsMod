@@ -80,7 +80,6 @@ public final class StatsHud extends HudElement {
     /** Display order for kill kinds — anything not listed renders after these, in arrival order. */
     public static final List<String> KILL_ORDER = List.of(
             "shade", "wraith", "pit_guard",
-            "caravan", "warlord_caravan", "caravan_escort",
             "echidna", "lamia", "hephaestus", "thanatos"
     );
 
@@ -603,9 +602,6 @@ public final class StatsHud extends HudElement {
             case "shade"            -> "Shade";
             case "wraith"           -> "Wraith";
             case "pit_guard"        -> "Erebus Pit Guard";
-            case "caravan"          -> "Caravan";
-            case "warlord_caravan"  -> "Warlord Caravan";
-            case "caravan_escort"   -> "Caravan Escort";
             case "echidna"          -> "Echidna";
             case "lamia"            -> "Lamia";
             case "hephaestus"       -> "Hephaestus";
@@ -642,9 +638,6 @@ public final class StatsHud extends HudElement {
             case "shade"            -> 0xFFB0B0C8;
             case "wraith"           -> 0xFFD37CFF;
             case "pit_guard"        -> 0xFFCF5B5B;
-            case "caravan"          -> 0xFFE6B05A;
-            case "warlord_caravan"  -> 0xFFFF8A66;
-            case "caravan_escort"   -> 0xFFE6E68A;
             case "echidna"          -> 0xFF8AE08A;
             case "lamia"            -> 0xFFC6A0FF;
             case "hephaestus"       -> 0xFFFFA070;

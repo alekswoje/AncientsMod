@@ -253,9 +253,6 @@ public final class MufflerCatalog {
                 sounds("ui.toast.challenge_complete", "entity.player.levelup", "block.fire.extinguish",
                         "block.glass.break"),
                 particles("totem_of_undying", "happy_villager", "smoke", "ash")));
-        b.add(bundle("Caravan combat", "Caravan hit / death effects",
-                sounds("entity.player.attack.crit", "entity.player.death"),
-                particles("crit", "enchanted_hit", "smoke", "large_smoke")));
         b.add(bundle("Portals (Cavern / Oracle)", "Cavern-heart & Oracle portal swirls",
                 sounds("block.portal.trigger", "block.portal.travel", "block.portal.ambient",
                         "entity.enderman.teleport", "block.end_portal.spawn", "block.note_block.pling"),
