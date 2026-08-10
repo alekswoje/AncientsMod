@@ -46,6 +46,8 @@ public final class MiningSimScreen extends Screen {
 
     private static final int PADDING = 10;
     private static final int ROW_H = 12;
+    /** Width of each right-aligned rate column in the saved-sessions list. */
+    private static final int RATE_COL_W = 78;
     private static final int PANEL_W = 480;
     private static final int ROWS_VISIBLE = 14;
     /** History rows leave room under them for the compare block. */
@@ -514,6 +516,9 @@ public final class MiningSimScreen extends Screen {
 
         ctx.drawText(textRenderer, Text.literal("Saved sessions — click to open, shift-click two to compare"),
                 left, y, GlassTheme.textDim(), false);
+        drawRight(ctx, "XP/hr", px + PANEL_W - 10 - RATE_COL_W * 2, y, GlassTheme.textDim());
+        drawRight(ctx, "Energy/hr", px + PANEL_W - 10 - RATE_COL_W, y, GlassTheme.textDim());
+        drawRight(ctx, "$/hr", px + PANEL_W - 10, y, GlassTheme.textDim());
         y += 11;
         ctx.fill(px + 4, y, px + PANEL_W - 4, y + 1, GlassTheme.rim());
         y += 3;
@@ -536,7 +541,14 @@ public final class MiningSimScreen extends Screen {
             ctx.drawText(textRenderer, Text.literal((picked ? "> " : "  ") + s.label()
                             + "  (" + formatDuration(f.elapsedMs()) + ")"),
                     left, y + 2, nameColor, false);
-            drawRight(ctx, compact(f.perHour(f.totalXp())) + " XP/hr",
+            // All three rates, right-aligned in fixed columns. Comparing sessions on XP alone
+            // hid the interesting differences — two runs can match on XP while one pays double
+            // the money, which is exactly what separates the perks being tuned here.
+            drawRight(ctx, compact(f.perHour(f.totalXp())) + " xp",
+                    px + PANEL_W - 10 - RATE_COL_W * 2, y + 2, GlassTheme.textDim());
+            drawRight(ctx, compact(f.perHour(f.totalEnergy())) + " e",
+                    px + PANEL_W - 10 - RATE_COL_W, y + 2, GlassTheme.textDim());
+            drawRight(ctx, "$" + compact(Math.round(f.moneyPerHour())),
                     px + PANEL_W - 10, y + 2, GlassTheme.textDim());
             y += ROW_H;
         }
