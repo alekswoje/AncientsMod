@@ -183,7 +183,7 @@ public final class JewelSockets {
                 ctx.fill(cx, cy, cx + 16, cy + 16, 0x99101014);
                 drawPadlock(ctx, cx + 5, cy + 4);
             } else if (slot.isFilled()) {
-                ctx.drawItem(gemFor(slot.rarityOrdinal(), slot.familyName()), cx, cy);
+                ctx.drawItem(gemFor(slot), cx, cy);
             }
 
             // Vanilla-style hover highlight.
@@ -208,14 +208,28 @@ public final class JewelSockets {
             lines.add(Text.literal("Unlocks at Prestige " + slot.requiredPrestige())
                     .formatted(Formatting.GRAY));
         } else if (slot.isFilled()) {
-            int ord = clampOrdinal(slot.rarityOrdinal());
-            String name = RARITY_NAMES[ord] + " " + slot.familyName() + " Jewel";
-            lines.add(Text.literal(name).withColor(RARITY_COLORS[ord]));
+            // Server-authored name. Rebuilding it here from rarity + type named
+            // a unique "Divine Aetheric Jewel"; the fallback stays only for an
+            // older server that sends no name.
+            if (!slot.displayName().isEmpty()) {
+                lines.add(LegacyText.parse(slot.displayName()));
+            } else {
+                int ord = clampOrdinal(slot.rarityOrdinal());
+                lines.add(Text.literal(RARITY_NAMES[ord] + " " + slot.familyName() + " Jewel")
+                        .withColor(RARITY_COLORS[ord]));
+            }
             // Server-authored lore, colours intact — the tier badge is
             // colour-coded, so repainting the line one flat green loses it.
             for (String stat : slot.statLines()) {
                 lines.add(LegacyText.parse(stat));
             }
+            if (!slot.loreLines().isEmpty()) {
+                lines.add(Text.empty());
+                for (String lore : slot.loreLines()) {
+                    lines.add(LegacyText.parse(lore));
+                }
+            }
+            lines.add(Text.empty());
             lines.add(Text.literal("Click to unsocket").formatted(Formatting.YELLOW));
         } else {
             lines.add(Text.literal("Empty Jewel Socket").formatted(Formatting.WHITE));
@@ -289,24 +303,34 @@ public final class JewelSockets {
     }
 
     /**
-     * The gem icon for a socket: shape by type, colour by rarity.
+     * The gem icon for a socket. The server sends the item-model path, so this
+     * is the same texture the real item wears.
      *
-     * <p>The wire carries the type's display name rather than its id, and the
-     * two differ only in case ("Gaian" / "gaian"), so lowercasing gets us the
-     * texture key without spending a protocol field on it. Anything we don't
-     * recognise falls back to the type-less gem, so an older or newer server
-     * still renders something sensible instead of a missing model.
+     * <p>Deriving it here from rarity + type is the fallback, not the rule: that
+     * only works for the two rolled types, and it silently gave every unique the
+     * generic type-less gem, because "Aetheric" matches neither branch. Falling
+     * back keeps an older server rendering something sensible.
      */
-    private static ItemStack gemFor(int ordinal, String typeName) {
-        int idx = clampOrdinal(ordinal);
-        String type = typeName == null ? "" : typeName.trim().toLowerCase(java.util.Locale.ROOT);
-        String model = (type.equals("gaian") || type.equals("therian"))
-                ? "jewel_" + type + "_" + RARITY_IDS[idx]
-                : "jewel_" + RARITY_IDS[idx];
+    public static ItemStack gemFor(JewelSlotsPayload.Slot slot) {
+        return gemFor(slot.rarityOrdinal(), slot.familyName(), slot.modelPath());
+    }
+
+    private static ItemStack gemFor(int ordinal, String typeName, String modelPath) {
+        String model = modelPath == null ? "" : modelPath.trim();
+        if (model.isEmpty()) {
+            int idx = clampOrdinal(ordinal);
+            String type = typeName == null ? "" : typeName.trim().toLowerCase(java.util.Locale.ROOT);
+            model = (type.equals("gaian") || type.equals("therian"))
+                    ? "jewel_" + type + "_" + RARITY_IDS[idx]
+                    : "jewel_" + RARITY_IDS[idx];
+        }
         ItemStack cached = GEM_CACHE.get(model);
         if (cached != null) return cached;
+        Identifier id = Identifier.tryParse(model.contains(":") ? model : "minecraft:" + model);
         ItemStack stack = new ItemStack(Items.AMETHYST_SHARD);
-        stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("minecraft", model));
+        // tryParse returns null on anything malformed; leaving ITEM_MODEL unset
+        // renders a plain amethyst shard, which beats throwing mid-draw.
+        if (id != null) stack.set(DataComponentTypes.ITEM_MODEL, id);
         GEM_CACHE.put(model, stack);
         return stack;
     }

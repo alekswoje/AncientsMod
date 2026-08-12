@@ -384,15 +384,27 @@ public final class Protocol {
      * <p>Body: {@code count}, then per slot {@code state}
      * ({@link #JEWEL_STATE_LOCKED} / {@link #JEWEL_STATE_EMPTY} /
      * {@link #JEWEL_STATE_FILLED}), {@code requiredPrestige}, {@code
-     * rarityOrdinal}, {@code familyName}, {@code statCount} and that many stat
-     * lines. Every field is present for every slot regardless of state.
+     * rarityOrdinal}, {@code familyName}, {@code displayName}, {@code
+     * modelPath}, {@code statCount} and that many description lines, then
+     * {@code loreCount} and that many flavour lines. Every field is present for
+     * every slot regardless of state.
      *
      * <p>Byte 51 is the first free id above the reserved block (28-30, 46, 50).
      */
     public static final byte PKT_JEWEL_SLOTS = 51;
     public static final int MAX_JEWEL_SLOTS = 3;
-    public static final int MAX_JEWEL_STATS = 3;
+    /**
+     * Description lines per slot. Not the same bound as the server's stat cap —
+     * a unique's effect is prose that wraps past three lines.
+     */
+    public static final int MAX_JEWEL_STATS = 6;
+    /** Flavour lines per slot — the trailer under the description. */
+    public static final int MAX_JEWEL_LORE = 8;
     public static final int JEWEL_MAX_FAMILY_CHARS = 24;
+    /** Server-authored display name, colour codes included. */
+    public static final int JEWEL_MAX_NAME_CHARS = 48;
+    /** Server-authored item-model path, e.g. {@code jewel_unique_gravecall}. */
+    public static final int JEWEL_MAX_MODEL_CHARS = 48;
     /** Stat lines arrive with their colour codes. Must match the server's cap. */
     public static final int JEWEL_MAX_STAT_CHARS = 96;
     // No RATE_ constant: PKT_JEWEL_SLOTS is a last-write-wins snapshot, so

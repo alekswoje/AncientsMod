@@ -6,9 +6,6 @@ import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.component.DataComponentTypes;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
@@ -21,8 +18,8 @@ import java.util.List;
  * <p>Slots are drawn from the vanilla hotbar's own sprites so they sit beside
  * it as if they belonged there, and restyle with whatever pack is loaded. A
  * socketed jewel shows its gem icon (the same per-rarity
- * {@code minecraft:jewel_<rarity>} model the server puts on the item, so the
- * pack art matches exactly); an unlocked empty slot is just the frame, like an
+ * item model the server sends for that jewel, so the pack art matches
+ * exactly — a unique's bespoke art included); an unlocked empty slot is just the frame, like an
  * empty hotbar cell; a locked slot shows a padlock plus the prestige it wants.
  *
  * <p>Purely a display of server state — nothing here can equip or move a jewel.
@@ -72,14 +69,6 @@ public final class JewelHud extends HudElement {
     private static final int LOCK_COLOR     = 0xFF7C838F;
     private static final int CAPTION_COLOR  = 0xFFBFC4CC;
     private static final int STAT_COLOR     = 0xFF9BE59B;
-
-    private static final String[] RARITY_IDS = {
-            "simple", "uncommon", "elite", "ultimate",
-            "legendary", "godly", "divine", "exceptional",
-    };
-
-    /** One cached stack per rarity — building these every frame would churn. */
-    private static final java.util.Map<String, ItemStack> GEM_CACHE = new java.util.HashMap<>();
 
     private JewelHud() {}
 
@@ -224,7 +213,12 @@ public final class JewelHud extends HudElement {
         // An empty cell is just the frame, like an empty hotbar slot. A filled
         // one is only the gem: the rarity is already in the icon's colour, and
         // a ring around it read as "this slot is selected".
-        if (slot.isFilled()) ctx.drawItem(gemFor(slot.rarityOrdinal(), slot.familyName()), cx, cy);
+        // Shared with the inventory socket panel rather than copied: this icon
+        // logic existed in both files, so a unique rendered as the generic gem
+        // in two places and each had to be found separately.
+        if (slot.isFilled()) {
+            ctx.drawItem(com.aleks.ancientsmod.client.JewelSockets.gemFor(slot), cx, cy);
+        }
     }
 
     /** Tiny 7x9 padlock drawn from rectangles — no font glyph or texture needed. */
@@ -244,33 +238,6 @@ public final class JewelHud extends HudElement {
      * the HUD shows the exact pack art. Without the pack it degrades to a plain
      * amethyst shard rather than a missing-texture square.
      */
-    private static int clampOrdinal(int ordinal) {
-        return (ordinal < 0 || ordinal >= RARITY_IDS.length) ? 0 : ordinal;
-    }
-
-    /**
-     * The gem icon for a socket: shape by type, colour by rarity.
-     *
-     * <p>The wire carries the type's display name rather than its id, and the
-     * two differ only in case ("Gaian" / "gaian"), so lowercasing gets us the
-     * texture key without spending a protocol field on it. Anything we don't
-     * recognise falls back to the type-less gem, so an older or newer server
-     * still renders something sensible instead of a missing model.
-     */
-    private static ItemStack gemFor(int ordinal, String typeName) {
-        int idx = clampOrdinal(ordinal);
-        String type = typeName == null ? "" : typeName.trim().toLowerCase(java.util.Locale.ROOT);
-        String model = (type.equals("gaian") || type.equals("therian"))
-                ? "jewel_" + type + "_" + RARITY_IDS[idx]
-                : "jewel_" + RARITY_IDS[idx];
-        ItemStack cached = GEM_CACHE.get(model);
-        if (cached != null) return cached;
-        ItemStack stack = new ItemStack(Items.AMETHYST_SHARD);
-        stack.set(DataComponentTypes.ITEM_MODEL, Identifier.of("minecraft", model));
-        GEM_CACHE.put(model, stack);
-        return stack;
-    }
-
     private static TextRenderer textRenderer() {
         net.minecraft.client.MinecraftClient mc = net.minecraft.client.MinecraftClient.getInstance();
         return mc != null ? mc.textRenderer : null;

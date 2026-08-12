@@ -59,6 +59,8 @@
 - `/buffs` now opens with a **mining speed** line showing your speed multiplier and blocks per second
 - `/buffs` now opens with a **daily bonus** line showing the bonus, its block cap and your progress
 - **Mine-crack prediction** in the advanced settings screen is now called **Low-ping mine prediction**
+- Jewel sockets now show a jewel's full description, including the lines under its stats that only the item itself used to show
+- Unique jewels now show their own name and icon in the jewel sockets and the jewel HUD instead of a generic gem
 
 ## Input & Keybinds
 
