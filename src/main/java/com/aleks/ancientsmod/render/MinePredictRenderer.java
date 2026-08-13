@@ -180,7 +180,7 @@ public final class MinePredictRenderer {
 
         BlockPos pos = payload.pos();
         Entry existing = ACTIVE.get(pos);
-        if (existing != null && !existing.swapped()) {
+        if (existing != null && !existing.swapped() && !existing.serverSynced) {
             // We predicted this block on swing — adopt the server's authoritative
             // duration but keep our (earlier) local start time. Also learn the
             // duration for this ore so future first-swings are exact.
@@ -190,9 +190,31 @@ public final class MinePredictRenderer {
             return;
         }
         if (existing != null) {
-            // Already swapped (e.g. the server restarted the same block's task
-            // after our predicted finish). Leave the confirm logic to resolve it.
-            return;
+            // A SECOND server start at a position we already track. Swing-time
+            // prediction can only run ahead of the server by about one round
+            // trip, so once an entry is server-synced another PKT_MINE_START
+            // here is not a re-anchor — the server began a brand new break on
+            // the same block.
+            //
+            // Mining rushes make that the norm: the rush block stays in place
+            // for all of its swings, so every break restarts on the same
+            // BlockPos and no block update ever arrives to retire the old
+            // entry. Absorbing the packet kept the FINISHED break's start time,
+            // so the entry standing in for the new break was already past its
+            // duration and got dropped on the next client tick without ever
+            // rendering a stage — and because packets are handled before
+            // END_CLIENT_TICK, that race went the same way every time: under
+            // ClickLock only every second rush swing showed a crack.
+            if (existing.swapped()) {
+                // The server would not start another break here if our ghost
+                // swap had been real — the block never changed. Put it back.
+                rollback(world, pos, existing);
+            } else {
+                clearCrack(pos, existing);
+            }
+            ACTIVE.remove(pos);
+            // No owed flash: the block did not break-and-change, so there is
+            // nothing for a later server block update to pay out.
         }
 
         BlockState state = world.getBlockState(pos);

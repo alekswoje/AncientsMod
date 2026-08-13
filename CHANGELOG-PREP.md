@@ -36,6 +36,7 @@
 - Blocks now break on your own screen the moment their predicted timer ends
 - Break particles and the break sound now play instantly on your client
 - Mine prediction keeps animating while **ClickLock** is on
+- Mining a **rush block** with **ClickLock** now shows the crack animation on every swing instead of every second one
 - Powerball fireballs show their fire charge body again instead of only the flame trail
 - Powerball fireballs now render correctly alongside **Sodium**, **Iris** and **Distant Horizons**
 
