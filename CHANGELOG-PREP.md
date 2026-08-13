@@ -61,6 +61,7 @@
 - **Mine-crack prediction** in the advanced settings screen is now called **Low-ping mine prediction**
 - Jewel sockets now show a jewel's full description, including the lines under its stats that only the item itself used to show
 - Unique jewels now show their own name and icon in the jewel sockets and the jewel HUD instead of a generic gem
+- The `/buffs` **Crit Damage** channel is now called **Crit Multi**, matching the **+X% to Critical Strike Multiplier** wording every source uses
 
 ## Input & Keybinds
 

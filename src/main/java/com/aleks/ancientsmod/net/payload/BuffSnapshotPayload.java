@@ -273,7 +273,12 @@ public final class BuffSnapshotPayload {
             case CH_COMBAT_OUT    -> "Damage Dealt";
             case CH_COMBAT_IN     -> "Damage Taken";
             case CH_CRIT_CHANCE   -> "Crit Chance";
-            case CH_CRIT_DAMAGE   -> "Crit Damage";
+            // "Crit Multi", not "Crit Damage": the channel carries the crit
+            // MULTIPLIER, and every source feeding it now reads "+X% to Critical
+            // Strike Multiplier" server-side (jewels, Brutality). Kept short to
+            // sit alongside "Crit Chance". The constant keeps its wire name —
+            // the id is the protocol, the string is only the label.
+            case CH_CRIT_DAMAGE   -> "Crit Multi";
             case CH_BOSS_OUT      -> "Boss Damage Dealt";
             case CH_BOSS_IN       -> "Boss Damage Taken";
             case CH_MINING_SPEED  -> "Mining Speed";
