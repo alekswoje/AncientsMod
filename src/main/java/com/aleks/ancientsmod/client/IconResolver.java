@@ -28,6 +28,13 @@ import java.util.Optional;
  *   <li>{@code "#t<pattern>.<material>"} — a VANILLA armor-trim token (server
  *       minor ≥ 3) so the trim overlay renders on the icon. The pattern and
  *       material are looked up in the client's own trim registries.</li>
+ *   <li>{@code "#m<namespace>:<path>"} — an ITEM MODEL token. This is the one
+ *       that matters for our custom art: CustomModelData range-dispatch is
+ *       broken on Leaf 1.21.11, so every custom item on the server renders via
+ *       {@code ItemMeta#setItemModel} instead. Without this token those items
+ *       arrive here as their bare base material and the browser shows a plain
+ *       string / anvil / amethyst shard where the real icon should be. A bare
+ *       path with no namespace is read as {@code minecraft:}.</li>
  * </ul>
  *
  * <p>Mod GUIs (loot browser, PV / cell terminals) reconstruct item icons from
@@ -48,13 +55,19 @@ public final class IconResolver {
         int cmd = 0;
         String trimPattern = null;
         String trimMaterial = null;
+        String itemModel = null;
         int hash = key.indexOf('#');
         if (hash >= 0) {
             base = key.substring(0, hash);
             String[] tokens = key.substring(hash + 1).split("#");
             for (String tok : tokens) {
                 if (tok.isEmpty()) continue;
-                if (tok.charAt(0) == 't' && tok.indexOf('.') > 1) {
+                if (tok.charAt(0) == 'm' && tok.length() > 1) {
+                    // Item-model token. Checked before the trim token because a
+                    // model path may legally contain a '.', which the trim
+                    // classifier would otherwise claim.
+                    itemModel = tok.substring(1).trim();
+                } else if (tok.charAt(0) == 't' && tok.indexOf('.') > 1) {
                     String body = tok.substring(1);
                     int dot = body.indexOf('.');
                     String p = body.substring(0, dot);
@@ -84,6 +97,14 @@ public final class IconResolver {
         }
         if (trimPattern != null && trimMaterial != null) {
             applyTrim(stack, trimPattern, trimMaterial);
+        }
+        if (itemModel != null && !itemModel.isEmpty()) {
+            Identifier model = itemModel.indexOf(':') >= 0
+                    ? Identifier.tryParse(itemModel)
+                    : Identifier.tryParse("minecraft:" + itemModel);
+            // An unresolvable model leaves the base item rendering, which is the
+            // pre-token behaviour rather than an error.
+            if (model != null) stack.set(DataComponentTypes.ITEM_MODEL, model);
         }
         return stack;
     }
