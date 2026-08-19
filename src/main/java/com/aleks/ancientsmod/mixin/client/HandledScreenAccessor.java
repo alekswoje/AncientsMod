@@ -1,8 +1,11 @@
 package com.aleks.ancientsmod.mixin.client;
 
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
+import net.minecraft.screen.slot.Slot;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
+
+import java.util.Set;
 
 /**
  * Exposes the container panel's live layout so code outside the screen can
@@ -28,4 +31,15 @@ public interface HandledScreenAccessor {
 
     @Accessor("backgroundHeight")
     int ancientsmod$panelHeight();
+
+    /**
+     * The screen's in-progress quick-craft drag. Only {@code mouseReleased}
+     * ever clears it, so anything that swallows a release has to clear it
+     * itself or the screen stays wedged mid-drag.
+     */
+    @Accessor("cursorDragging")
+    void ancientsmod$setCursorDragging(boolean dragging);
+
+    @Accessor("cursorDragSlots")
+    Set<Slot> ancientsmod$cursorDragSlots();
 }

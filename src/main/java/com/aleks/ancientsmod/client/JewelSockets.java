@@ -21,7 +21,8 @@ import java.util.List;
 /**
  * The three jewel sockets drawn beside the survival inventory, behaving like
  * vanilla equipment slots: pick a jewel up onto the cursor, click a socket to
- * put it in; click a filled socket to take it back out.
+ * put it in; click a filled socket to take it back out. Dragging a jewel onto
+ * a socket and letting go there is the same request as a click on it.
  *
  * <p>Slot chrome is blitted straight out of the pack's own
  * {@code gui/container/inventory.png} (the first storage cell at 7,83), so the
@@ -265,14 +266,11 @@ public final class JewelSockets {
         if (!contains(panel, mouseX, mouseY)) return false;
         pressSwallowed = true;
 
-        int index = slotAt(panel, mouseX, mouseY);
-        if (index < 0) return true;                        // on the frame, not a cell
-        List<JewelSlotsPayload.Slot> slots = JewelState.slots();
-        if (index >= slots.size()) return true;
-        if (slots.get(index).isLocked()) return true;      // server would refuse anyway
+        int index = usableSlotAt(panel, mouseX, mouseY);
+        if (index < 0) return true;   // on the frame, or a locked cell the server would refuse
 
         // Plain click = vanilla slot semantics (take to cursor / put in / swap),
-        // resolved server-side — it re-reads the cursor and ignores anything
+        // resolved server-side — it re-reads the cursor and refuses anything
         // that isn't a jewel. Shift-click sends it straight to the inventory.
         NetworkHandler.sendJewelSocketRequest(
                 shift ? Protocol.JEWEL_OP_UNSOCKET : Protocol.JEWEL_OP_SOCKET_CURSOR, index);
@@ -283,14 +281,51 @@ public final class JewelSockets {
      * Whether the screen should be kept out of this release. Pairs with the
      * swallowed press wherever the pointer ended up — dragging off the widget
      * mid-click must not turn into a drop either.
+     *
+     * <p>A release that LANDS here after starting somewhere else is a drag and
+     * drop onto the socket, and is answered with the same request a click
+     * sends: the press already lifted the stack onto the cursor, which is what
+     * the server reads. Swallowing it silently instead made a dropped jewel
+     * look like it had been eaten.
      */
     public static boolean onRelease(HandledScreenAccessor panel,
                                     double mouseX, double mouseY) {
-        if (pressSwallowed) {
-            pressSwallowed = false;
-            return true;
+        boolean ourPress = pressSwallowed;
+        pressSwallowed = false;
+        if (!ourPress && !contains(panel, mouseX, mouseY)) return false;
+
+        // HandledScreen#mouseReleased is the ONLY place the quick-craft drag it
+        // starts on press gets cleared, and a swallowed release never reaches
+        // it. Left set, cursorDragging swallows every later click and the stale
+        // cursorDragSlots get distributed into on the next release — the item
+        // scatters into slots it was only dragged ACROSS, which reads as loss.
+        panel.ancientsmod$setCursorDragging(false);
+        panel.ancientsmod$cursorDragSlots().clear();
+
+        if (!ourPress) dropOnSocket(panel, mouseX, mouseY);
+        return true;
+    }
+
+    /** Socket whatever the cursor is carrying into the cell under the pointer. */
+    private static void dropOnSocket(HandledScreenAccessor panel, double mouseX, double mouseY) {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc == null || mc.player == null
+                || mc.player.currentScreenHandler.getCursorStack().isEmpty()) {
+            return;   // empty-handed release: nothing to put in
         }
-        return contains(panel, mouseX, mouseY);
+        int index = usableSlotAt(panel, mouseX, mouseY);
+        if (index >= 0) {
+            NetworkHandler.sendJewelSocketRequest(Protocol.JEWEL_OP_SOCKET_CURSOR, index);
+        }
+    }
+
+    /** Index of the cell under the pointer that can actually take a click, or -1. */
+    private static int usableSlotAt(HandledScreenAccessor panel, double mouseX, double mouseY) {
+        int index = slotAt(panel, mouseX, mouseY);
+        if (index < 0) return -1;
+        List<JewelSlotsPayload.Slot> slots = JewelState.slots();
+        if (index >= slots.size() || slots.get(index).isLocked()) return -1;
+        return index;
     }
 
     /** Drags belonging to a swallowed press — keeps quick-craft from starting. */
