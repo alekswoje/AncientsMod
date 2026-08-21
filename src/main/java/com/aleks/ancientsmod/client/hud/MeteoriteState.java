@@ -45,6 +45,32 @@ public final class MeteoriteState {
         return ENTRIES.values();
     }
 
+    /**
+     * Whether a fresh meteorite is known at these block coordinates.
+     *
+     * <p>The world name is deliberately ignored, for the same reason
+     * {@code MeteoriteLabelRenderer} ignores it: Bukkit's
+     * {@code world.getName()} and the client's registry path do not always
+     * agree, the server only sends these to players in the meteorite's world,
+     * and the map is cleared on every dimension switch — so anything still
+     * held is for the world we are in.
+     *
+     * <p>Used by {@code MinePredictRenderer} to skip the ghost swap on a
+     * meteorite: the server keeps that block in place for all of its remaining
+     * ores, so a predicted replacement would only flicker and roll back.
+     */
+    public static boolean isKnownAt(int x, int y, int z) {
+        if (ENTRIES.isEmpty()) return false;
+        long now = System.currentTimeMillis();
+        for (Snapshot s : ENTRIES.values()) {
+            if (s.x == x && s.y == y && s.z == z
+                    && now - s.receivedMs <= Protocol.METEORITE_HUD_STALE_AFTER_MS) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static void reset() {
         ENTRIES.clear();
     }

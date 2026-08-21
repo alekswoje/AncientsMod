@@ -12,6 +12,8 @@
 
 ## Rendering & Visuals
 
+- Fixed mining a meteorite briefly turning the block into netherrack before it snapped back.
+
 ## UI & Screens
 
 ## Input & Keybinds

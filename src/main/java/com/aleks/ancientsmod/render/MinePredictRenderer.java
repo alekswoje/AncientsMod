@@ -2,6 +2,7 @@ package com.aleks.ancientsmod.render;
 
 import com.aleks.ancientsmod.AncientsMod;
 import com.aleks.ancientsmod.client.FeatureToggles;
+import com.aleks.ancientsmod.client.hud.MeteoriteState;
 import com.aleks.ancientsmod.net.Protocol;
 import com.aleks.ancientsmod.net.payload.MineSpeedsPayload;
 import com.aleks.ancientsmod.net.payload.MineStartPayload;
@@ -42,8 +43,10 @@ import java.util.concurrent.ThreadLocalRandom;
  *       plays locally. The server's real block update confirms it ~RTT/2 later.</li>
  *   <li><b>Rollback on silence.</b> If no server block update confirms the swap
  *       within {@code 2×latency + 500ms}, the original state is restored and ghost
- *       swaps at that position are suppressed for a while (covers meteorites and
- *       other multi-hit blocks the engine can't model).</li>
+ *       swaps at that position are suppressed for a while, and re-suppressed on
+ *       every further predicted break there (covers multi-hit blocks the engine
+ *       can't model). Meteorites skip the swap up front instead — see
+ *       {@link #ghostBreak}.</li>
  * </ol>
  *
  * <p>Server-authoritative throughout: nothing here grants rewards or sends break
@@ -289,6 +292,7 @@ public final class MinePredictRenderer {
         // Block changed → this is the authoritative break. Learn the replacement
         // for first-swing swaps on future blocks of this type.
         PAUSED.remove(pos); // the break ends any paused progress the server held here
+        POS_BLACKLIST.remove(pos); // proof the server does change this block — predict here again
         if (entry.ore != null && !newState.isAir()) {
             LEARNED_REPLACEMENT.put(entry.ore, newState);
         }
@@ -495,6 +499,7 @@ public final class MinePredictRenderer {
         }
         OWED_FLASH.remove(pos);
         PAUSED.remove(pos); // the break ends any paused progress the server held here
+        POS_BLACKLIST.remove(pos); // proof the server does change this block — predict here again
         if (!FeatureToggles.isMinePredictEnabled()) return; // server isn't suppressing; it drew its own
         MinecraftClient client = MinecraftClient.getInstance();
         ClientWorld world = client.world;
@@ -541,8 +546,24 @@ public final class MinePredictRenderer {
 
         Long blacklistedUntil = POS_BLACKLIST.get(pos);
         boolean blacklisted = blacklistedUntil != null && System.currentTimeMillis() < blacklistedUntil;
+        // A landed meteorite is a NETHER_QUARTZ_ORE block the server does NOT
+        // change on a break: it decrements the meteorite's remaining-ore counter
+        // and leaves the block standing until the last one. The speed table's
+        // quartz row still names netherrack as the replacement, so swapping here
+        // showed netherrack until the confirm window lapsed and rolled it back.
+        // Predict the crack only — the meteorite finish path plays the server's
+        // own break particles and sound (it is not predict-suppressed).
+        boolean serverKeepsBlock = MeteoriteState.isKnownAt(pos.getX(), pos.getY(), pos.getZ());
 
-        if (replacement == null || blacklisted || prior.isAir()) {
+        if (replacement == null || blacklisted || serverKeepsBlock || prior.isAir()) {
+            if (blacklisted || serverKeepsBlock) {
+                // Still swinging at a block the server keeps. Hold the suppression
+                // open instead of letting it lapse mid-block into another flicker
+                // — POS_BLACKLIST is only ever set on a rollback, so left alone it
+                // expires and the very next predicted break swaps again.
+                POS_BLACKLIST.put(pos.toImmutable(),
+                        System.currentTimeMillis() + Protocol.MINE_PREDICT_POS_BLACKLIST_MS);
+            }
             return; // crack-only prediction; server's block update finishes the job
         }
 
