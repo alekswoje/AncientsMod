@@ -51,6 +51,10 @@ public final class FeatureToggles {
     /** While holding a sword/axe, fade gang teammates within 5 blocks AND skip them in the attack raycast so you can hit enemies past them. Off in duels. */
     private static volatile boolean peacefulPvp = false;
 
+    /** Hold left-click to keep swinging at PvE monsters at 5 clicks/second. Never targets players —
+     *  requires a sword/axe and only hits what the crosshair is already on. Off by default. */
+    private static volatile boolean pveAutoAttack = false;
+
     /** Show the draggable booster-timers HUD. Off = mod widget hidden; the server's bossbar (if not also disabled in /toggles) still renders. */
     private static volatile boolean boosterHud = true;
 
@@ -216,6 +220,7 @@ public final class FeatureToggles {
             pickaxeBlocks = parseBool(props.getProperty("pickaxeBlocks"), pickaxeBlocks);
             peacefulMining = parseBool(props.getProperty("peacefulMining"), peacefulMining);
             peacefulPvp = parseBool(props.getProperty("peacefulPvp"), peacefulPvp);
+            pveAutoAttack = parseBool(props.getProperty("pveAutoAttack"), pveAutoAttack);
             boosterHud = parseBool(props.getProperty("boosterHud"), boosterHud);
             meteoriteHud = parseBool(props.getProperty("meteoriteHud"), meteoriteHud);
             miningRushPings = parseBool(props.getProperty("miningRushPings"), miningRushPings);
@@ -268,6 +273,7 @@ public final class FeatureToggles {
         props.setProperty("pickaxeBlocks", Boolean.toString(pickaxeBlocks));
         props.setProperty("peacefulMining", Boolean.toString(peacefulMining));
         props.setProperty("peacefulPvp", Boolean.toString(peacefulPvp));
+        props.setProperty("pveAutoAttack", Boolean.toString(pveAutoAttack));
         props.setProperty("boosterHud", Boolean.toString(boosterHud));
         props.setProperty("meteoriteHud", Boolean.toString(meteoriteHud));
         props.setProperty("miningRushPings", Boolean.toString(miningRushPings));
@@ -415,6 +421,20 @@ public final class FeatureToggles {
     public static void setPeacefulPvp(boolean value) {
         if (peacefulPvp == value) return;
         peacefulPvp = value;
+        save();
+    }
+
+    public static boolean isPveAutoAttackEnabled() { return pveAutoAttack; }
+
+    public static boolean togglePveAutoAttack() {
+        pveAutoAttack = !pveAutoAttack;
+        save();
+        return pveAutoAttack;
+    }
+
+    public static void setPveAutoAttack(boolean value) {
+        if (pveAutoAttack == value) return;
+        pveAutoAttack = value;
         save();
     }
 

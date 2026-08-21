@@ -18,6 +18,8 @@
 
 ## Input & Keybinds
 
+- New **Combat** setting: hold left-click to auto-attack PvE monsters at **5** clicks per second. Off by default, requires a sword or axe, and never targets players.
+
 ## Networking & Server Integration
 
 ## Updates & Installation

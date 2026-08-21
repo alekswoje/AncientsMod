@@ -68,6 +68,10 @@ public final class SettingsScreen extends WidgetSettingsScreen {
         addToggle("% on enchant / calcified dust",
                 FeatureToggles::isDustPercentOverlayEnabled, FeatureToggles::setDustPercentOverlay);
 
+        addSection("Combat");
+        addToggle("Hold left-click to auto-attack monsters",
+                FeatureToggles::isPveAutoAttackEnabled, FeatureToggles::setPveAutoAttack);
+
         addSection("PvP");
         addToggle("Peaceful PvP",
                 FeatureToggles::isPeacefulPvpEnabled, FeatureToggles::setPeacefulPvp);
