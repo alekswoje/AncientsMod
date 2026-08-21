@@ -50,6 +50,10 @@ public final class SettingsScreen extends WidgetSettingsScreen {
         addToggle("Light glass theme",
                 FeatureToggles::isGlassLightThemeEnabled, FeatureToggles::setGlassLightTheme);
 
+        addSection("Chat");
+        addToggle("Hover chat message to copy",
+                FeatureToggles::isChatCopyEnabled, FeatureToggles::setChatCopy);
+
         addSection("Tooltips");
         addToggle("Collapse enchants on gear",
                 FeatureToggles::isEnchantCollapseEnabled, FeatureToggles::setEnchantCollapse);

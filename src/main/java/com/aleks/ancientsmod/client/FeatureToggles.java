@@ -179,6 +179,12 @@ public final class FeatureToggles {
      *  Parsed from the synced lore — no server change needed. */
     private static volatile boolean dustPercentOverlay = true;
 
+    /** Highlight the chat message under the cursor and show a copy icon at the chat box
+     *  right edge, while the chat screen is open. Clicking the message copies
+     *  {@code <name>: <message>}. The server only marks its player chat lines as copyable
+     *  for clients running this mod, so nothing shows on other servers. */
+    private static volatile boolean chatCopy = true;
+
     /** Glass GUI theme variant: false = dark smoked glass (default), true = light frosted glass.
      *  Drives {@link com.aleks.ancientsmod.client.glass.GlassTheme}; affects every mod screen + HUD. */
     private static volatile boolean glassLightTheme = false;
@@ -247,6 +253,7 @@ public final class FeatureToggles {
             boosterInfoOverlay = parseBool(props.getProperty("boosterInfoOverlay"), boosterInfoOverlay);
             dustPercentOverlay = parseBool(props.getProperty("dustPercentOverlay"), dustPercentOverlay);
             glassLightTheme = parseBool(props.getProperty("glassLightTheme"), glassLightTheme);
+            chatCopy = parseBool(props.getProperty("chatCopy"), chatCopy);
         } catch (IOException e) {
             AncientsMod.LOGGER.warn("failed to load {}: {}", FILE_NAME, e.getMessage());
         }
@@ -298,6 +305,7 @@ public final class FeatureToggles {
         props.setProperty("boosterInfoOverlay", Boolean.toString(boosterInfoOverlay));
         props.setProperty("dustPercentOverlay", Boolean.toString(dustPercentOverlay));
         props.setProperty("glassLightTheme", Boolean.toString(glassLightTheme));
+        props.setProperty("chatCopy", Boolean.toString(chatCopy));
         try {
             Files.createDirectories(configPath().getParent());
             try (var out = Files.newOutputStream(configPath())) {
@@ -739,6 +747,14 @@ public final class FeatureToggles {
     public static void setGlassLightTheme(boolean value) {
         if (glassLightTheme == value) return;
         glassLightTheme = value;
+        save();
+    }
+
+    public static boolean isChatCopyEnabled() { return chatCopy; }
+
+    public static void setChatCopy(boolean value) {
+        if (chatCopy == value) return;
+        chatCopy = value;
         save();
     }
 

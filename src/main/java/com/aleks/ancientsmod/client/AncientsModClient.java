@@ -148,6 +148,21 @@ public final class AncientsModClient implements ClientModInitializer {
         // Auto-rejoin overlay: attach a per-screen render callback whenever the
         // vanilla DisconnectedScreen is opened.
         ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> AutoRejoinManager.onScreenInit(screen));
+        // Hover-to-copy in chat. The chat lines themselves are drawn by the
+        // in-game HUD BEFORE the screen, so afterRender paints over them;
+        // allowMouseClick only arms the copied flash and always returns true,
+        // because the copy itself is vanilla's ChatScreen click handling.
+        ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> {
+            if (!(screen instanceof net.minecraft.client.gui.screen.ChatScreen)) return;
+            com.aleks.ancientsmod.client.chat.ChatCopyOverlay.reset();
+            ScreenEvents.afterRender(screen).register((s, ctx, mouseX, mouseY, delta) ->
+                    com.aleks.ancientsmod.client.chat.ChatCopyOverlay.render(ctx, mouseX, mouseY));
+            net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents.allowMouseClick(screen)
+                    .register((s, click) -> {
+                        com.aleks.ancientsmod.client.chat.ChatCopyOverlay.onMouseClick(click);
+                        return true;
+                    });
+        });
         // Jewel sockets in the survival inventory. Deliberately the Fabric
         // screen API rather than a mixin on render: afterRender fires after the
         // screen has drawn everything (status effects, recipe book included),

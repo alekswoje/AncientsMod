@@ -15,6 +15,7 @@
 ## UI & Screens
 
 - Items in your inventory can now be dragged onto each other to stack them while the PV or cell terminal is open.
+- Hovering a chat message with the chat open now highlights it and shows a copy icon at the right edge. Click the message to copy it to your clipboard. Toggle it under **Chat** in the settings screen.
 
 ## Input & Keybinds
 
