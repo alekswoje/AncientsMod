@@ -49,6 +49,10 @@ import java.util.Locale;
  *       repeat to pull the next stack.</li>
  *   <li>L-press inventory slot, drag onto grid, release → deposit that slot
  *       via {@link #sendDeposit(int)} (server picks the destination).</li>
+ *   <li>L-press an inventory slot and drag onto another inventory slot → drops
+ *       the stack there on release: merges two partial stacks of the same item,
+ *       swaps different ones. Same {@link #sendCursorPlaceInv(int)} op a second
+ *       click would send, so no server change is needed.</li>
  * </ul>
  *
  * <p>The screen is bundle-driven: after every extract / deposit the server
@@ -121,6 +125,13 @@ public abstract class ItemTerminalScreen extends Screen {
     /** Slots already shift-dragged-over this drag, so we don't re-fire while
      *  the cursor still sits on the same slot. Reset on mouseRelease. */
     private final java.util.Set<Integer> shiftDragDeposited = new java.util.HashSet<>();
+
+    /** Inventory slot a bare left-press just lifted a stack from, or -1 when no
+     *  drag is armed. Releasing over a DIFFERENT inventory slot completes the
+     *  move (place / merge / swap) into that slot. Without it a press-drag-
+     *  release left the stack stranded on the cursor, so two partial stacks of
+     *  the same item could not be merged without closing the terminal first. */
+    private int dragOriginSlot = -1;
 
     /** Slots the player just shift-deposited: kept visually empty until the
      *  server confirms (or a short window lapses). The player inventory is
@@ -557,6 +568,9 @@ public abstract class ItemTerminalScreen extends Screen {
         double mx = click.x();
         double my = click.y();
 
+        // Any new press cancels a stale drag arm.
+        dragOriginSlot = -1;
+
         // First shift-click of a hold: freeze the order from BEFORE this click's
         // extract (render's edge-detect may not have run yet if the click landed
         // in the same frame as the keypress) so even the first pull doesn't move.
@@ -612,8 +626,12 @@ public abstract class ItemTerminalScreen extends Screen {
             // Bare L → vanilla slot click: pick up if cursor empty, place/
             // swap/merge if holding. Predicted locally, server reconciles.
             if (button == 0) {
+                boolean lifting = cursorStack().isEmpty();
                 predictInvSlotClick(invSlot);
                 sendCursorPlaceInv(invSlot);
+                // The press lifted a stack → arm a drag so the release can drop
+                // it on whatever slot the cursor ends over (see mouseReleased).
+                if (lifting && !cursorStack().isEmpty()) dragOriginSlot = invSlot;
                 return true;
             }
             return super.mouseClicked(click, doubleClick);
@@ -840,6 +858,23 @@ public abstract class ItemTerminalScreen extends Screen {
         if (scrollbar.isDragging()) {
             scrollbar.release();
             return true;
+        }
+        // Click-and-drag move inside the inventory strip: the bare left-press
+        // lifted the stack (mouseClicked), and this release drops it on the slot
+        // the cursor ended over — place, merge or swap, exactly as a second
+        // click there would. Releasing back on the origin slot keeps it on the
+        // cursor, matching vanilla's pick-up-and-hold.
+        if (dragOriginSlot >= 0) {
+            int origin = dragOriginSlot;
+            dragOriginSlot = -1;
+            if (click.button() == 0) {
+                int target = invSlotUnderCursor(click.x(), click.y());
+                if (target >= 0 && target != origin && !cursorStack().isEmpty()) {
+                    predictInvSlotClick(target);
+                    sendCursorPlaceInv(target);
+                    return true;
+                }
+            }
         }
         if (shiftDragging && click.button() == 0) {
             shiftDragging = false;

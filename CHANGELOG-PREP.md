@@ -14,6 +14,8 @@
 
 ## UI & Screens
 
+- Items in your inventory can now be dragged onto each other to stack them while the PV or cell terminal is open.
+
 ## Input & Keybinds
 
 ## Networking & Server Integration

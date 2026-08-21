@@ -28,6 +28,9 @@ import net.minecraft.text.Text;
  *   <li>L-press hotbar slot, drag onto grid, release → deposit that hotbar
  *       slot via {@link NetworkHandler#sendPvShiftClick(int)} (server fills the
  *       first vault with space).</li>
+ *   <li>L-press an inventory slot and drag onto another inventory slot → drops
+ *       the stack there on release, so two partial stacks pulled out of the
+ *       vaults can be merged without closing the terminal.</li>
  * </ul>
  *
  * <p>The screen is bundle-driven: after every extract / deposit the server
