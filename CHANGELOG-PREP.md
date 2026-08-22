@@ -16,8 +16,6 @@
 
 ## Input & Keybinds
 
-- Removed the **Combat** auto-attack setting added in **3.0.2**. Use the server's **/mobaura** instead, which does the same thing without risking an anticheat kick.
-
 ## Networking & Server Integration
 
 ## Updates & Installation
