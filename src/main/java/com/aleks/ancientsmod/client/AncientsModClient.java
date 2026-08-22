@@ -225,7 +225,6 @@ public final class AncientsModClient implements ClientModInitializer {
             GangPingManager.reset();
             GangRoster.reset();
             DuelState.reset();
-            PveAutoAttack.reset();
             MeteoriteState.reset();
             com.aleks.ancientsmod.client.buffs.BuffSnapshotState.clear();
             BugReportClient.reset();
@@ -252,7 +251,6 @@ public final class AncientsModClient implements ClientModInitializer {
             BugReportClient.tick();
             SuggestClient.tick();
             PvClient.tick();
-            PveAutoAttack.tick(client);
             com.aleks.ancientsmod.client.loot.LootClient.tick();
             AutoRejoinManager.tick(client);
             // Drop pings whose source world the player has since left. The
