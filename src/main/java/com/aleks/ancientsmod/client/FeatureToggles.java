@@ -19,6 +19,14 @@ public final class FeatureToggles {
 
     private static final String FILE_NAME = "ancientsmod.properties";
 
+    /** One-shot marker for the v3.0.5 flip of {@code chatCopy} to off-by-default.
+     *  {@link #save()} writes every key, and {@link #load()} writes the whole file on
+     *  first run, so every install that ever ran v3.0.1-v3.0.4 already has
+     *  {@code chatCopy=true} on disk - changing the field default alone would reach
+     *  nobody. A config without this key predates the flip and gets chatCopy forced off
+     *  once; the key is then written, so a player who turns it back on keeps it. */
+    private static final String CHAT_COPY_OFF_MIGRATION = "chatCopyDefaultOffApplied";
+
     // ── Toggles (defaults below) ─────────────────────────────────────────────
 
     /** Swing-time mine prediction. On by default: the crack starts the instant you
@@ -188,8 +196,13 @@ public final class FeatureToggles {
     /** Highlight the chat message under the cursor and show a copy icon at the chat box
      *  right edge, while the chat screen is open. Clicking the message copies
      *  {@code <name>: <message>}. The server only marks its player chat lines as copyable
-     *  for clients running this mod, so nothing shows on other servers. */
-    private static volatile boolean chatCopy = true;
+     *  for clients running this mod, so nothing shows on other servers.
+     *
+     *  <p>OFF by default since v3.0.5: with a copyable line under the cursor at all times,
+     *  the highlight reads as an accidental select-all rather than an affordance. Players
+     *  who want it turn it on in Settings > Chat; the click-to-copy itself is vanilla's
+     *  and keeps working either way. See {@link #CHAT_COPY_OFF_MIGRATION}. */
+    private static volatile boolean chatCopy = false;
 
     /** Glass GUI theme variant: false = dark smoked glass (default), true = light frosted glass.
      *  Drives {@link com.aleks.ancientsmod.client.glass.GlassTheme}; affects every mod screen + HUD. */
@@ -213,8 +226,10 @@ public final class FeatureToggles {
             return;
         }
         Properties props = new Properties();
+        boolean applyChatCopyOffMigration = false;
         try (var in = Files.newInputStream(path)) {
             props.load(in);
+            applyChatCopyOffMigration = props.getProperty(CHAT_COPY_OFF_MIGRATION) == null;
             minePredict = parseBool(props.getProperty("minePredict"), minePredict);
             enchantCollapse = parseBool(props.getProperty("enchantCollapse"), enchantCollapse);
             scrollableTooltips = parseBool(props.getProperty("scrollableTooltips"), scrollableTooltips);
@@ -264,6 +279,11 @@ public final class FeatureToggles {
             chatCopy = parseBool(props.getProperty("chatCopy"), chatCopy);
         } catch (IOException e) {
             AncientsMod.LOGGER.warn("failed to load {}: {}", FILE_NAME, e.getMessage());
+            return; // don't stamp the migration marker over a config we failed to read
+        }
+        if (applyChatCopyOffMigration) {
+            chatCopy = false;
+            save(); // persists the value and the marker, so this runs exactly once
         }
     }
 
@@ -316,6 +336,7 @@ public final class FeatureToggles {
         props.setProperty("dustPercentOverlay", Boolean.toString(dustPercentOverlay));
         props.setProperty("glassLightTheme", Boolean.toString(glassLightTheme));
         props.setProperty("chatCopy", Boolean.toString(chatCopy));
+        props.setProperty(CHAT_COPY_OFF_MIGRATION, "true");
         try {
             Files.createDirectories(configPath().getParent());
             try (var out = Files.newOutputStream(configPath())) {
