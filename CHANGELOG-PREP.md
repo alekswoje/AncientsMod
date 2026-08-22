@@ -21,5 +21,3 @@
 ## Updates & Installation
 
 ## Quality of Life
-
-- Hover-to-copy chat is now **off** by default. Re-enable it under Settings > Chat > "Hover chat message to copy".
