@@ -108,6 +108,10 @@ public final class SettingsScreen extends WidgetSettingsScreen {
                 FeatureToggles::isMiningRushPingsEnabled, FeatureToggles::setMiningRushPings);
         addToggle("Hot zone indicator",
                 FeatureToggles::isHotZoneIndicatorEnabled, FeatureToggles::setHotZoneIndicator);
+        addToggle("Meteorite shower pings",
+                FeatureToggles::isMeteoriteShowerPingsEnabled, FeatureToggles::setMeteoriteShowerPings);
+        addToggle("Erebus tear pings",
+                FeatureToggles::isTearPingsEnabled, FeatureToggles::setTearPings);
         addToggle("Rift texture pack",
                 FeatureToggles::isRiftTexturePackEnabled, FeatureToggles::setRiftTexturePack);
 

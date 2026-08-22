@@ -12,6 +12,9 @@
 
 ## Rendering & Visuals
 
+- Added a **meteorite shower ping**: a beam and label at the shower's landing site, in the same style as meteor pings. Toggle in Settings under World.
+- Added an **Erebus tear ping**: a beam and label on an open breach that lasts as long as the tear and clears when it is sealed. Toggle in Settings under World.
+
 ## UI & Screens
 
 ## Input & Keybinds

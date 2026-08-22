@@ -365,6 +365,47 @@ public final class Protocol {
      */
     public static final byte PKT_MINING_RUSH_PING_CLEAR = 49;
 
+    /**
+     * S2C — Meteorite Shower beam ping: "a meteorite shower came down here".
+     * Same wire format and renderer path as {@link #PKT_HOT_ZONE_PING} — a
+     * world-space beam + HUD label with a payload-carried lifetime — anchored on
+     * the shower's centre so the burst is findable without reading coords out of
+     * chat. The server only sends it to players in the shower's world who haven't
+     * muted meteor alerts in {@code /toggles}; client-gated by the "Meteorite
+     * shower pings" toggle (dropped at intake when off).
+     *
+     * <p>Byte 55 is free on BOTH the master/dev scheme (tops out at 54) and the
+     * season2 scheme (tops out at 46), so it needs no renumber when merging —
+     * same anchor strategy as {@link #PKT_HOT_ZONE_PING}. Keep it that way.
+     */
+    public static final byte PKT_METEORITE_SHOWER_PING = 55;
+
+    /**
+     * S2C — Erebus Tear beam ping: "the breach is here". Same wire format and
+     * renderer path as {@link #PKT_METEORITE_SHOWER_PING}, with a lifetime sized
+     * to the tear's remaining life so the beam fades out with the breach. The
+     * server re-sends it on a slow cadence while the tear is up, so a player who
+     * logs in or warps in mid-fight still gets a beam; re-sends refresh the
+     * existing marker in place. Client-gated by the "Erebus tear pings" toggle.
+     *
+     * <p>Byte 56 is free on both schemes — same anchor strategy. Keep it so.
+     */
+    public static final byte PKT_TEAR_PING = 56;
+
+    /**
+     * S2C — clear the Erebus Tear beam. Sent the moment a tear closes (sealed,
+     * expired, or cancelled) so the beam goes with the breach instead of
+     * lingering out its lifetime. Carries the tear's world + coords; the client
+     * drops any {@link #PKT_TEAR_PING} marker keyed to that world+block. Silent
+     * no-op when the client never had one.
+     *
+     * <p>Wire after the type byte: {@code varint+string worldName; double x,y,z}
+     * — identical to {@link #PKT_MINING_RUSH_PING_CLEAR}.
+     *
+     * <p>Byte 57 is free on both schemes — same anchor strategy. Keep it so.
+     */
+    public static final byte PKT_TEAR_PING_CLEAR = 57;
+
     // S2C 50 reserved (removed dungeon timer — dungeons cut from the server).
     // S2C 28 reserved (removed skilltree OPEN).
     // S2C 29 reserved (removed skilltree STATE).
@@ -1282,6 +1323,12 @@ public final class Protocol {
     public static final int RATE_HOT_ZONE_PING_PER_SEC = 5;
     /** Max inbound mining-rush clears per second. At most one per rush end. */
     public static final int RATE_MINING_RUSH_PING_CLEAR_PER_SEC = 5;
+    /** Max inbound meteorite-shower pings per second. At most one per shower. */
+    public static final int RATE_METEORITE_SHOWER_PING_PER_SEC = 5;
+    /** Max inbound tear pings per second. One on open, then one per refresh cycle. */
+    public static final int RATE_TEAR_PING_PER_SEC = 5;
+    /** Max inbound tear clears per second. At most one per tear close. */
+    public static final int RATE_TEAR_PING_CLEAR_PER_SEC = 5;
     /** Roster + duel state are low-frequency keepalives — a handful per second is the ceiling. */
     public static final int RATE_GANG_ROSTER_PER_SEC = 4;
     public static final int RATE_DUEL_STATE_PER_SEC = 4;

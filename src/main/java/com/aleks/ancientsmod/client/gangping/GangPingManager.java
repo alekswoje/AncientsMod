@@ -6,6 +6,9 @@ import com.aleks.ancientsmod.net.payload.MeteorPingPayload;
 import com.aleks.ancientsmod.net.payload.MiningRushPingPayload;
 import com.aleks.ancientsmod.net.payload.MiningRushPingClearPayload;
 import com.aleks.ancientsmod.net.payload.HotZonePingPayload;
+import com.aleks.ancientsmod.net.payload.MeteoriteShowerPingPayload;
+import com.aleks.ancientsmod.net.payload.TearPingPayload;
+import com.aleks.ancientsmod.net.payload.TearPingClearPayload;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.sound.SoundEvents;
 
@@ -172,6 +175,99 @@ public final class GangPingManager {
         long by = (long) Math.floor(p.y());
         long bz = (long) Math.floor(p.z());
         return "hot_zone:" + p.label() + '@' + p.worldName() + ':' + bx + ',' + by + ',' + bz;
+    }
+
+    /**
+     * Handle an incoming meteorite-shower ping. Identical render path to hot-zone
+     * pings — only keying and the gating toggle differ. Gated at intake: when the
+     * "Meteorite shower pings" toggle is off we drop the packet entirely (no
+     * sound, no marker). Key is label+world+block-coords so back-to-back showers
+     * at different centres coexist and a re-sent one refreshes in place.
+     */
+    public static void onMeteoriteShowerPing(MeteoriteShowerPingPayload payload) {
+        if (payload == null) return;
+        if (!FeatureToggles.isMeteoriteShowerPingsEnabled()) return;
+        String key = meteoriteShowerKey(payload);
+        if (pings.size() >= MAX_ACTIVE && !pings.containsKey(key)) {
+            pings.entrySet().removeIf(e -> e.getValue().expired(System.currentTimeMillis()));
+            if (pings.size() >= MAX_ACTIVE) return;
+        }
+        boolean refresh = pings.containsKey(key);
+        pings.put(key, new GangPing(
+                payload.label(),
+                payload.colorRgb(),
+                payload.x(),
+                payload.y(),
+                payload.z(),
+                payload.worldName(),
+                System.currentTimeMillis(),
+                payload.lifetimeMs()));
+        if (!refresh) playPingSound();
+    }
+
+    private static String meteoriteShowerKey(MeteoriteShowerPingPayload p) {
+        long bx = (long) Math.floor(p.x());
+        long by = (long) Math.floor(p.y());
+        long bz = (long) Math.floor(p.z());
+        return "meteorite_shower:" + p.label() + '@' + p.worldName() + ':' + bx + ',' + by + ',' + bz;
+    }
+
+    /**
+     * Handle an incoming Erebus Tear ping. Identical render path to the shower
+     * ping; gated at intake by the "Erebus tear pings" toggle. The server re-sends
+     * this every 30s while the tear is up (so players who arrive mid-fight get a
+     * beam), and each re-send refreshes the same key in place with the breach's
+     * remaining life — only the first one plays the ping sound.
+     */
+    public static void onTearPing(TearPingPayload payload) {
+        if (payload == null) return;
+        if (!FeatureToggles.isTearPingsEnabled()) return;
+        String key = tearKey(payload);
+        if (pings.size() >= MAX_ACTIVE && !pings.containsKey(key)) {
+            pings.entrySet().removeIf(e -> e.getValue().expired(System.currentTimeMillis()));
+            if (pings.size() >= MAX_ACTIVE) return;
+        }
+        boolean refresh = pings.containsKey(key);
+        pings.put(key, new GangPing(
+                payload.label(),
+                payload.colorRgb(),
+                payload.x(),
+                payload.y(),
+                payload.z(),
+                payload.worldName(),
+                System.currentTimeMillis(),
+                payload.lifetimeMs()));
+        if (!refresh) playPingSound();
+    }
+
+    private static String tearKey(TearPingPayload p) {
+        long bx = (long) Math.floor(p.x());
+        long by = (long) Math.floor(p.y());
+        long bz = (long) Math.floor(p.z());
+        return "tear:" + p.label() + '@' + p.worldName() + ':' + bx + ',' + by + ',' + bz;
+    }
+
+    /**
+     * Drop the tear beam anchored to the cleared block. The server sends this the
+     * moment a breach closes (sealed / expired / cancelled) so the beam goes with
+     * it instead of outliving it. Matches on world + block coords only (not the
+     * label) so label formatting can never desync the removal. Silent no-op when
+     * no matching marker is present.
+     */
+    public static void clearTearPing(TearPingClearPayload payload) {
+        if (payload == null) return;
+        long bx = (long) Math.floor(payload.x());
+        long by = (long) Math.floor(payload.y());
+        long bz = (long) Math.floor(payload.z());
+        String world = payload.worldName();
+        pings.entrySet().removeIf(e -> {
+            if (!e.getKey().startsWith("tear:")) return false;
+            GangPing g = e.getValue();
+            return g.worldName.equals(world)
+                    && (long) Math.floor(g.x) == bx
+                    && (long) Math.floor(g.y) == by
+                    && (long) Math.floor(g.z) == bz;
+        });
     }
 
     private static String meteorKey(MeteorPingPayload p) {

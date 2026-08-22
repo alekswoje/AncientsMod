@@ -161,6 +161,24 @@ public final class NetworkHandler {
                     HotZonePingPayload p = HotZonePingPayload.decode(buf);
                     GangPingManager.onHotZonePing(p);
                 }
+                case Protocol.PKT_METEORITE_SHOWER_PING -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.METEORITE_SHOWER_PING)) return;
+                    com.aleks.ancientsmod.net.payload.MeteoriteShowerPingPayload p =
+                            com.aleks.ancientsmod.net.payload.MeteoriteShowerPingPayload.decode(buf);
+                    GangPingManager.onMeteoriteShowerPing(p);
+                }
+                case Protocol.PKT_TEAR_PING -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.TEAR_PING)) return;
+                    com.aleks.ancientsmod.net.payload.TearPingPayload p =
+                            com.aleks.ancientsmod.net.payload.TearPingPayload.decode(buf);
+                    GangPingManager.onTearPing(p);
+                }
+                case Protocol.PKT_TEAR_PING_CLEAR -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.TEAR_PING_CLEAR)) return;
+                    com.aleks.ancientsmod.net.payload.TearPingClearPayload p =
+                            com.aleks.ancientsmod.net.payload.TearPingClearPayload.decode(buf);
+                    GangPingManager.clearTearPing(p);
+                }
                 case Protocol.PKT_GANG_ROSTER -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.GANG_ROSTER)) return;
                     GangRosterPayload p = GangRosterPayload.decode(buf);

@@ -63,6 +63,12 @@ public final class FeatureToggles {
     /** Show a world-space beam + label marking the active hot zone in your tier's mine (same look as mining-rush pings). Off = no beam; the chat announcement still fires. */
     private static volatile boolean hotZoneIndicator = true;
 
+    /** Show a world-space beam + label where a meteorite shower came down (same look as meteor pings). Off = no beam; the chat announcement still fires. */
+    private static volatile boolean meteoriteShowerPings = true;
+
+    /** Show a world-space beam + label on an open Erebus Tear (same look as meteor pings). Off = no beam; the chat announcement still fires. */
+    private static volatile boolean tearPings = true;
+
     /** Show the draggable Events HUD (KOTH / BAH / Meteor / Rift / etc. countdowns). */
     private static volatile boolean eventsHud = true;
 
@@ -220,6 +226,8 @@ public final class FeatureToggles {
             meteoriteHud = parseBool(props.getProperty("meteoriteHud"), meteoriteHud);
             miningRushPings = parseBool(props.getProperty("miningRushPings"), miningRushPings);
             hotZoneIndicator = parseBool(props.getProperty("hotZoneIndicator"), hotZoneIndicator);
+            meteoriteShowerPings = parseBool(props.getProperty("meteoriteShowerPings"), meteoriteShowerPings);
+            tearPings = parseBool(props.getProperty("tearPings"), tearPings);
             eventsHud = parseBool(props.getProperty("eventsHud"), eventsHud);
             cooldownsHud = parseBool(props.getProperty("cooldownsHud"), cooldownsHud);
             statsHud   = parseBool(props.getProperty("statsHud"),   statsHud);
@@ -272,6 +280,8 @@ public final class FeatureToggles {
         props.setProperty("meteoriteHud", Boolean.toString(meteoriteHud));
         props.setProperty("miningRushPings", Boolean.toString(miningRushPings));
         props.setProperty("hotZoneIndicator", Boolean.toString(hotZoneIndicator));
+        props.setProperty("meteoriteShowerPings", Boolean.toString(meteoriteShowerPings));
+        props.setProperty("tearPings", Boolean.toString(tearPings));
         props.setProperty("eventsHud", Boolean.toString(eventsHud));
         props.setProperty("cooldownsHud", Boolean.toString(cooldownsHud));
         props.setProperty("statsHud",   Boolean.toString(statsHud));
@@ -450,6 +460,22 @@ public final class FeatureToggles {
     public static void setHotZoneIndicator(boolean value) {
         if (hotZoneIndicator == value) return;
         hotZoneIndicator = value;
+        save();
+    }
+
+    public static boolean isMeteoriteShowerPingsEnabled() { return meteoriteShowerPings; }
+
+    public static void setMeteoriteShowerPings(boolean value) {
+        if (meteoriteShowerPings == value) return;
+        meteoriteShowerPings = value;
+        save();
+    }
+
+    public static boolean isTearPingsEnabled() { return tearPings; }
+
+    public static void setTearPings(boolean value) {
+        if (tearPings == value) return;
+        tearPings = value;
         save();
     }
 
