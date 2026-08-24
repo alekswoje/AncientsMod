@@ -44,25 +44,38 @@ public final class UpdateChecker {
     private static final String RELEASES_PAGE = "https://github.com/alekswoje/AncientsMod/releases/latest";
     private static final Duration TIMEOUT = Duration.ofSeconds(8);
 
+    /** How long a fetched release stays trustworthy before we re-ask GitHub. */
+    private static final Duration CACHE_TTL = Duration.ofMinutes(2);
+
     private static final AtomicBoolean checkInFlight = new AtomicBoolean(false);
-    private static volatile boolean alertShown = false;
+    /** Version we last alerted about, rather than a plain boolean: a release cut
+     *  mid-session used to be swallowed by the latch, pinning the session to
+     *  whatever was latest at first join. Keyed by version, a newer one re-alerts. */
+    private static volatile String alertedVersion = null;
     private static volatile ReleaseInfo cachedLatest = null;
+    private static volatile long cachedAtMs = 0L;
 
     /** Fire-and-forget. Safe to call from any thread, including the render thread. */
     public static void checkAsync(MinecraftClient mc) {
-        if (mc == null || alertShown) return;
+        if (mc == null) return;
         if (!FeatureToggles.isUpdateAlertEnabled()) return;
         if (!checkInFlight.compareAndSet(false, true)) return;
 
         Thread.ofVirtual().name("AncientsMod-UpdateCheck").start(() -> {
             try {
                 String current = installedVersion();
-                ReleaseInfo latest = fetchLatestRelease();
+                ReleaseInfo latest = cachedIfFresh();
+                if (latest == null) latest = fetchLatestRelease();
                 if (latest == null) return;
-                cachedLatest = latest;
+                store(latest);
 
+                // Alert once per version, not once per session, so rejoining after a
+                // new release was published still surfaces it.
+                ReleaseInfo shown = latest;
                 if (isNewer(latest.version(), current)) {
-                    mc.execute(() -> showAlert(mc, current, latest));
+                    if (!latest.version().equals(alertedVersion)) {
+                        mc.execute(() -> showAlert(mc, current, shown));
+                    }
                 } else {
                     AncientsMod.LOGGER.info("AncientsMod is up to date (have v{}, latest v{})", current, latest.version());
                 }
@@ -75,16 +88,34 @@ public final class UpdateChecker {
         });
     }
 
-    /** Cached result of the most recent successful check, or null. */
+    /**
+     * Cached result of the most recent successful check, or null.
+     *
+     * <p>May be arbitrarily stale. Anything about to <em>install</em> a jar must go
+     * through {@link #fetchLatestReleaseSafe()} instead, or it downloads whatever was
+     * latest at first join rather than what is latest now.
+     */
     public static ReleaseInfo getCachedLatest() {
         return cachedLatest;
     }
 
-    /** Fetches the latest release synchronously. Returns null on any error. */
+    /** The cached release if it was fetched within {@link #CACHE_TTL}, else null. */
+    private static ReleaseInfo cachedIfFresh() {
+        ReleaseInfo info = cachedLatest;
+        if (info == null) return null;
+        return (System.currentTimeMillis() - cachedAtMs) <= CACHE_TTL.toMillis() ? info : null;
+    }
+
+    private static void store(ReleaseInfo info) {
+        cachedLatest = info;
+        cachedAtMs = System.currentTimeMillis();
+    }
+
+    /** Fetches the latest release synchronously, bypassing the cache. Returns null on any error. */
     public static ReleaseInfo fetchLatestReleaseSafe() {
         try {
             ReleaseInfo info = fetchLatestRelease();
-            if (info != null) cachedLatest = info;
+            if (info != null) store(info);
             return info;
         } catch (Exception e) {
             AncientsMod.LOGGER.debug("AncientsMod fetch latest release failed: {}", e.toString());
@@ -110,6 +141,9 @@ public final class UpdateChecker {
                 .timeout(TIMEOUT)
                 .header("Accept", "application/vnd.github+json")
                 .header("User-Agent", "AncientsMod/" + installedVersion())
+                // GitHub serves /releases/latest with a 60s public max-age, so a proxy
+                // or CDN in between can hand back a release that is already superseded.
+                .header("Cache-Control", "no-cache")
                 .GET()
                 .build();
         HttpResponse<String> res = client.send(req, HttpResponse.BodyHandlers.ofString());
@@ -150,9 +184,10 @@ public final class UpdateChecker {
     }
 
     private static void showAlert(MinecraftClient mc, String current, ReleaseInfo latest) {
-        // Render-thread guard against duplicate alerts if two checks raced.
-        if (alertShown) return;
-        alertShown = true;
+        // Render-thread guard against duplicate alerts if two checks raced. Keyed by
+        // version so a release published later in the session still gets announced.
+        if (latest.version().equals(alertedVersion)) return;
+        alertedVersion = latest.version();
 
         boolean hasJar = latest.assetUrl() != null && !latest.assetUrl().isBlank();
         String clickLabel = hasJar ? "[Click to auto-update]" : "[Open releases page]";
@@ -205,10 +240,20 @@ public final class UpdateChecker {
         }
         String core = v.substring(0, cut);
         String[] parts = core.split("\\.");
-        int[] out = new int[parts.length];
+        // One extra slot for a letter-suffix hotfix (3.0.5a): the release scheme puts
+        // tiny follow-ups on a trailing letter, and parsing "5a" as 0 made the hotfix
+        // read as OLDER than the release it patches, so it would never install.
+        int[] out = new int[parts.length + 1];
         for (int i = 0; i < parts.length; i++) {
-            try { out[i] = Integer.parseInt(parts[i].trim()); }
+            String part = parts[i].trim();
+            int end = 0;
+            while (end < part.length() && Character.isDigit(part.charAt(end))) end++;
+            try { out[i] = end == 0 ? 0 : Integer.parseInt(part.substring(0, end)); }
             catch (NumberFormatException ex) { out[i] = 0; }
+            if (i == parts.length - 1 && end < part.length()) {
+                char suffix = Character.toLowerCase(part.charAt(end));
+                if (suffix >= 'a' && suffix <= 'z') out[parts.length] = suffix - 'a' + 1;
+            }
         }
         return out;
     }

@@ -88,23 +88,22 @@ public final class UpdateInstaller {
      */
     public static void runFromCommand(MinecraftClient mc) {
         if (mc == null) return;
-        UpdateChecker.ReleaseInfo cached = UpdateChecker.getCachedLatest();
-        if (cached != null) {
-            String current = installedVersion();
-            if (!UpdateChecker.isNewer(cached.version(), current)) {
-                chat(mc, "Already on the latest version (v" + current + ").", Formatting.GREEN);
-                return;
-            }
-            installAsync(mc, cached);
-            return;
-        }
         chat(mc, "Checking for latest release...", Formatting.GOLD);
         Thread.ofVirtual().name("AncientsMod-UpdateCmd-Fetch").start(() -> {
-            UpdateChecker.ReleaseInfo info = UpdateChecker.fetchLatestReleaseSafe();
+            // ALWAYS re-fetch. The cached release is a snapshot from the first server
+            // join of this session; installing from it downloads whatever was latest
+            // back then, which is how a session that outlived a release ended up
+            // installing the previous version and asking to update again on restart.
+            UpdateChecker.ReleaseInfo fresh = UpdateChecker.fetchLatestReleaseSafe();
+            UpdateChecker.ReleaseInfo info = fresh != null ? fresh : UpdateChecker.getCachedLatest();
             mc.execute(() -> {
                 if (info == null) {
                     chat(mc, "Could not fetch release info — check your connection and try again.", Formatting.RED);
                     return;
+                }
+                if (fresh == null) {
+                    chat(mc, "Could not reach GitHub — falling back to the last known release (v"
+                            + info.version() + ").", Formatting.YELLOW);
                 }
                 String current = installedVersion();
                 if (!UpdateChecker.isNewer(info.version(), current)) {
@@ -138,11 +137,16 @@ public final class UpdateInstaller {
         chat(mc, "Downloading v" + info.version() + "...", Formatting.GOLD);
         Thread.ofVirtual().name("AncientsMod-UpdateInstall").start(() -> {
             try {
-                clearOtherPendings(info.version());
+                // Stage FIRST, sweep second. Clearing beforehand left a window with zero
+                // pending files, and a watcher armed by an earlier download exits the
+                // moment it sees none — so re-updating within one session disarmed the
+                // swap and cost an extra restart.
                 Path staged = downloadToPending(info);
+                clearOtherPendings(info.version());
                 // Arm the watcher NOW, while the game is still running, so the swap
-                // survives the JVM being force-killed by a wrapped launcher.
-                spawnWatcher();
+                // survives the JVM being force-killed by a wrapped launcher. Re-armed
+                // per download in case an earlier watcher has already exited.
+                rearmWatcher();
                 long kb = Files.size(staged) / 1024;
                 mc.execute(() -> chat(mc,
                         "v" + info.version() + " downloaded (" + kb + " KB). Fully close and reopen Minecraft to apply.",
@@ -258,6 +262,12 @@ public final class UpdateInstaller {
      * polls until the running jar's lock releases (this JVM exits), then swaps
      * {@code .pending → .jar}.
      */
+    /** Arms a watcher even if one was armed earlier this session — see {@link #installAsync}. */
+    private static void rearmWatcher() {
+        watcherSpawned.set(false);
+        spawnWatcher();
+    }
+
     private static void spawnWatcher() {
         if (!watcherSpawned.compareAndSet(false, true)) return;
         try {
@@ -346,60 +356,105 @@ public final class UpdateInstaller {
         return script;
     }
 
-    // Polls until the running jar's lock releases (this JVM exits), then for each
-    // pending jar deletes the old ancientsmod-*.jar (and any legacy prisonsmod-*.jar
-    // left over from before the 2026-07 mod rename) and renames .pending -> .jar,
-    // and finally self-deletes. Spawned while the game is still alive, so the wait
-    // is bounded generously (6h) to outlast a play session; the mod re-arms this
-    // watcher on its next launch if the deadline lapsed first. CRITICAL: the
-    // pending jar is moved into place ONLY after the locked old jar is confirmed
-    // gone — otherwise a deadline-while-locked path could leave BOTH jars on disk
-    // and crash Fabric on a duplicate mod id.
+    // Polls until the running jar's lock releases (this JVM exits), then applies
+    // the HIGHEST-VERSION pending jar and discards the rest: enumeration order is
+    // alphabetical, so ancientsmod-3.0.10 sorted before 3.0.9 and the older jar won.
+    // Applying deletes the old ancientsmod-*.jar (and any legacy prisonsmod-*.jar
+    // left over from before the 2026-07 mod rename) and renames .pending to .jar,
+    // then self-deletes. Spawned while the game is still alive, so the wait is
+    // bounded generously (6h) to outlast a play session; the mod re-arms this
+    // watcher on its next launch if the deadline lapsed first. CRITICAL: the pending
+    // jar is moved into place ONLY after the locked old jar is confirmed gone,
+    // otherwise a deadline-while-locked path could leave BOTH jars on disk and crash
+    // Fabric on a duplicate mod id.
     private static final String POWERSHELL_INSTALLER =
             "$ErrorActionPreference = 'Continue'\n" +
             "$dir = $PSScriptRoot\n" +
+            "$self = $PSCommandPath\n" +
+            "if (-not $self) { $self = $MyInvocation.MyCommand.Path }\n" +
             "$deadline = (Get-Date).AddSeconds(21600)\n" +
             "function Test-Unlocked($path) {\n" +
             "    try { $fs = [System.IO.File]::Open($path, 'Open', 'ReadWrite', 'None'); $fs.Close(); return $true }\n" +
             "    catch { return $false }\n" +
             "}\n" +
+            "function Get-VerKey($name) {\n" +
+            "    $v = $name -replace '^ancientsmod-', '' -replace '\\.jar\\.pending$', ''\n" +
+            "    $suffix = 0\n" +
+            "    if ($v -match '([A-Za-z])$') {\n" +
+            "        $c = ([string]$Matches[1]).ToLower()\n" +
+            "        $suffix = [int][char]$c - 96\n" +
+            "        $v = $v.Substring(0, $v.Length - 1)\n" +
+            "    }\n" +
+            "    $nums = @(0, 0, 0)\n" +
+            "    $parts = $v.Split('.')\n" +
+            "    for ($i = 0; $i -lt 3 -and $i -lt $parts.Count; $i++) {\n" +
+            "        $n = 0\n" +
+            "        [void][int]::TryParse($parts[$i], [ref]$n)\n" +
+            "        $nums[$i] = $n\n" +
+            "    }\n" +
+            "    return @($nums[0], $nums[1], $nums[2], $suffix)\n" +
+            "}\n" +
+            "function Compare-Ver($a, $b) {\n" +
+            "    for ($i = 0; $i -lt 4; $i++) {\n" +
+            "        if ($a[$i] -gt $b[$i]) { return 1 }\n" +
+            "        if ($a[$i] -lt $b[$i]) { return -1 }\n" +
+            "    }\n" +
+            "    return 0\n" +
+            "}\n" +
             "while ($true) {\n" +
             "    $pending = @(Get-ChildItem -LiteralPath $dir -Filter 'ancientsmod-*.jar.pending' -ErrorAction SilentlyContinue)\n" +
-            "    if (-not $pending -or $pending.Count -eq 0) { break }\n" +
-            "    $allDone = $true\n" +
+            "    if ($pending.Count -eq 0) { break }\n" +
+            "    $best = $null\n" +
+            "    $bestKey = $null\n" +
             "    foreach ($p in $pending) {\n" +
-            "        $target = $p.FullName.Substring(0, $p.FullName.Length - '.pending'.Length)\n" +
-            "        $olds = @(Get-ChildItem -LiteralPath $dir -ErrorAction SilentlyContinue |\n" +
-            "                 Where-Object { ($_.Name -like 'ancientsmod-*.jar' -or $_.Name -like 'prisonsmod-*.jar') -and $_.FullName -ne $target })\n" +
-            "        $locked = $false\n" +
-            "        foreach ($o in $olds) { if (-not (Test-Unlocked $o.FullName)) { $locked = $true; break } }\n" +
-            "        if ($locked) { $allDone = $false; continue }\n" +
+            "        $k = Get-VerKey $p.Name\n" +
+            "        if ($null -eq $bestKey -or (Compare-Ver $k $bestKey) -gt 0) { $best = $p; $bestKey = $k }\n" +
+            "    }\n" +
+            "    foreach ($p in $pending) {\n" +
+            "        if ($p.FullName -ne $best.FullName) { Remove-Item -LiteralPath $p.FullName -Force -ErrorAction SilentlyContinue }\n" +
+            "    }\n" +
+            "    $target = $best.FullName.Substring(0, $best.FullName.Length - '.pending'.Length)\n" +
+            "    $olds = @(Get-ChildItem -LiteralPath $dir -ErrorAction SilentlyContinue |\n" +
+            "             Where-Object { ($_.Name -like 'ancientsmod-*.jar' -or $_.Name -like 'prisonsmod-*.jar') -and $_.FullName -ne $target })\n" +
+            "    $locked = $false\n" +
+            "    foreach ($o in $olds) { if (-not (Test-Unlocked $o.FullName)) { $locked = $true; break } }\n" +
+            "    if (-not $locked) {\n" +
             "        foreach ($o in $olds) { Remove-Item -LiteralPath $o.FullName -Force -ErrorAction SilentlyContinue }\n" +
             "        if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Force -ErrorAction SilentlyContinue }\n" +
-            "        Move-Item -LiteralPath $p.FullName -Destination $target -Force -ErrorAction SilentlyContinue\n" +
+            "        Move-Item -LiteralPath $best.FullName -Destination $target -Force -ErrorAction SilentlyContinue\n" +
+            "        break\n" +
             "    }\n" +
-            "    if ($allDone) { break }\n" +
             "    if ((Get-Date) -ge $deadline) { break }\n" +
             "    Start-Sleep -Milliseconds 750\n" +
             "}\n" +
-            "Remove-Item -LiteralPath $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue\n";
+            "if ($self) { Remove-Item -LiteralPath $self -Force -ErrorAction SilentlyContinue }\n";
 
     private static final String BASH_INSTALLER =
             "#!/usr/bin/env sh\n" +
             "set +e\n" +
             "dir=\"$(cd \"$(dirname \"$0\")\" && pwd)\"\n" +
             "sleep 2\n" +
+            "best=\"\"\n" +
             "for pending in \"$dir\"/ancientsmod-*.jar.pending; do\n" +
             "    [ -e \"$pending\" ] || continue\n" +
-            "    target=\"${pending%.pending}\"\n" +
-            "    for old in \"$dir\"/ancientsmod-*.jar \"$dir\"/prisonsmod-*.jar; do\n" +
-            "        [ -e \"$old\" ] || continue\n" +
-            "        [ \"$old\" = \"$target\" ] && continue\n" +
-            "        rm -f \"$old\"\n" +
-            "    done\n" +
-            "    rm -f \"$target\"\n" +
-            "    mv -f \"$pending\" \"$target\"\n" +
+            "    if [ -z \"$best\" ]; then best=\"$pending\"; continue; fi\n" +
+            "    newest=$(printf '%s\\n%s\\n' \"$(basename \"$best\")\" \"$(basename \"$pending\")\" | sort -V | tail -n 1)\n" +
+            "    [ \"$newest\" = \"$(basename \"$pending\")\" ] && best=\"$pending\"\n" +
             "done\n" +
+            "[ -n \"$best\" ] || { rm -f \"$0\"; exit 0; }\n" +
+            "for pending in \"$dir\"/ancientsmod-*.jar.pending; do\n" +
+            "    [ -e \"$pending\" ] || continue\n" +
+            "    [ \"$pending\" = \"$best\" ] && continue\n" +
+            "    rm -f \"$pending\"\n" +
+            "done\n" +
+            "target=\"${best%.pending}\"\n" +
+            "for old in \"$dir\"/ancientsmod-*.jar \"$dir\"/prisonsmod-*.jar; do\n" +
+            "    [ -e \"$old\" ] || continue\n" +
+            "    [ \"$old\" = \"$target\" ] && continue\n" +
+            "    rm -f \"$old\"\n" +
+            "done\n" +
+            "rm -f \"$target\"\n" +
+            "mv -f \"$best\" \"$target\"\n" +
             "rm -f \"$0\"\n";
 
     // ── Helpers ──────────────────────────────────────────────────────────────

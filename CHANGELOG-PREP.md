@@ -20,4 +20,8 @@
 
 ## Updates & Installation
 
+- Auto-update now installs the newest release instead of the one that was newest when you joined the server.
+- Update alerts now appear for releases published while you are already in-game.
+- Updating twice in one session no longer costs an extra restart to apply.
+
 ## Quality of Life
