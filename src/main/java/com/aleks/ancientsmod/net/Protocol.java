@@ -406,6 +406,35 @@ public final class Protocol {
      */
     public static final byte PKT_TEAR_PING_CLEAR = 57;
 
+    /**
+     * S2C - open the item-nametag rename GUI. Sent instead of the chat prompt when
+     * the player is modded (minor >= {@link #NAMETAG_PROTOCOL_MINOR}); unmodded
+     * players keep the server's chat flow untouched. Wire after the type byte:
+     * <pre>
+     *   varint+string token        (>= 1, <= {@link #NAMETAG_MAX_TOKEN_CHARS}; the server's rename id)
+     *   varint+string iconKey      (<= {@link #PV_MAX_MATERIAL_KEY_CHARS}; SAME codec as PV/cell slots,
+     *                               so the '#m' item-model token makes custom art render)
+     *   varint+string currentName  (<= {@link #NAMETAG_MAX_INPUT_CHARS}; legacy '&'-form, may be empty)
+     *   varint maxNameChars        (1..{@link #NAMETAG_MAX_NAME_CHARS}; server's stripped-length cap)
+     *   byte loreCount             (<= {@link #NAMETAG_MAX_LORE_LINES})
+     *   per line: varint+string    (<= {@link #NAMETAG_MAX_LORE_LINE_CHARS}, legacy section-coded)
+     * </pre>
+     * The lore is carried so the preview can show the real tooltip the rename lands in,
+     * not just the name on its own.
+     */
+    public static final byte PKT_NAMETAG_OPEN = 58;
+
+    /** S2C - the rename was applied; mod closes the screen. Wire: {@code varint+string token}. */
+    public static final byte PKT_NAMETAG_APPLIED = 59;
+
+    /**
+     * S2C - soft error in the rename flow (name rejected, item moved, token expired).
+     * Wire: {@code varint+string token; varint+string message} (<= {@link #NAMETAG_MAX_ERROR_CHARS}).
+     * A non-empty token leaves the screen open so the player can edit and retry; an
+     * empty token is fatal and closes it.
+     */
+    public static final byte PKT_NAMETAG_ERROR = 60;
+
     // S2C 50 reserved (removed dungeon timer — dungeons cut from the server).
     // S2C 28 reserved (removed skilltree OPEN).
     // S2C 29 reserved (removed skilltree STATE).
@@ -549,6 +578,40 @@ public final class Protocol {
     public static final byte MININGSIM_ACTION_STOP    = 2;
     public static final byte MININGSIM_ACTION_REFRESH = 3;
     public static final byte MININGSIM_ACTION_START   = 4;
+
+    /**
+     * C2S - player confirmed a name in the rename GUI. Wire:
+     * {@code varint+string token; varint+string name} (<= {@link #NAMETAG_MAX_INPUT_CHARS}).
+     *
+     * <p>The name is legacy '&'-form and is UNTRUSTED display input: the server
+     * re-validates the stripped length and only applies it to the item the token
+     * was issued for, so this packet cannot rename anything the player did not
+     * already put a nametag on.
+     */
+    public static final byte PKT_NAMETAG_SUBMIT = (byte) 149;
+
+    /** C2S - player dismissed the rename GUI; server refunds the nametag. Wire: {@code varint+string token}. */
+    public static final byte PKT_NAMETAG_CANCEL = (byte) 150;
+
+    // ── Item-nametag wire bounds ────────────────────────────────────────────
+
+    /** Server rename-session id. A UUID string is 36 chars; 48 leaves headroom. */
+    public static final int NAMETAG_MAX_TOKEN_CHARS = 48;
+    /**
+     * Cap on the raw '&'-form name the GUI sends. Far above the server's 32
+     * VISIBLE characters because colour codes do not count toward that limit: a
+     * per-character gradient across a full-length name is 32 x "&#RRGGBB" plus the
+     * characters themselves, which is already ~288, and format codes stack on top.
+     */
+    public static final int NAMETAG_MAX_INPUT_CHARS = 512;
+    /** Upper bound on the server's own visible-length cap (it sends the real one). */
+    public static final int NAMETAG_MAX_NAME_CHARS = 64;
+    public static final int NAMETAG_MAX_LORE_LINES = 64;
+    public static final int NAMETAG_MAX_LORE_LINE_CHARS = 128;
+    public static final int NAMETAG_MAX_ERROR_CHARS = 256;
+
+    /** Min mod handshake minor whose client can drive the rename GUI (S2C 58-60, C2S 149-150). */
+    public static final int NAMETAG_PROTOCOL_MINOR = 5;
 
     /**
      * One chunk of the loot-browser catalog snapshot (server → mod), pushed in
@@ -878,8 +941,12 @@ public final class Protocol {
      *  and renders the armor-trim overlay on terminal icons (PV + cell terminal).
      *  Minor 4 = client handles the rift-preload handshake ({@link #PKT_RIFT_PRELOAD}
      *  S2C / {@link #PKT_RIFT_READY} C2S) so the server can pre-load the rift texture
-     *  pack before entry instead of stalling round 1. */
-    public static final int PROTOCOL_MINOR = 4;
+     *  pack before entry instead of stalling round 1.
+     *  Minor 5 = client drives the item-nametag rename GUI ({@link #PKT_NAMETAG_OPEN}
+     *  S2C / {@link #PKT_NAMETAG_SUBMIT} C2S); below this the server keeps sending the
+     *  chat rename prompt, which still works.
+     */
+    public static final int PROTOCOL_MINOR = 5;
     /**
      * Client request: "I want to ping this world-space point for my gang."
      * Payload carries only coordinates + a hold-flag. Server authenticates the
@@ -1359,6 +1426,9 @@ public final class Protocol {
     public static final int RATE_BUGREPORT_PER_SEC = 5;
     /** Suggest inbound packets are user-driven; a handful per second is plenty. */
     public static final int RATE_SUGGEST_PER_SEC = 5;
+
+    /** Rename GUI: open/applied/error are all one-per-interaction packets. */
+    public static final int RATE_NAMETAG_PER_SEC = 5;
     /** PV bundle pushes — one per /pv intercept, plus one per terminal
      *  extract/deposit refresh. Fast clicking can legitimately fire many per
      *  second; keep this comfortably above human click rate so refresh bundles

@@ -14,6 +14,12 @@
 
 ## UI & Screens
 
+- Using an Item Nametag now opens a rename screen instead of typing the name into chat.
+- The rename screen previews the real item and its tooltip, updating as you type.
+- Colour swatches, format buttons, and a hex field insert codes at your cursor.
+- The gradient tool blends a name across two or three colours.
+- A live counter shows your name length against the server's **32** character limit and blocks Confirm when you go over.
+
 ## Input & Keybinds
 
 ## Networking & Server Integration

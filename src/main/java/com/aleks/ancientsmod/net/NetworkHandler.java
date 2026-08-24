@@ -11,6 +11,7 @@ import com.aleks.ancientsmod.client.cellterm.CellTermClient;
 import com.aleks.ancientsmod.client.loot.LootClient;
 import com.aleks.ancientsmod.client.pv.PvClient;
 import com.aleks.ancientsmod.client.suggest.SuggestClient;
+import com.aleks.ancientsmod.client.nametag.NametagClient;
 import com.aleks.ancientsmod.client.gangping.GangPingManager;
 import com.aleks.ancientsmod.client.hud.BoosterState;
 import com.aleks.ancientsmod.client.hud.CooldownState;
@@ -29,6 +30,9 @@ import com.aleks.ancientsmod.net.payload.BugReportOpenPayload;
 import com.aleks.ancientsmod.net.payload.SuggestErrorPayload;
 import com.aleks.ancientsmod.net.payload.SuggestFiledPayload;
 import com.aleks.ancientsmod.net.payload.SuggestOpenPayload;
+import com.aleks.ancientsmod.net.payload.NametagAppliedPayload;
+import com.aleks.ancientsmod.net.payload.NametagErrorPayload;
+import com.aleks.ancientsmod.net.payload.NametagOpenPayload;
 import com.aleks.ancientsmod.net.payload.CooldownsPayload;
 import com.aleks.ancientsmod.net.payload.EventTimersPayload;
 import com.aleks.ancientsmod.net.payload.RiftBudgetPayload;
@@ -316,6 +320,21 @@ public final class NetworkHandler {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.SUGGEST)) return;
                     SuggestErrorPayload p = SuggestErrorPayload.decode(buf);
                     SuggestClient.onError(p);
+                }
+                case Protocol.PKT_NAMETAG_OPEN -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.NAMETAG)) return;
+                    NametagOpenPayload p = NametagOpenPayload.decode(buf);
+                    NametagClient.onOpen(p);
+                }
+                case Protocol.PKT_NAMETAG_APPLIED -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.NAMETAG)) return;
+                    NametagAppliedPayload p = NametagAppliedPayload.decode(buf);
+                    NametagClient.onApplied(p);
+                }
+                case Protocol.PKT_NAMETAG_ERROR -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.NAMETAG)) return;
+                    NametagErrorPayload p = NametagErrorPayload.decode(buf);
+                    NametagClient.onError(p);
                 }
                 case Protocol.PKT_PV_BUNDLE -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.PV_BUNDLE)) return;
@@ -777,6 +796,32 @@ public final class NetworkHandler {
     /** Player dismissed the suggest UI; tell server to free the session. */
     public static void sendSuggestClose(String token) {
         sendString(Protocol.PKT_SUGGEST_CLOSE, clamp(token, Protocol.SUGGEST_MAX_TOKEN_CHARS));
+    }
+
+    // ── Item-nametag sends ────────────────────────────────────────────────
+
+    /**
+     * "Rename the item this token was issued for to this string." The name is
+     * legacy '&'-form; the server re-validates its visible length and ownership of
+     * the pending rename, so this cannot touch an item the player did not stage.
+     */
+    public static void sendNametagSubmit(String token, String name) {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer(32));
+            buf.writeByte(Protocol.PKT_NAMETAG_SUBMIT);
+            buf.writeString(clamp(token, Protocol.NAMETAG_MAX_TOKEN_CHARS));
+            buf.writeString(clamp(name, Protocol.NAMETAG_MAX_INPUT_CHARS));
+            sendBuf(buf);
+        } catch (Throwable t) {
+            AncientsMod.LOGGER.debug("send nametag submit failed", t);
+        }
+    }
+
+    /** Player dismissed the rename GUI; server drops the session and refunds the nametag. */
+    public static void sendNametagCancel(String token) {
+        sendString(Protocol.PKT_NAMETAG_CANCEL, clamp(token, Protocol.NAMETAG_MAX_TOKEN_CHARS));
     }
 
     // ── PV overview sends ────────────────────────────────────────────────────
