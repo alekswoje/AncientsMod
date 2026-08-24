@@ -14,20 +14,10 @@
 
 ## UI & Screens
 
-- Using an Item Nametag now opens a rename screen instead of typing the name into chat.
-- The rename screen previews the real item and its tooltip, updating as you type.
-- Colour swatches, format buttons, and a hex field insert codes at your cursor.
-- The gradient tool blends a name across two or three colours.
-- A live counter shows your name length against the server's **32** character limit and blocks Confirm when you go over.
-
 ## Input & Keybinds
 
 ## Networking & Server Integration
 
 ## Updates & Installation
-
-- Auto-update now installs the newest release instead of the one that was newest when you joined the server.
-- Update alerts now appear for releases published while you are already in-game.
-- Updating twice in one session no longer costs an extra restart to apply.
 
 ## Quality of Life
