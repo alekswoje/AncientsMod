@@ -1,9 +1,11 @@
 package com.aleks.ancientsmod.client;
 
+import com.aleks.ancientsmod.client.hud.JewelLoadoutState;
 import com.aleks.ancientsmod.client.hud.JewelState;
 import com.aleks.ancientsmod.mixin.client.HandledScreenAccessor;
 import com.aleks.ancientsmod.net.NetworkHandler;
 import com.aleks.ancientsmod.net.Protocol;
+import com.aleks.ancientsmod.net.payload.JewelLoadoutsPayload;
 import com.aleks.ancientsmod.net.payload.JewelSlotsPayload;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gl.RenderPipelines;
@@ -47,6 +49,11 @@ public final class JewelSockets {
     private static final int SLOT_GAP = 0;
     /** Panel border drawn around the cell column. */
     private static final int FRAME = 4;
+    /** Height of one loadout tab. Shorter than a cell — a tab is a label, not
+     *  a slot, and three of them should not out-measure the sockets. */
+    private static final int TAB_H = 12;
+    /** Breathing room between the tab stack and the sockets below it. */
+    private static final int TAB_DIVIDER = 3;
     /** Inset from the cell's top-left to its 16x16 content area. */
     private static final int CONTENT_INSET = 1;
 
@@ -67,6 +74,17 @@ public final class JewelSockets {
             "simple", "uncommon", "elite", "ultimate",
             "legendary", "godly", "divine", "exceptional",
     };
+
+    // Tab palette. The active tab borrows the vanilla "selected" look — a
+    // bright fill against the panel — so which loadout is live is readable at
+    // a glance rather than needing the tooltip.
+    private static final int TAB_ACTIVE_FILL   = 0xFF3C6E47;
+    private static final int TAB_ACTIVE_TEXT   = 0xFFFFFFFF;
+    private static final int TAB_IDLE_FILL     = 0xFF3A3A3A;
+    private static final int TAB_IDLE_TEXT     = 0xFFBBBBBB;
+    private static final int TAB_LOCKED_FILL   = 0xFF262626;
+    private static final int TAB_LOCKED_TEXT   = 0xFF6A6A6A;
+    private static final int TAB_EDGE          = 0xFF1A1A1A;
 
     private static final java.util.Map<String, ItemStack> GEM_CACHE = new java.util.HashMap<>();
 
@@ -118,26 +136,52 @@ public final class JewelSockets {
         return Math.max(FRAME, panelX - PANEL_GAP - CELL - FRAME);
     }
 
+    /** Loadout tabs currently drawn. Zero on a server without the feature. */
+    private static List<JewelLoadoutsPayload.Page> tabs() {
+        if (!ServerAllowlist.isAllowed() || !FeatureToggles.isJewelSocketsEnabled()) return List.of();
+        return JewelLoadoutState.pages();
+    }
+
+    private static int tabsHeight(int count) {
+        return count <= 0 ? 0 : count * TAB_H + TAB_DIVIDER;
+    }
+
+    /** Height of everything inside the frame: the tab stack over the sockets. */
+    private static int contentHeight(HandledScreenAccessor panel) {
+        return tabsHeight(tabs().size()) + slotsHeight(JewelState.slots().size());
+    }
+
     /**
      * Bottom-aligned with the inventory panel: the frame's lower edge lines up
      * with the panel's, so the column reads as anchored to the screen rather
-     * than floating alongside its top.
+     * than floating alongside its top. The tab stack grows UPWARD from there,
+     * which keeps the sockets themselves in the same place whether or not a
+     * player has loadouts.
      */
-    private static int columnY(HandledScreenAccessor panel) {
+    private static int contentY(HandledScreenAccessor panel) {
         int bottom = panel.ancientsmod$panelY() + panel.ancientsmod$panelHeight();
-        return bottom - FRAME - slotsHeight(JewelState.slots().size());
+        return bottom - FRAME - contentHeight(panel);
+    }
+
+    /** Top of the socket cells — below the tab stack, if there is one. */
+    private static int columnY(HandledScreenAccessor panel) {
+        return contentY(panel) + tabsHeight(tabs().size());
     }
 
     private static int slotY(HandledScreenAccessor panel, int index) {
         return columnY(panel) + index * (CELL + SLOT_GAP);
     }
 
+    private static int tabY(HandledScreenAccessor panel, int index) {
+        return contentY(panel) + index * TAB_H;
+    }
+
     /** True when the pointer is anywhere on the widget, frame border included. */
     public static boolean contains(HandledScreenAccessor panel, double mouseX, double mouseY) {
         if (!enabled()) return false;
         int x = columnX(panel);
-        int y = columnY(panel);
-        int h = slotsHeight(JewelState.slots().size());
+        int y = contentY(panel);
+        int h = contentHeight(panel);
         return mouseX >= x - FRAME && mouseX < x + CELL + FRAME
                 && mouseY >= y - FRAME && mouseY < y + h + FRAME;
     }
@@ -155,6 +199,19 @@ public final class JewelSockets {
         return -1;
     }
 
+    /** Loadout tab index under the mouse, or -1. */
+    public static int tabAt(HandledScreenAccessor panel, double mouseX, double mouseY) {
+        if (!enabled()) return -1;
+        int x = columnX(panel);
+        if (mouseX < x || mouseX >= x + CELL) return -1;
+        List<JewelLoadoutsPayload.Page> pages = tabs();
+        for (int i = 0; i < pages.size(); i++) {
+            int y = tabY(panel, i);
+            if (mouseY >= y && mouseY < y + TAB_H) return i;
+        }
+        return -1;
+    }
+
     /**
      * Draws the socket column. Hooked to {@code afterBackground}, NOT
      * {@code afterRender}: the screen paints the cursor stack at the very end
@@ -167,7 +224,8 @@ public final class JewelSockets {
         if (!enabled()) return;
         List<JewelSlotsPayload.Slot> slots = JewelState.slots();
         int x = columnX(panel);
-        drawFrame(ctx, x, columnY(panel), CELL, slotsHeight(slots.size()));
+        drawFrame(ctx, x, contentY(panel), CELL, contentHeight(panel));
+        drawTabs(ctx, panel, x, mouseX, mouseY);
 
         for (int i = 0; i < slots.size(); i++) {
             JewelSlotsPayload.Slot slot = slots.get(i);
@@ -197,6 +255,11 @@ public final class JewelSockets {
     /** Tooltip for the hovered socket. Call after render, before the screen's own tooltip. */
     public static void renderTooltip(DrawContext ctx, HandledScreenAccessor panel,
                                      int mouseX, int mouseY) {
+        int tab = tabAt(panel, mouseX, mouseY);
+        if (tab >= 0) {
+            renderTabTooltip(ctx, tab, mouseX, mouseY);
+            return;
+        }
         int index = slotAt(panel, mouseX, mouseY);
         if (index < 0) return;
         List<JewelSlotsPayload.Slot> slots = JewelState.slots();
@@ -266,6 +329,18 @@ public final class JewelSockets {
         if (!contains(panel, mouseX, mouseY)) return false;
         pressSwallowed = true;
 
+        // A tab press swaps the whole set. Locked pages are refused here so a
+        // click that can do nothing costs no packet; the server checks anyway.
+        int tab = tabAt(panel, mouseX, mouseY);
+        if (tab >= 0) {
+            List<JewelLoadoutsPayload.Page> pages = tabs();
+            if (tab < pages.size() && pages.get(tab).unlocked()
+                    && tab != JewelLoadoutState.activePage()) {
+                NetworkHandler.sendJewelLoadoutSwitch(tab);
+            }
+            return true;
+        }
+
         int index = usableSlotAt(panel, mouseX, mouseY);
         if (index < 0) return true;   // on the frame, or a locked cell the server would refuse
 
@@ -321,6 +396,7 @@ public final class JewelSockets {
 
     /** Index of the cell under the pointer that can actually take a click, or -1. */
     private static int usableSlotAt(HandledScreenAccessor panel, double mouseX, double mouseY) {
+        if (tabAt(panel, mouseX, mouseY) >= 0) return -1;   // that is a tab, not a cell
         int index = slotAt(panel, mouseX, mouseY);
         if (index < 0) return -1;
         List<JewelSlotsPayload.Slot> slots = JewelState.slots();
@@ -368,6 +444,106 @@ public final class JewelSockets {
         if (id != null) stack.set(DataComponentTypes.ITEM_MODEL, id);
         GEM_CACHE.put(model, stack);
         return stack;
+    }
+
+    /**
+     * The loadout tab stack. Each tab is a flat label carrying the loadout's
+     * number, with the active one filled bright — the tabs exist so a set swap
+     * is one click without opening a menu, so which one is live has to be
+     * readable without hovering.
+     *
+     * <p>Drawn top-down above the sockets. Locked pages are still drawn (dim)
+     * rather than hidden, so the upgrade path is visible from where it matters.
+     */
+    private static void drawTabs(DrawContext ctx, HandledScreenAccessor panel,
+                                 int x, int mouseX, int mouseY) {
+        List<JewelLoadoutsPayload.Page> pages = tabs();
+        if (pages.isEmpty()) return;
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc == null || mc.textRenderer == null) return;
+        int active = JewelLoadoutState.activePage();
+
+        for (int i = 0; i < pages.size(); i++) {
+            JewelLoadoutsPayload.Page page = pages.get(i);
+            int y = tabY(panel, i);
+            boolean isActive = i == active;
+            int fill = isActive ? TAB_ACTIVE_FILL
+                    : (page.unlocked() ? TAB_IDLE_FILL : TAB_LOCKED_FILL);
+            int text = isActive ? TAB_ACTIVE_TEXT
+                    : (page.unlocked() ? TAB_IDLE_TEXT : TAB_LOCKED_TEXT);
+
+            ctx.fill(x, y, x + CELL, y + TAB_H, TAB_EDGE);
+            ctx.fill(x + 1, y + 1, x + CELL - 1, y + TAB_H - 1, fill);
+            if (mouseX >= x && mouseX < x + CELL && mouseY >= y && mouseY < y + TAB_H) {
+                ctx.fill(x + 1, y + 1, x + CELL - 1, y + TAB_H - 1, 0x40FFFFFF);
+            }
+
+            // The number, not the name: a name does not fit in 16px and the
+            // tooltip carries it. Centred by measured width so double digits
+            // stay centred too.
+            String label = String.valueOf(i + 1);
+            int labelWidth = mc.textRenderer.getWidth(label);
+            ctx.drawText(mc.textRenderer, label,
+                    x + (CELL - labelWidth) / 2, y + 2, text, false);
+
+            // A dot per filled socket, so a glance tells you which loadouts
+            // actually hold something without opening anything.
+            int filled = page.filled();
+            for (int d = 0; d < filled; d++) {
+                int dx = x + 3 + d * 4;
+                ctx.fill(dx, y + TAB_H - 3, dx + 2, y + TAB_H - 2, text);
+            }
+        }
+    }
+
+    /** Tooltip for a hovered loadout tab: its name and what it holds. */
+    private static void renderTabTooltip(DrawContext ctx, int index, int mouseX, int mouseY) {
+        List<JewelLoadoutsPayload.Page> pages = tabs();
+        if (index >= pages.size()) return;
+        JewelLoadoutsPayload.Page page = pages.get(index);
+        boolean isActive = index == JewelLoadoutState.activePage();
+
+        List<Text> lines = new ArrayList<>();
+        String name = page.name() == null || page.name().isEmpty()
+                ? "Loadout " + (index + 1) : page.name();
+        lines.add(Text.literal(name).formatted(
+                isActive ? Formatting.GREEN : (page.unlocked() ? Formatting.WHITE : Formatting.RED)));
+
+        if (!page.unlocked()) {
+            lines.add(Text.literal("Locked").formatted(Formatting.GRAY));
+            lines.add(Text.literal("Season Pass L21, Ascendant rank,")
+                    .formatted(Formatting.DARK_GRAY));
+            lines.add(Text.literal("or a Jewel Loadout Expander.")
+                    .formatted(Formatting.DARK_GRAY));
+        } else {
+            lines.add(Text.empty());
+            for (int slot = 0; slot < page.jewelNames().size(); slot++) {
+                String jewelName = page.jewelNames().get(slot);
+                if (jewelName == null || jewelName.isEmpty()) {
+                    lines.add(Text.literal("- empty -").formatted(Formatting.DARK_GRAY));
+                } else {
+                    lines.add(LegacyText.parse(jewelName));
+                }
+            }
+            lines.add(Text.empty());
+            if (isActive) {
+                lines.add(Text.literal("Equipped").formatted(Formatting.GREEN));
+            } else {
+                lines.add(Text.literal("Click to equip this loadout").formatted(Formatting.YELLOW));
+                lines.add(Text.literal("Safe zones only").formatted(Formatting.DARK_GRAY));
+            }
+        }
+
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc == null || mc.textRenderer == null) return;
+        // drawTooltipImmediately for the same reason the socket tooltip uses it:
+        // the deferred pass has already been flushed by the time we draw.
+        List<net.minecraft.client.gui.tooltip.TooltipComponent> comps = new ArrayList<>(lines.size());
+        for (Text line : lines) {
+            comps.add(net.minecraft.client.gui.tooltip.TooltipComponent.of(line.asOrderedText()));
+        }
+        ctx.drawTooltipImmediately(mc.textRenderer, comps, mouseX, mouseY,
+                net.minecraft.client.gui.tooltip.HoveredTooltipPositioner.INSTANCE, null);
     }
 
     private static int slotsHeight(int count) {

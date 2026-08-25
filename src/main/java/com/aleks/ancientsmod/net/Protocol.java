@@ -529,6 +529,38 @@ public final class Protocol {
     public static final byte JEWEL_OP_UNSOCKET = 1;
 
     /**
+     * The player's jewel LOADOUTS (server → mod), driving the loadout tabs
+     * above the inventory-screen sockets. A loadout is a stored set of jewels;
+     * making one active swaps every socket at once.
+     *
+     * <p>Body: {@code activePage}, {@code count}, then per page {@code name},
+     * {@code unlocked} (0/1), and exactly {@link #MAX_JEWEL_SLOTS} pairs of
+     * {@code jewelName} / {@code modelPath} ("" for an empty socket). Fixed
+     * per-page width, so the decode never branches on the wire.
+     *
+     * <p>A count of 0 blanks the tabs — that is what an unloaded player or a
+     * server with the feature off sends, so stale tabs can't linger.
+     *
+     * <p>Byte 61 is the next free S2C id above the reserved block.
+     */
+    public static final byte PKT_JEWEL_LOADOUTS = 61;
+    public static final int MAX_JEWEL_LOADOUTS = 9;
+    /** Page label; server-side it is already stripped of colour codes. */
+    public static final int JEWEL_LOADOUT_MAX_NAME_CHARS = 24;
+    // No RATE_ constant, for the same reason PKT_JEWEL_SLOTS has none: it is a
+    // last-write-wins snapshot, and dropping one only freezes stale tabs.
+
+    /**
+     * C2S — a loadout tab asking to make its page active. Body: the page index.
+     *
+     * <p>Intent only. The server re-runs every gate (feature flag, combat tag,
+     * safe zone, page unlocked) and answers with fresh
+     * {@link #PKT_JEWEL_SLOTS} and {@link #PKT_JEWEL_LOADOUTS} pushes either
+     * way, so a refused click resyncs rather than desyncing.
+     */
+    public static final byte PKT_JEWEL_LOADOUT_REQ = (byte) 151;
+
+    /**
      * S2C — live {@code /miningsim} session snapshot, pushed at 1 Hz while a session
      * exists and once more when it ends. This is what replaces the chat summary.
      *

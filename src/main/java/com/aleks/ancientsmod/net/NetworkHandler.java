@@ -410,6 +410,14 @@ public final class NetworkHandler {
                             com.aleks.ancientsmod.net.payload.JewelSlotsPayload.decode(buf);
                     com.aleks.ancientsmod.client.hud.JewelState.update(p);
                 }
+                case Protocol.PKT_JEWEL_LOADOUTS -> {
+                    // Not rate-limited, same reasoning as PKT_JEWEL_SLOTS: a
+                    // last-write-wins snapshot, so a dropped push only leaves
+                    // the tabs showing a loadout that is no longer equipped.
+                    com.aleks.ancientsmod.net.payload.JewelLoadoutsPayload p =
+                            com.aleks.ancientsmod.net.payload.JewelLoadoutsPayload.decode(buf);
+                    com.aleks.ancientsmod.client.hud.JewelLoadoutState.update(p);
+                }
                 case Protocol.PKT_ENERGY_REFERENCE -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.ENERGY_REFERENCE)) return;
                     com.aleks.ancientsmod.net.payload.EnergyReferencePayload p =
@@ -589,6 +597,24 @@ public final class NetworkHandler {
             }));
         } catch (Throwable t) {
             AncientsMod.LOGGER.debug("send jewel socket request failed", t);
+        }
+    }
+
+    /**
+     * Ask the server to make a loadout page active, swapping every socket at
+     * once. Fired by the loadout tabs; the server re-runs every gate (combat
+     * tag, safe zone, page unlocked) and answers with fresh socket and loadout
+     * pushes either way, so a refused tab click resyncs.
+     */
+    public static void sendJewelLoadoutSwitch(int page) {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            ClientPlayNetworking.send(new RawPayload(new byte[] {
+                    Protocol.PKT_JEWEL_LOADOUT_REQ, (byte) (page & 0xFF)
+            }));
+        } catch (Throwable t) {
+            AncientsMod.LOGGER.debug("send jewel loadout switch failed", t);
         }
     }
 

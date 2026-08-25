@@ -13,6 +13,7 @@
 ## Rendering & Visuals
 
 ## UI & Screens
+- Jewel **loadout tabs** now sit above the jewel sockets in your inventory. Click one to equip that whole set of jewels at once, and hover it to see what it holds.
 
 ## Input & Keybinds
 
