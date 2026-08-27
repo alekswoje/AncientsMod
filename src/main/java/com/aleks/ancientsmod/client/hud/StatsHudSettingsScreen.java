@@ -9,7 +9,9 @@ import java.util.Set;
 /**
  * Per-widget settings for {@link StatsHud}. Two layers:
  * <ul>
- *   <li>Section toggles (world / hunter / mining / blocks / kills / drops) — show or hide whole blocks</li>
+ *   <li>Section toggles (world / hunter / mining / blocks / kills / drops) — show or hide whole blocks.
+ *       These are permissions, not a guarantee: the HUD only ever draws its PvE half or its
+ *       mining half, so an enabled section stays hidden while the other half owns the widget</li>
  *   <li>Per-mob whitelist for the kills section — empty = show everything,
  *       otherwise hide anything not in the set</li>
  * </ul>
@@ -27,7 +29,7 @@ public final class StatsHudSettingsScreen extends WidgetSettingsScreen {
     protected void addRows() {
         addToggle("Show this HUD",
                 FeatureToggles::isStatsHudEnabled, FeatureToggles::setStatsHud);
-        addSection("Sections");
+        addSection("Sections (PvE and mining never show together)");
         // Section toggles.
         for (String section : StatsHud.ALL_SECTIONS) {
             String label = switch (section) {

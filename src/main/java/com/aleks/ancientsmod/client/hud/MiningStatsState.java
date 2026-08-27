@@ -33,6 +33,10 @@ public final class MiningStatsState {
         receivedMs    = payload.receivedMs();
     }
 
+    /** Epoch-ms of the last heartbeat. The server only sends these while the
+     *  player is actually breaking blocks, so this doubles as "last mined at". */
+    public static long lastUpdateMs() { return receivedMs; }
+
     public static boolean isLive() {
         return receivedMs > 0L && System.currentTimeMillis() - receivedMs <= STALE_AFTER_MS;
     }

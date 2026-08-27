@@ -23,6 +23,10 @@ import java.util.Set;
  * chat drop announcements) rather than per-item, so the panel stays compact
  * during a long farm. The current world is shown as a sub-header so the widget
  * auto-contexts to where the player actually is.
+ *
+ * <p>The panel shows <b>either</b> its PvE half (Hunter XP, kills, drops) or its
+ * mining half (rates, session, sim, blocks) — never both. Whichever the player
+ * last actually did wins; see {@link #miningModeActive()}.
  */
 public final class StatsHud extends HudElement {
 
@@ -54,6 +58,15 @@ public final class StatsHud extends HudElement {
             List.of("mythic", "legendary", "epic", "rare", "uncommon", "common");
 
     public static final List<String> ALL_SECTIONS = List.of("world", "hunter", "mining", "session", "sim", "blocks", "kills", "drops");
+
+    /**
+     * The two halves of the widget. Only ONE of them is ever on screen: a farming
+     * player and a mining player want different numbers, and showing both at once
+     * turned the panel into a wall of rows where neither read at a glance.
+     * "world" belongs to neither and always shows.
+     */
+    public static final Set<String> PVE_SECTIONS = Set.of("hunter", "kills", "drops");
+    public static final Set<String> MINING_SECTIONS = Set.of("mining", "session", "sim", "blocks");
     /** Blocks and session are opt-in, so they are NOT in the default set —
      *  existing users don't suddenly get a new section until they enable it. */
     public static final Set<String> DEFAULT_SECTIONS =
@@ -91,6 +104,11 @@ public final class StatsHud extends HudElement {
     /** Fallback drop-row colour for keys that aren't a known rarity tier. */
     private static final int DROP_DEFAULT_ACCENT = 0xFF8AC2FF;
 
+    /** Re-arbitrate at most this often — width/height/render must agree within a frame. */
+    private static final long MODE_CACHE_MS = 200L;
+    private boolean miningModeCache = false;
+    private long modeCachedAtMs = 0L;
+
     private StatsHud() {}
 
     @Override public String id() { return "stats"; }
@@ -104,19 +122,65 @@ public final class StatsHud extends HudElement {
         // name on its own meant the widget hung around in spawn/hub with
         // no rows. Kills/drops/hunter are session-only, mining/blocks are
         // live-only, so the HUD naturally disappears once they're all quiet.
-        Set<String> sections = enabledSections();
-        boolean miningLive = sections.contains("mining") && MiningStatsState.isLive();
-        boolean blocksLive = sections.contains("blocks") && MiningBlocksState.isLive() && !blockRows().isEmpty();
-        boolean sessionLive = sections.contains("session") && MiningSessionState.isLive();
-        boolean simLive = sections.contains("sim") && MiningSimState.liveSession() != null;
-        return miningLive
-            || blocksLive
-            || sessionLive
-            || simLive
-            || !PveStatsState.kills().isEmpty()
-            || !PveStatsState.drops().isEmpty()
-            || PveStatsState.sessionHunterXp() > 0
-            || PveStatsState.hunterXpPerHour() > 0;
+        return pveHasRows() || miningHasRows();
+    }
+
+    /** True while any enabled PvE section would render at least one row. */
+    private boolean pveHasRows() {
+        Set<String> s = enabledSections();
+        return (s.contains("hunter") && !hunterRows().isEmpty())
+            || (s.contains("kills")  && !killRows().isEmpty())
+            || (s.contains("drops")  && !dropRows().isEmpty());
+    }
+
+    /** True while any enabled mining section would render at least one row. */
+    private boolean miningHasRows() {
+        Set<String> s = enabledSections();
+        return (s.contains("mining")  && MiningStatsState.isLive() && !miningRows().isEmpty())
+            || (s.contains("session") && MiningSessionState.isLive() && !sessionRows().isEmpty())
+            || (s.contains("sim")     && MiningSimState.liveSession() != null && !simRows().isEmpty())
+            || (s.contains("blocks")  && MiningBlocksState.isLive() && !blockRows().isEmpty());
+    }
+
+    /**
+     * Which half owns the widget right now. Whichever side the player last
+     * actually did something on wins, so it survives a pause (a stopped
+     * /miningtrack session stays readable instead of being shoved off by a
+     * kill tally from ten minutes ago). A side with nothing to render never
+     * wins, so the other one is never suppressed for no reason.
+     */
+    public boolean miningModeActive() {
+        long now = System.currentTimeMillis();
+        if (now - modeCachedAtMs <= MODE_CACHE_MS && modeCachedAtMs != 0L) return miningModeCache;
+        boolean mining = miningHasRows();
+        boolean pve = pveHasRows();
+        boolean result;
+        if (mining != pve) {
+            result = mining;
+        } else {
+            // Mining heartbeats only arrive while blocks are breaking; the PvE
+            // stamp only moves when a tally goes up. Both are real activity times.
+            long minedAt = Math.max(MiningStatsState.lastUpdateMs(), MiningBlocksState.lastUpdateMs());
+            result = mining && minedAt >= PveStatsState.lastActivityMs();
+        }
+        miningModeCache = result;
+        modeCachedAtMs = now;
+        return result;
+    }
+
+    /**
+     * The sections that may draw this frame: the enabled set with the losing
+     * half stripped out. Every layout/paint path goes through this, so width,
+     * height and render can never disagree about what is on screen.
+     */
+    public Set<String> activeSections() {
+        boolean mining = miningModeActive();
+        Set<String> out = new LinkedHashSet<>();
+        for (String s : enabledSections()) {
+            if (mining ? PVE_SECTIONS.contains(s) : MINING_SECTIONS.contains(s)) continue;
+            out.add(s);
+        }
+        return out;
     }
 
     @Override
@@ -178,7 +242,7 @@ public final class StatsHud extends HudElement {
         int leftPad = padX + HudStyle.stripW() + HudStyle.stripGap(id());
         int widest = fr.getWidth("STATS");
 
-        Set<String> sections = enabledSections();
+        Set<String> sections = activeSections();
         if (sections.contains("world")) {
             widest = Math.max(widest, fr.getWidth(prettyWorld(PveStatsState.worldName())));
         }
@@ -232,7 +296,7 @@ public final class StatsHud extends HudElement {
 
     @Override
     public int height() {
-        Set<String> sections = enabledSections();
+        Set<String> sections = activeSections();
         int rows = 0;
         if (sections.contains("world") && !PveStatsState.worldName().isEmpty()) rows += 1;
         if (sections.contains("hunter")) rows += hunterRows().size();
@@ -271,7 +335,7 @@ public final class StatsHud extends HudElement {
         int stripGap = HudStyle.stripGap(id());
         int rowH = HudStyle.rowH(id());
 
-        Set<String> sections = enabledSections();
+        Set<String> sections = activeSections();
 
         if (sections.contains("world") && !PveStatsState.worldName().isEmpty()) {
             String pretty = prettyWorld(PveStatsState.worldName());

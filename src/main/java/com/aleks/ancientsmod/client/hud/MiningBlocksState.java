@@ -27,6 +27,9 @@ public final class MiningBlocksState {
         receivedMs = payload.receivedMs();
     }
 
+    /** Epoch-ms of the last heartbeat (sent only while actively mining). */
+    public static long lastUpdateMs() { return receivedMs; }
+
     public static boolean isLive() {
         return receivedMs > 0L && System.currentTimeMillis() - receivedMs <= STALE_AFTER_MS;
     }
