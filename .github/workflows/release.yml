@@ -64,15 +64,6 @@ jobs:
           rm -f build/libs/ancientsmod-*-sources.jar \
                 build/libs/ancientsmod-*-dev.jar \
                 build/libs/ancientsmod-*-shadow.jar
-          # Legacy-migration asset (PrisonsMod -> AncientsMod rename, 2026-07):
-          # pre-rename clients' auto-updater only recognises release assets named
-          # prisonsmod-X.Y.Z.jar, so attach a copy under the old name. Its watcher
-          # deletes every old prisonsmod-*.jar before swapping the copy in, and the
-          # jar's content is the renamed mod, so the player migrates in one click.
-          # Remove this copy step once the old install base has moved over.
-          for f in build/libs/ancientsmod-*.jar; do
-            cp "$f" "$(dirname "$f")/prisonsmod-$(basename "$f" | sed 's/^ancientsmod-//')"
-          done
           ls -la build/libs/
 
       - name: Extract release body from CHANGELOG-PREP.md
@@ -113,11 +104,12 @@ jobs:
           # so a single inclusion glob is enough. (Negation patterns + the
           # `fail_on_unmatched_files: true` setting interact badly — the
           # action errors out reporting the negation didn't match any file.)
-          # prisonsmod-*.jar is the legacy-named copy for pre-rename clients'
-          # auto-updater (see the Build step) — drop it together with the copy step.
+          # The legacy-named prisonsmod-*.jar copy was dropped in 2026-08: the
+          # pre-rename client that needed it calls the old repo's API URL without
+          # following redirects, so it stopped seeing releases at the 2026-07-06
+          # repo rename regardless of what assets are attached.
           files: |
             build/libs/ancientsmod-*.jar
-            build/libs/prisonsmod-*.jar
           fail_on_unmatched_files: true
           generate_release_notes: false
 
