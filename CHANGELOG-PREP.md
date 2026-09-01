@@ -10,8 +10,6 @@
 
 ## HUDs
 
-- The Stats HUD now shows **either** its PvE half (Hunter XP, kills, drops) or its mining half (rates, session, sim, blocks), never both at once. It follows whatever you were last doing, so it switches to mining while you mine and back to PvE on your next kill.
-
 ## Rendering & Visuals
 
 ## UI & Screens
