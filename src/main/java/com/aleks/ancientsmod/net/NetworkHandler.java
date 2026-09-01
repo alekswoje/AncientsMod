@@ -262,6 +262,20 @@ public final class NetworkHandler {
                         }
                     }
                 }
+                case Protocol.PKT_MININGSIM_SHARED -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.MININGSIM)) return;
+                    com.aleks.ancientsmod.net.payload.MiningSimSharedPayload p =
+                            com.aleks.ancientsmod.net.payload.MiningSimSharedPayload.decode(buf);
+                    com.aleks.ancientsmod.client.hud.MiningSimState.setShared(p);
+                    // The player clicked a chat link to get here, so opening over whatever
+                    // is up is what they asked for — same reasoning as PKT_MININGSIM_OPEN.
+                    com.aleks.ancientsmod.client.screen.MiningSimScreen.openShared();
+                }
+                case Protocol.PKT_MININGSIM_SHARE_ACK -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.MININGSIM)) return;
+                    byte status = buf.readByte();
+                    com.aleks.ancientsmod.client.screen.MiningSimScreen.onShareAck(status);
+                }
                 case Protocol.PKT_MININGSIM_OPEN -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.MININGSIM)) return;
                     // The player asked for this by running /miningsim, so open even if
@@ -639,6 +653,100 @@ public final class NetworkHandler {
         } catch (Throwable t) {
             AncientsMod.LOGGER.debug("send miningsim command failed", t);
         }
+    }
+
+    /**
+     * Upload one archived mining-sim session so it can be shared with {@code [sim]} in
+     * chat. See {@link Protocol#PKT_MININGSIM_SHARE_REQ}.
+     *
+     * <p>Rows and graph points are capped here as well as server-side: the packet has to
+     * fit the server's share ceiling, and a session with dozens of proc chains plus a long
+     * curve would otherwise be dropped whole rather than trimmed.
+     */
+    public static void sendMiningSimShare(com.aleks.ancientsmod.client.hud.MiningSimState.ArchivedSession session) {
+        if (session == null) return;
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            com.aleks.ancientsmod.net.payload.MiningSimPayload s = session.finalSnapshot();
+
+            // Charge rows against a byte budget, sources first: the server drops an
+            // over-size upload whole, and losing the tail of a proc table beats losing
+            // the session. Rows are already stored in value order.
+            int budget = Protocol.MAX_MININGSIM_SHARE_ROW_BYTES;
+            java.util.List<com.aleks.ancientsmod.net.payload.MiningSimPayload.Row> sources = new java.util.ArrayList<>();
+            for (var r : s.sources()) {
+                if (sources.size() >= Protocol.MAX_MININGSIM_ROWS) break;
+                int cost = Protocol.miningSimRowCost(r.source());
+                if (cost > budget) break;
+                budget -= cost;
+                sources.add(r);
+            }
+            java.util.List<com.aleks.ancientsmod.net.payload.MiningSimPayload.ProcRow> procs = new java.util.ArrayList<>();
+            for (var r : s.procs()) {
+                if (procs.size() >= Protocol.MAX_MININGSIM_ROWS) break;
+                int cost = Protocol.miningSimRowCost(r.name());
+                if (cost > budget) break;
+                budget -= cost;
+                procs.add(r);
+            }
+            java.util.List<com.aleks.ancientsmod.client.hud.MiningSimState.RatePoint> points =
+                    thinTo(session.history(), Protocol.MAX_MININGSIM_SHARE_POINTS);
+
+            PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer(2048));
+            buf.writeByte(Protocol.PKT_MININGSIM_SHARE_REQ);
+            buf.writeString(clamp(session.label(), Protocol.MAX_MININGSIM_SHARE_NAME_CHARS));
+            buf.writeVarLong(Math.max(0L, s.elapsedMs()));
+            buf.writeVarLong(Math.max(1L, s.miningElapsedMs()));
+            buf.writeVarLong(Math.max(0L, s.totalXp()));
+            buf.writeVarLong(Math.max(0L, s.totalEnergy()));
+            buf.writeVarLong(millis(s.totalMoney()));
+            buf.writeVarInt(sources.size());
+            for (var r : sources) {
+                buf.writeString(clamp(r.source(), Protocol.MAX_MININGSIM_LABEL_CHARS));
+                buf.writeVarLong(Math.max(0L, r.xp()));
+                buf.writeVarLong(Math.max(0L, r.energy()));
+                buf.writeVarLong(millis(r.money()));
+            }
+            buf.writeVarInt(procs.size());
+            for (var r : procs) {
+                buf.writeString(clamp(r.name(), Protocol.MAX_MININGSIM_LABEL_CHARS));
+                buf.writeVarInt(Math.max(0, r.count()));
+            }
+            buf.writeVarInt(points.size());
+            long prev = 0L;
+            for (var p : points) {
+                // Deltas, so a 200-point curve stays one byte per timestamp.
+                long at = Math.max(prev, p.atMs());
+                buf.writeVarLong(at - prev);
+                prev = at;
+                buf.writeVarLong(Math.max(0L, p.xpPerHour()));
+                buf.writeVarLong(Math.max(0L, p.energyPerHour()));
+                buf.writeVarLong(millis(p.moneyPerHour()));
+            }
+            sendBuf(buf);
+        } catch (Throwable t) {
+            AncientsMod.LOGGER.debug("send miningsim share failed", t);
+        }
+    }
+
+    /** Money travels as thousandths so a small $/hr doesn't round to zero on the wire. */
+    private static long millis(double v) {
+        if (v <= 0 || Double.isNaN(v) || Double.isInfinite(v)) return 0L;
+        double scaled = v * 1000.0;
+        return scaled >= Long.MAX_VALUE ? Long.MAX_VALUE : Math.round(scaled);
+    }
+
+    /** Evenly thin a point list to at most {@code max}, keeping the first and last. */
+    private static java.util.List<com.aleks.ancientsmod.client.hud.MiningSimState.RatePoint> thinTo(
+            java.util.List<com.aleks.ancientsmod.client.hud.MiningSimState.RatePoint> src, int max) {
+        int n = src.size();
+        if (n <= max) return src;
+        java.util.List<com.aleks.ancientsmod.client.hud.MiningSimState.RatePoint> out = new java.util.ArrayList<>(max);
+        for (int i = 0; i < max; i++) {
+            out.add(src.get((int) ((long) i * (n - 1) / (max - 1))));
+        }
+        return out;
     }
 
     public static void sendMinePredictState(boolean on) {

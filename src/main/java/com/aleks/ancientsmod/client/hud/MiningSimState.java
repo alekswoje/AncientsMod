@@ -51,6 +51,13 @@ public final class MiningSimState {
     private static volatile MiningSimPayload latest = null;
     private static volatile long receivedMs = 0L;
 
+    /**
+     * Someone else's shared session, held only while we are looking at it. Kept apart from
+     * {@link #latest} and from the archive on purpose: a run somebody linked in chat is
+     * not ours until we press Import, and it must never be mistaken for our own numbers.
+     */
+    private static volatile com.aleks.ancientsmod.net.payload.MiningSimSharedPayload shared = null;
+
     private static final List<RatePoint> HISTORY = Collections.synchronizedList(new ArrayList<>());
     private static final List<ArchivedSession> ARCHIVE = Collections.synchronizedList(new ArrayList<>());
 
@@ -150,6 +157,52 @@ public final class MiningSimState {
         save();
     }
 
+    // ── Shared sessions ─────────────────────────────────────────────────────
+
+    /** Hold the session behind a {@code [sim]} chat link the player just clicked. */
+    public static void setShared(com.aleks.ancientsmod.net.payload.MiningSimSharedPayload p) {
+        shared = p;
+    }
+
+    /** The shared session currently being viewed, or null. */
+    public static com.aleks.ancientsmod.net.payload.MiningSimSharedPayload shared() {
+        return shared;
+    }
+
+    public static void clearShared() {
+        shared = null;
+    }
+
+    /**
+     * Copy a shared session into the local archive so it survives and can be compared
+     * against your own runs. Returns its archive index.
+     *
+     * <p>A second Import of the same session returns the existing entry rather than adding
+     * a duplicate — the button is one click away from the run it imported, and clicking it
+     * twice should be a no-op, not a way to fill the archive with copies.
+     */
+    public static int importShared(com.aleks.ancientsmod.net.payload.MiningSimSharedPayload p) {
+        if (p == null) return -1;
+        String label = p.archiveLabel();
+        if (label.length() > 48) label = label.substring(0, 48);
+        MiningSimPayload snap = p.snapshot();
+        synchronized (ARCHIVE) {
+            for (int i = 0; i < ARCHIVE.size(); i++) {
+                ArchivedSession s = ARCHIVE.get(i);
+                MiningSimPayload f = s.finalSnapshot();
+                if (s.label().equals(label) && f.totalXp() == snap.totalXp()
+                        && f.totalEnergy() == snap.totalEnergy()
+                        && f.elapsedMs() == snap.elapsedMs()) {
+                    return i;
+                }
+            }
+            ARCHIVE.add(new ArchivedSession(label, snap, downsample(p.history(), MAX_STORED_HISTORY)));
+            while (ARCHIVE.size() > MAX_ARCHIVED) ARCHIVE.remove(0);
+            save();
+            return ARCHIVE.size() - 1;
+        }
+    }
+
     /** True while the server is still heartbeating a session. */
     public static boolean isLive() {
         return receivedMs > 0L && System.currentTimeMillis() - receivedMs <= STALE_AFTER_MS;
@@ -195,6 +248,9 @@ public final class MiningSimState {
         latest = null;
         receivedMs = 0L;
         HISTORY.clear();
+        // A shared session is a view of a chat link on the server we just left. It was
+        // never ours, so it goes with the connection — Import is what makes it stay.
+        shared = null;
     }
 
     // ── Persistence ─────────────────────────────────────────────────────────

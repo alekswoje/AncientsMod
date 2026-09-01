@@ -611,6 +611,77 @@ public final class Protocol {
     public static final byte MININGSIM_ACTION_REFRESH = 3;
     public static final byte MININGSIM_ACTION_START   = 4;
 
+    // ── Shared mining sims (server minor gate: MININGSIM_SHARE) ────────────
+
+    /**
+     * S2C — somebody else's mining-sim session, sent after clicking a {@code [sim]} chat
+     * link. Opens the screen read-only with an Import button; importing drops it into the
+     * local history archive where the compare view can diff it against your own runs.
+     *
+     * <p>Wire after the type byte — the {@link #PKT_MININGSIM_SNAPSHOT} body with the
+     * sharer's identity in front and the rate curve appended:
+     * <pre>
+     *   byte     flags          bit0 = this share is your own
+     *   varint+string ownerName
+     *   varint+string label     (<= {@link #MAX_MININGSIM_SHARE_NAME_CHARS})
+     *   varlong  elapsedMs / miningElapsedMs / totalXp / totalEnergy / totalMoneyMillis
+     *   varint   sourceCount    (<= {@link #MAX_MININGSIM_ROWS})
+     *     varint+string source; varlong xp; varlong energy; varlong moneyMillis
+     *   varint   procCount      (<= {@link #MAX_MININGSIM_ROWS})
+     *     varint+string name; varint count
+     *   varint   pointCount     (<= {@link #MAX_MININGSIM_SHARE_POINTS}; 0 = no curve)
+     *     varlong deltaMs (from previous point); varlong xp/hr; varlong energy/hr;
+     *     varlong money/hr x1000
+     * </pre>
+     */
+    public static final byte PKT_MININGSIM_SHARED = 62;
+
+    /**
+     * S2C — result of a {@link #PKT_MININGSIM_SHARE_REQ}. Wire: {@code byte status}.
+     * On {@link #MININGSIM_SHARE_OK} the client opens chat pre-filled with the
+     * {@code [sim]} token — the upload exists to make that token resolve.
+     */
+    public static final byte PKT_MININGSIM_SHARE_ACK = 63;
+
+    /**
+     * C2S — "make this archived session shareable". Same body as
+     * {@link #PKT_MININGSIM_SHARED} without the flags byte and owner name; the server
+     * attributes the share to whoever sent it.
+     *
+     * <p>The session travels rather than an id because the archive is ours alone: the
+     * server forgot a run from a previous login the moment it ended.
+     */
+    public static final byte PKT_MININGSIM_SHARE_REQ = (byte) 152;
+
+    public static final byte MININGSIM_SHARE_OK       = 0;
+    /** The session recorded nothing, so there is nothing to look at. */
+    public static final byte MININGSIM_SHARE_EMPTY    = 1;
+    /** Too fast after the last share, too big, or the server has sharing off. */
+    public static final byte MININGSIM_SHARE_REJECTED = 2;
+
+    /** Cap on a shared session's name. Must match the server. */
+    public static final int MAX_MININGSIM_SHARE_NAME_CHARS = 48;
+    /** Cap on rate-graph points in a share. The curve is a shape, not a measurement, so
+     *  a long session is downsampled to this before upload. Must match the server. */
+    public static final int MAX_MININGSIM_SHARE_POINTS = 150;
+    /**
+     * Byte budget for a share's source + proc rows, sources first. Must match the server.
+     *
+     * <p>The server drops an upload that overruns its share ceiling, which would make the
+     * Share button look broken. Rows go out sorted by value, so cutting the tail against a
+     * budget costs the least interesting entries instead of the whole session.
+     */
+    public static final int MAX_MININGSIM_SHARE_ROW_BYTES = 15_000;
+
+    /** Worst-case wire cost of one share row: UTF-8 label + length prefix + numeric
+     *  columns at their widest varint encoding. Mirrors the server's estimate. */
+    public static int miningSimRowCost(String label) {
+        int chars = label == null ? 0 : Math.min(label.length(), MAX_MININGSIM_LABEL_CHARS);
+        return chars * 3 + 5 + 30;
+    }
+    /** Cap on the owner name carried by {@link #PKT_MININGSIM_SHARED}. */
+    public static final int MAX_MININGSIM_OWNER_CHARS = 16;
+
     /**
      * C2S - player confirmed a name in the rename GUI. Wire:
      * {@code varint+string token; varint+string name} (<= {@link #NAMETAG_MAX_INPUT_CHARS}).
@@ -977,8 +1048,11 @@ public final class Protocol {
      *  Minor 5 = client drives the item-nametag rename GUI ({@link #PKT_NAMETAG_OPEN}
      *  S2C / {@link #PKT_NAMETAG_SUBMIT} C2S); below this the server keeps sending the
      *  chat rename prompt, which still works.
+     *  Minor 6 = client can share a mining-sim session and open someone else's
+     *  ({@link #PKT_MININGSIM_SHARE_REQ} C2S / {@link #PKT_MININGSIM_SHARED} S2C); below
+     *  this a {@code [sim]} chat link falls back to the get-the-mod message.
      */
-    public static final int PROTOCOL_MINOR = 5;
+    public static final int PROTOCOL_MINOR = 6;
     /**
      * Client request: "I want to ping this world-space point for my gang."
      * Payload carries only coordinates + a hold-flag. Server authenticates the

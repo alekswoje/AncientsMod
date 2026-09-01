@@ -83,6 +83,13 @@ public final class MiningSimScreen extends Screen {
     private @Nullable GlassTextField renameField = null;
 
     /**
+     * Viewing a session somebody shared in chat rather than one of our own. Read-only:
+     * the only thing to do with it is Import, which copies it into the archive and turns
+     * it into a normal saved session.
+     */
+    private boolean viewingShared;
+
+    /**
      * Session state the buttons were last built for. The server answers actions
      * asynchronously, so rather than guessing after a click we rebuild whenever the
      * observed state actually changes — the buttons can never disagree with the server.
@@ -90,8 +97,13 @@ public final class MiningSimScreen extends Screen {
     private String builtForState = "";
 
     public MiningSimScreen(@Nullable Screen parent) {
+        this(parent, false);
+    }
+
+    private MiningSimScreen(@Nullable Screen parent, boolean shared) {
         super(Text.literal("Mining Simulation"));
         this.parent = parent;
+        this.viewingShared = shared;
     }
 
     /** Open on the next client tick — safe to call from inside a command dispatch. */
@@ -101,11 +113,48 @@ public final class MiningSimScreen extends Screen {
         mc.execute(() -> mc.setScreen(new MiningSimScreen(parent)));
     }
 
+    /**
+     * Open on the session behind a {@code [sim]} chat link the player just clicked.
+     * {@link MiningSimState#shared()} already holds it — the packet lands first.
+     */
+    public static void openShared() {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc == null) return;
+        mc.execute(() -> mc.setScreen(new MiningSimScreen(null, true)));
+    }
+
+    /**
+     * The server's verdict on a share upload. On success the player is handed straight to
+     * chat with the token already typed: the upload exists only so {@code [sim]} resolves,
+     * and leaving them to remember the token would waste the round trip.
+     */
+    public static void onShareAck(byte status) {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc == null) return;
+        mc.execute(() -> {
+            if (status == Protocol.MININGSIM_SHARE_OK) {
+                // draft=false: the token is text the player actually typed, not a greyed
+                // suggestion that the first keystroke would wipe.
+                mc.setScreen(new net.minecraft.client.gui.screen.ChatScreen("[sim] ", false));
+                return;
+            }
+            if (mc.player == null) return;
+            String msg = status == Protocol.MININGSIM_SHARE_EMPTY
+                    ? "That session recorded nothing worth sharing."
+                    : "Couldn't share that session — wait a moment and try again.";
+            mc.player.sendMessage(Text.literal(msg)
+                    .formatted(net.minecraft.util.Formatting.RED), false);
+        });
+    }
+
     @Override
     protected void init() {
         // Pull a fresh snapshot on open so the screen never shows a stale mid-session
-        // state from before it was closed.
-        NetworkHandler.sendMiningSimCommand(Protocol.MININGSIM_ACTION_REFRESH);
+        // state from before it was closed. Skipped for a shared session: it is somebody
+        // else's finished run, and our own live state is not what this screen is showing.
+        if (!viewingShared) {
+            NetworkHandler.sendMiningSimCommand(Protocol.MININGSIM_ACTION_REFRESH);
+        }
 
         int tabW = 104;
         int tabY = PADDING + 40;
@@ -121,6 +170,34 @@ public final class MiningSimScreen extends Screen {
         boolean paused = MiningSimState.isPaused();
         builtForState = stateSignature();
 
+        if (viewingShared && MiningSimState.shared() != null) {
+            // Somebody else's run: nothing here can be renamed, deleted or stopped. Import
+            // is the one action, and it turns the share into a normal saved session.
+            addDrawableChild(new GlassButton(this.width / 2 - 158, btnY, 100, 20,
+                    Text.literal("Import"), () -> {
+                int idx = MiningSimState.importShared(MiningSimState.shared());
+                if (idx >= 0) {
+                    // Land on the imported copy rather than bouncing to the list, so the
+                    // run you were reading stays on screen and is now yours.
+                    viewingShared = false;
+                    viewingIndex = idx;
+                    tab = Tab.SOURCES;
+                    scrollOffset = 0;
+                }
+                this.clearAndInit();
+            }).primary());
+            addDrawableChild(new GlassButton(this.width / 2 - 52, btnY, 100, 20,
+                    Text.literal("Back to mine"), () -> {
+                viewingShared = false;
+                MiningSimState.clearShared();
+                scrollOffset = 0;
+                this.clearAndInit();
+            }));
+            addDrawableChild(new GlassButton(this.width / 2 + 54, btnY, 100, 20,
+                    Text.literal("Done"), this::close));
+            return;
+        }
+
         MiningSimState.ArchivedSession viewed = viewedArchive();
         if (viewed != null) {
             // Viewing an archived run: its controls replace the session controls, because
@@ -130,7 +207,11 @@ public final class MiningSimScreen extends Screen {
                 addDrawableChild(new GlassButton(this.width / 2 + 54, btnY, 100, 20,
                         Text.literal("Save name"), this::commitRename).primary());
             } else {
-                addDrawableChild(new GlassButton(this.width / 2 - 210, btnY, 100, 20,
+                // Five controls now, so they are narrower than the two-or-three-button
+                // rows elsewhere on this screen.
+                final int w = 84, gap = 4, step = w + gap;
+                int x = this.width / 2 - (w * 5 + gap * 4) / 2;
+                addDrawableChild(new GlassButton(x, btnY, w, 20,
                         Text.literal("Rename"), () -> {
                     GlassTextField f = new GlassTextField(this.textRenderer,
                             this.width / 2 - 210, btnY, 204, 20, Text.literal("Session name"));
@@ -143,20 +224,24 @@ public final class MiningSimScreen extends Screen {
                     setFocused(renameField);
                     renameField.setFocused(true);
                 }));
-                addDrawableChild(new GlassButton(this.width / 2 - 104, btnY, 100, 20,
+                // Share uploads this run to the server and hands us to chat with the
+                // [sim] token typed, so anyone can click through to the same breakdown.
+                addDrawableChild(new GlassButton(x + step, btnY, w, 20,
+                        Text.literal("Share"), () -> NetworkHandler.sendMiningSimShare(viewed)));
+                addDrawableChild(new GlassButton(x + step * 2, btnY, w, 20,
                         Text.literal("Delete"), () -> {
                     MiningSimState.delete(viewingIndex);
                     viewingIndex = -1;
                     tab = Tab.HISTORY;
                     this.clearAndInit();
                 }));
-                addDrawableChild(new GlassButton(this.width / 2 + 2, btnY, 100, 20,
-                        Text.literal("Back to live"), () -> {
+                addDrawableChild(new GlassButton(x + step * 3, btnY, w, 20,
+                        Text.literal("Back"), () -> {
                     viewingIndex = -1;
                     scrollOffset = 0;
                     this.clearAndInit();
                 }).primary());
-                addDrawableChild(new GlassButton(this.width / 2 + 108, btnY, 100, 20,
+                addDrawableChild(new GlassButton(x + step * 4, btnY, w, 20,
                         Text.literal("Done"), this::close));
             }
             return;
@@ -173,20 +258,35 @@ public final class MiningSimScreen extends Screen {
             addDrawableChild(new GlassButton(this.width / 2 - 52, btnY, 100, 20,
                     Text.literal("Stop"), () ->
                     NetworkHandler.sendMiningSimCommand(Protocol.MININGSIM_ACTION_STOP)));
-        } else {
-            addDrawableChild(new GlassButton(this.width / 2 - 158, btnY, 100, 20,
-                    Text.literal("Auto-stop: " + autoStopLabel()), () -> {
-                autoStopIndex = (autoStopIndex + 1) % AUTO_STOP_CHOICES.length;
-                this.clearAndInit();
-            }));
-
-            addDrawableChild(new GlassButton(this.width / 2 - 52, btnY, 100, 20,
-                    Text.literal("Start"), () ->
-                    NetworkHandler.sendMiningSimCommand(Protocol.MININGSIM_ACTION_START,
-                            AUTO_STOP_CHOICES[autoStopIndex])).primary());
+            addDrawableChild(new GlassButton(this.width / 2 + 54, btnY, 100, 20,
+                    Text.literal("Done"), this::close));
+            return;
         }
 
-        addDrawableChild(new GlassButton(this.width / 2 + 54, btnY, 100, 20,
+        // Not running. The last archived session is the run that just ended, so Share sits
+        // here too — the common case is wanting to show off the session you only just
+        // stopped, and making that a trip through the History tab would be a detour.
+        List<MiningSimState.ArchivedSession> archive = MiningSimState.archive();
+        MiningSimState.ArchivedSession latestRun = archive.isEmpty() ? null : archive.get(archive.size() - 1);
+        int startX = latestRun != null ? this.width / 2 - 210 : this.width / 2 - 158;
+
+        addDrawableChild(new GlassButton(startX, btnY, 100, 20,
+                Text.literal("Auto-stop: " + autoStopLabel()), () -> {
+            autoStopIndex = (autoStopIndex + 1) % AUTO_STOP_CHOICES.length;
+            this.clearAndInit();
+        }));
+
+        addDrawableChild(new GlassButton(startX + 106, btnY, 100, 20,
+                Text.literal("Start"), () ->
+                NetworkHandler.sendMiningSimCommand(Protocol.MININGSIM_ACTION_START,
+                        AUTO_STOP_CHOICES[autoStopIndex])).primary());
+
+        if (latestRun != null) {
+            addDrawableChild(new GlassButton(startX + 212, btnY, 100, 20,
+                    Text.literal("Share last"), () -> NetworkHandler.sendMiningSimShare(latestRun)));
+        }
+
+        addDrawableChild(new GlassButton(startX + (latestRun != null ? 318 : 212), btnY, 100, 20,
                 Text.literal("Done"), this::close));
     }
 
@@ -203,13 +303,23 @@ public final class MiningSimScreen extends Screen {
         return archive.get(viewingIndex);
     }
 
-    /** The snapshot every tab renders — the loaded archive if one is open, else the live one. */
+    /** The shared session being viewed, or null when this is one of our own runs. */
+    private com.aleks.ancientsmod.net.payload.@Nullable MiningSimSharedPayload viewedShare() {
+        return viewingShared ? MiningSimState.shared() : null;
+    }
+
+    /** The snapshot every tab renders — a shared session if one is open, else the loaded
+     *  archive, else the live one. */
     private @Nullable MiningSimPayload viewedSnapshot() {
+        var shared = viewedShare();
+        if (shared != null) return shared.snapshot();
         MiningSimState.ArchivedSession a = viewedArchive();
         return a != null ? a.finalSnapshot() : MiningSimState.latest();
     }
 
     private List<MiningSimState.RatePoint> viewedHistory() {
+        var shared = viewedShare();
+        if (shared != null) return shared.history();
         MiningSimState.ArchivedSession a = viewedArchive();
         return a != null ? a.history() : MiningSimState.history();
     }
@@ -220,6 +330,7 @@ public final class MiningSimScreen extends Screen {
      * at click time that a refused action would leave wrong.
      */
     private String stateSignature() {
+        if (viewingShared) return "shared:" + (MiningSimState.shared() != null);
         if (viewingIndex >= 0) return "archive:" + viewingIndex + ":" + (renameField != null);
         MiningSimPayload s = MiningSimState.liveSession();
         if (s == null) return "none";
@@ -264,8 +375,16 @@ public final class MiningSimScreen extends Screen {
         MiningSimPayload snap = viewedSnapshot();
         MiningSimState.ArchivedSession viewed = viewedArchive();
 
-        ctx.drawCenteredTextWithShadow(textRenderer,
-                Text.literal(viewed != null ? "Mining Simulation — " + viewed.label() : "Mining Simulation"),
+        var shared = viewedShare();
+        String title;
+        if (shared != null) {
+            title = shared.ownerName() + "'s Mining Sim — " + shared.label();
+        } else if (viewed != null) {
+            title = "Mining Simulation — " + viewed.label();
+        } else {
+            title = "Mining Simulation";
+        }
+        ctx.drawCenteredTextWithShadow(textRenderer, Text.literal(title),
                 this.width / 2, PADDING + 2, GlassTheme.ACCENT_SOFT);
         ctx.drawCenteredTextWithShadow(textRenderer, Text.literal(headline(snap)),
                 this.width / 2, PADDING + 14, GlassTheme.textDim());
@@ -285,6 +404,14 @@ public final class MiningSimScreen extends Screen {
     }
 
     private String headline(@Nullable MiningSimPayload snap) {
+        var shared = viewedShare();
+        if (shared != null) {
+            // Say whose it is on every tab, not just in the title: these are somebody
+            // else's numbers and mistaking them for your own is the one real hazard here.
+            return (shared.own() ? "Your shared run" : "Shared by " + shared.ownerName())
+                    + " · " + formatDuration(shared.snapshot().elapsedMs())
+                    + " · Import to keep it";
+        }
         MiningSimState.ArchivedSession viewed = viewedArchive();
         if (viewed != null) {
             return "Saved session · " + formatDuration(viewed.finalSnapshot().elapsedMs());
@@ -451,7 +578,12 @@ public final class MiningSimScreen extends Screen {
 
         List<MiningSimState.RatePoint> pts = viewedHistory();
         if (pts.size() < 2) {
-            ctx.drawText(textRenderer, Text.literal("Not enough samples yet — the graph fills in as you mine."),
+            // A shared run can legitimately arrive without a curve — the server only ever
+            // knows totals, so an old session captured server-side has no samples to send.
+            String empty = viewedShare() != null
+                    ? "No rate graph was shared with this session."
+                    : "Not enough samples yet — the graph fills in as you mine.";
+            ctx.drawText(textRenderer, Text.literal(empty),
                     px + 8, py + 8, GlassTheme.textMuted(), false);
             return;
         }
@@ -663,7 +795,9 @@ public final class MiningSimScreen extends Screen {
                             compareB = idx;
                         }
                     } else {
-                        // Plain click opens the run — every tab switches over to it.
+                        // Plain click opens the run — every tab switches over to it, and
+                        // it takes over from a shared session if one was being viewed.
+                        viewingShared = false;
                         viewingIndex = idx;
                         tab = Tab.SOURCES;
                         scrollOffset = 0;
