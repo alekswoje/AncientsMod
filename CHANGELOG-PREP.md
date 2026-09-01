@@ -14,9 +14,6 @@
 
 ## UI & Screens
 
-- The mining sim screen has a **Share** button on saved sessions and a **Share last** button after a run. It posts the session to the server and opens chat with the **[sim]** token typed.
-- Clicking a **[sim]** link in chat opens that session in the mining sim screen, read only, with every tab filled in. **Import** copies it into your saved sessions so you can compare it against your own runs.
-
 ## Input & Keybinds
 
 ## Networking & Server Integration
