@@ -274,7 +274,12 @@ public final class NetworkHandler {
                 case Protocol.PKT_MININGSIM_SHARE_ACK -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.MININGSIM)) return;
                     byte status = buf.readByte();
-                    com.aleks.ancientsmod.client.screen.MiningSimScreen.onShareAck(status);
+                    // The [sim:<id>] link for the run just uploaded. An older server sends
+                    // no token; the empty string makes the screen type a bare [sim], which
+                    // resolves to the same run there.
+                    String token = buf.readableBytes() > 0
+                            ? buf.readString(Protocol.MAX_MININGSIM_SHARE_NAME_CHARS) : "";
+                    com.aleks.ancientsmod.client.screen.MiningSimScreen.onShareAck(status, token);
                 }
                 case Protocol.PKT_MININGSIM_OPEN -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.MININGSIM)) return;
@@ -723,6 +728,13 @@ public final class NetworkHandler {
                 buf.writeVarLong(Math.max(0L, p.xpPerHour()));
                 buf.writeVarLong(Math.max(0L, p.energyPerHour()));
                 buf.writeVarLong(millis(p.moneyPerHour()));
+            }
+            // Blocks tail, positional against the source table. A session archived before
+            // block tracking existed uploads zeroes, which is what it actually knows.
+            buf.writeVarLong(millis(s.totalBlocks()));
+            buf.writeVarInt(sources.size());
+            for (var r : sources) {
+                buf.writeVarLong(millis(r.blocks()));
             }
             sendBuf(buf);
         } catch (Throwable t) {

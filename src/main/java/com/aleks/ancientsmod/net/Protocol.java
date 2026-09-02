@@ -575,9 +575,11 @@ public final class Protocol {
      *   varlong  totalXp
      *   varlong  totalEnergy
      *   varlong  totalMoneyMillis   (money x1000)
+     *   varlong  totalBlocksMillis  (minor 7+; prestige-weighted blocks x1000)
      *   varint   sourceCount        (<= MAX_MININGSIM_ROWS)
      *     varint+string source
      *     varlong xp / varlong energy / varlong moneyMillis
+     *     varlong blocksMillis      (minor 7+)
      *   varint   procCount          (<= MAX_MININGSIM_ROWS)
      *     varint+string name
      *     varint  count
@@ -625,8 +627,10 @@ public final class Protocol {
      *   varint+string ownerName
      *   varint+string label     (<= {@link #MAX_MININGSIM_SHARE_NAME_CHARS})
      *   varlong  elapsedMs / miningElapsedMs / totalXp / totalEnergy / totalMoneyMillis
+     *   varlong  totalBlocksMillis (minor 7+)
      *   varint   sourceCount    (<= {@link #MAX_MININGSIM_ROWS})
-     *     varint+string source; varlong xp; varlong energy; varlong moneyMillis
+     *     varint+string source; varlong xp; varlong energy; varlong moneyMillis;
+     *     varlong blocksMillis (minor 7+)
      *   varint   procCount      (<= {@link #MAX_MININGSIM_ROWS})
      *     varint+string name; varint count
      *   varint   pointCount     (<= {@link #MAX_MININGSIM_SHARE_POINTS}; 0 = no curve)
@@ -637,7 +641,9 @@ public final class Protocol {
     public static final byte PKT_MININGSIM_SHARED = 62;
 
     /**
-     * S2C — result of a {@link #PKT_MININGSIM_SHARE_REQ}. Wire: {@code byte status}.
+     * S2C — result of a {@link #PKT_MININGSIM_SHARE_REQ}. Wire: {@code byte status},
+     * then {@code varint+string token} from a minor 7 server — the {@code [sim:<id>]} link
+     * naming the run just uploaded, which is what the client drops into the chat box.
      * On {@link #MININGSIM_SHARE_OK} the client opens chat pre-filled with the
      * {@code [sim]} token — the upload exists to make that token resolve.
      */
@@ -677,7 +683,7 @@ public final class Protocol {
      *  columns at their widest varint encoding. Mirrors the server's estimate. */
     public static int miningSimRowCost(String label) {
         int chars = label == null ? 0 : Math.min(label.length(), MAX_MININGSIM_LABEL_CHARS);
-        return chars * 3 + 5 + 30;
+        return chars * 3 + 5 + 40;
     }
     /** Cap on the owner name carried by {@link #PKT_MININGSIM_SHARED}. */
     public static final int MAX_MININGSIM_OWNER_CHARS = 16;
@@ -1051,8 +1057,12 @@ public final class Protocol {
      *  Minor 6 = client can share a mining-sim session and open someone else's
      *  ({@link #PKT_MININGSIM_SHARE_REQ} C2S / {@link #PKT_MININGSIM_SHARED} S2C); below
      *  this a {@code [sim]} chat link falls back to the get-the-mod message.
+     *  Minor 7 = mining-sim payloads carry a block column (session total + per source),
+     *  and {@link #PKT_MININGSIM_SHARE_ACK} carries the {@code [sim:<id>]} token naming
+     *  the run just uploaded. The block fields sit mid-payload, so a minor 6 server omits
+     *  them and a minor 6 client is sent none — neither side may guess.
      */
-    public static final int PROTOCOL_MINOR = 6;
+    public static final int PROTOCOL_MINOR = 7;
     /**
      * Client request: "I want to ping this world-space point for my gang."
      * Payload carries only coordinates + a hold-flag. Server authenticates the

@@ -257,12 +257,15 @@ public final class MiningSimState {
     //
     // Flat text, one session per line, unit-separator delimited:
     //   label US elapsedMs US miningElapsedMs US xp US energy US moneyMillis
-    //         US sources(name=xp,energy,moneyMillis joined by RS)
+    //         US sources(name=xp,energy,moneyMillis[,blocksMillis] joined by RS)
     //         US procs(name=count joined by RS)
     //         US history(atMs,xp/h,energy/h,money/h joined by RS)
+    //         US blocksMillis          <- appended 2026-09-01
     //
     // Chosen over JSON because the payload is flat and this stays greppable by hand;
-    // a malformed line is skipped rather than failing the whole load.
+    // a malformed line is skipped rather than failing the whole load. New columns go on
+    // the END of a line and of a row, so a file written by the previous version still
+    // parses — those runs simply have no block figures, which is the truth about them.
 
     private static final char US = '\u001F'; // field separator
     private static final char RS = '\u001E'; // row separator
@@ -322,7 +325,8 @@ public final class MiningSimState {
                 String[] v = row.substring(eq + 1).split(",");
                 if (v.length < 3) continue;
                 sources.add(new MiningSimPayload.Row(row.substring(0, eq),
-                        Long.parseLong(v[0]), Long.parseLong(v[1]), Long.parseLong(v[2]) / 1000.0));
+                        Long.parseLong(v[0]), Long.parseLong(v[1]), Long.parseLong(v[2]) / 1000.0,
+                        v.length > 3 ? Long.parseLong(v[3]) / 1000.0 : 0.0));
             }
         }
 
@@ -346,8 +350,10 @@ public final class MiningSimState {
             }
         }
 
+        double blocks = f.length > 9 && !f[9].isEmpty() ? Long.parseLong(f[9]) / 1000.0 : 0.0;
+
         MiningSimPayload snap = new MiningSimPayload(false, true, false, elapsed, miningElapsed,
-                xp, energy, money, List.copyOf(sources), List.copyOf(procs), 0L);
+                xp, energy, money, blocks, List.copyOf(sources), List.copyOf(procs), 0L);
         return new ArchivedSession(label, snap, List.copyOf(history));
     }
 
@@ -367,7 +373,8 @@ public final class MiningSimState {
                 if (i > 0) sb.append(RS);
                 sb.append(r.source()).append('=')
                   .append(r.xp()).append(',').append(r.energy()).append(',')
-                  .append(Math.round(r.money() * 1000.0));
+                  .append(Math.round(r.money() * 1000.0)).append(',')
+                  .append(Math.round(r.blocks() * 1000.0));
             }
             sb.append(US);
             for (int i = 0; i < p.procs().size(); i++) {
@@ -382,6 +389,7 @@ public final class MiningSimState {
                 sb.append(pt.atMs()).append(',').append(pt.xpPerHour()).append(',')
                   .append(pt.energyPerHour()).append(',').append(Math.round(pt.moneyPerHour() * 1000.0));
             }
+            sb.append(US).append(Math.round(p.totalBlocks() * 1000.0));
             sb.append('\n');
         }
         Path path = ConfigPaths.resolve(FILE_NAME);

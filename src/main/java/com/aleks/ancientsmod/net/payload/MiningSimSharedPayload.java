@@ -47,7 +47,7 @@ public record MiningSimSharedPayload(String ownerName, String label, boolean own
             long rowXp = Math.max(0L, buf.readVarLong());
             long rowEnergy = Math.max(0L, buf.readVarLong());
             double rowMoney = Math.max(0L, buf.readVarLong()) / 1000.0;
-            sources.add(new MiningSimPayload.Row(src, rowXp, rowEnergy, rowMoney));
+            sources.add(new MiningSimPayload.Row(src, rowXp, rowEnergy, rowMoney, 0.0));
         }
 
         int procCount = Math.min(Math.max(0, buf.readVarInt()), Protocol.MAX_MININGSIM_ROWS);
@@ -71,8 +71,11 @@ public record MiningSimSharedPayload(String ownerName, String label, boolean own
             history.add(new MiningSimState.RatePoint(base + at, xpHr, energyHr, moneyHr));
         }
 
+        // Blocks tail, appended after the curve — same reasoning as the live snapshot.
+        double totalBlocks = MiningSimPayload.readBlockTail(buf, sources);
+
         MiningSimPayload snapshot = new MiningSimPayload(false, true, false,
-                elapsed, miningElapsed, xp, energy, money,
+                elapsed, miningElapsed, xp, energy, money, totalBlocks,
                 List.copyOf(sources), List.copyOf(procs), System.currentTimeMillis());
 
         return new MiningSimSharedPayload(ownerName, label, own, snapshot, List.copyOf(history));

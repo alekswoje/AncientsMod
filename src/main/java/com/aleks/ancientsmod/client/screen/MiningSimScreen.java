@@ -49,6 +49,16 @@ public final class MiningSimScreen extends Screen {
     /** Width of each right-aligned rate column in the saved-sessions list. */
     private static final int RATE_COL_W = 78;
     private static final int PANEL_W = 480;
+    /**
+     * Right edges of the Sources table's numeric columns, as offsets back from the panel's
+     * right edge. Shared by the renderer and the header hit test — they were two separate
+     * sets of literals before the Blocks column arrived, which is exactly the kind of pair
+     * that drifts the moment one of them is edited.
+     */
+    private static final int COL_XP_RIGHT = 260;
+    private static final int COL_ENERGY_RIGHT = 175;
+    private static final int COL_MONEY_RIGHT = 90;
+    private static final int COL_BLOCKS_RIGHT = 10;
     private static final int ROWS_VISIBLE = 14;
     /** History rows leave room under them for the compare block. */
     private static final int HISTORY_ROWS_VISIBLE = ROWS_VISIBLE - 5;
@@ -57,7 +67,7 @@ public final class MiningSimScreen extends Screen {
 
     private enum Tab { SOURCES, PROCS, GRAPH, HISTORY }
 
-    private enum SortKey { ORIGIN, XP, ENERGY, MONEY, COUNT }
+    private enum SortKey { ORIGIN, XP, ENERGY, MONEY, BLOCKS, COUNT }
 
     private Tab tab = Tab.SOURCES;
     private SortKey sortKey = SortKey.XP;
@@ -125,17 +135,24 @@ public final class MiningSimScreen extends Screen {
 
     /**
      * The server's verdict on a share upload. On success the player is handed straight to
-     * chat with the token already typed: the upload exists only so {@code [sim]} resolves,
-     * and leaving them to remember the token would waste the round trip.
+     * chat with the token already typed: the upload exists only so the link resolves, and
+     * leaving them to remember the token would waste the round trip.
+     *
+     * @param token the {@code [sim:<id>]} link naming the run that was just uploaded.
+     *        Sharing a run out of History has to type THIS rather than a bare {@code [sim]}
+     *        — the bare token means "my newest share", so a message written now and sent
+     *        after sharing something else would quietly point at the wrong session. Empty
+     *        from a server that predates the id form, where the bare token is all there is.
      */
-    public static void onShareAck(byte status) {
+    public static void onShareAck(byte status, String token) {
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc == null) return;
         mc.execute(() -> {
             if (status == Protocol.MININGSIM_SHARE_OK) {
                 // draft=false: the token is text the player actually typed, not a greyed
                 // suggestion that the first keystroke would wipe.
-                mc.setScreen(new net.minecraft.client.gui.screen.ChatScreen("[sim] ", false));
+                String typed = token == null || token.isBlank() ? "[sim]" : token.trim();
+                mc.setScreen(new net.minecraft.client.gui.screen.ChatScreen(typed + " ", false));
                 return;
             }
             if (mc.player == null) return;
@@ -429,9 +446,16 @@ public final class MiningSimScreen extends Screen {
     }
 
     private String totalsLine(MiningSimPayload s) {
-        return compact(s.totalXp()) + " XP (" + compact(s.perHour(s.totalXp())) + "/hr)"
+        String line = compact(s.totalXp()) + " XP (" + compact(s.perHour(s.totalXp())) + "/hr)"
              + "   " + compact(s.totalEnergy()) + " energy (" + compact(s.perHour(s.totalEnergy())) + "/hr)"
              + "   " + money(s.totalMoney()) + " (" + money(s.moneyPerHour()) + "/hr)";
+        // Absent from a run recorded before blocks were tracked, and from an older server.
+        // Printing "0 blocks" there would read as a session that broke nothing.
+        if (s.totalBlocks() > 0) {
+            line += "   " + compact(Math.round(s.totalBlocks())) + " blocks ("
+                    + compact(s.blocksPerHour()) + "/hr)";
+        }
+        return line;
     }
 
     // ── Sources ─────────────────────────────────────────────────────────────
@@ -447,6 +471,7 @@ public final class MiningSimScreen extends Screen {
             case ORIGIN -> Comparator.comparing(MiningSimPayload.Row::source, String.CASE_INSENSITIVE_ORDER);
             case ENERGY -> Comparator.comparingLong(MiningSimPayload.Row::energy);
             case MONEY -> Comparator.comparingDouble(MiningSimPayload.Row::money);
+            case BLOCKS -> Comparator.comparingDouble(MiningSimPayload.Row::blocks);
             case COUNT, XP -> Comparator.comparingLong(MiningSimPayload.Row::xp);
         };
         rows.sort(sortDescending ? cmp.reversed() : cmp);
@@ -458,15 +483,17 @@ public final class MiningSimScreen extends Screen {
         GlassRender.panel(ctx, px, py, PANEL_W, panelH());
 
         int left = px + 8;
-        int xpRight = px + PANEL_W - 250;
-        int energyRight = px + PANEL_W - 130;
-        int moneyRight = px + PANEL_W - 10;
+        int xpRight = px + PANEL_W - COL_XP_RIGHT;
+        int energyRight = px + PANEL_W - COL_ENERGY_RIGHT;
+        int moneyRight = px + PANEL_W - COL_MONEY_RIGHT;
+        int blocksRight = px + PANEL_W - COL_BLOCKS_RIGHT;
         int y = py + 6;
 
         ctx.drawText(textRenderer, Text.literal(header("Source", SortKey.ORIGIN)), left, y, GlassTheme.textDim(), false);
         drawRight(ctx, header("XP", SortKey.XP), xpRight, y, GlassTheme.textDim());
         drawRight(ctx, header("Energy", SortKey.ENERGY), energyRight, y, GlassTheme.textDim());
         drawRight(ctx, header("Money", SortKey.MONEY), moneyRight, y, GlassTheme.textDim());
+        drawRight(ctx, header("Blocks", SortKey.BLOCKS), blocksRight, y, GlassTheme.textDim());
         y += 11;
         ctx.fill(px + 4, y, px + PANEL_W - 4, y + 1, GlassTheme.rim());
         y += 3;
@@ -502,6 +529,8 @@ public final class MiningSimScreen extends Screen {
                     r.energy() > 0 ? GlassTheme.VALUE : GlassTheme.textMuted());
             drawRight(ctx, r.money() > 0 ? money(r.money()) : "—", moneyRight, textY,
                     r.money() > 0 ? GlassTheme.OK : GlassTheme.textMuted());
+            drawRight(ctx, r.blocks() > 0 ? compact(Math.round(r.blocks())) : "—", blocksRight, textY,
+                    r.blocks() > 0 ? GlassTheme.text() : GlassTheme.textMuted());
             y += ROW_H;
         }
 
@@ -701,6 +730,12 @@ public final class MiningSimScreen extends Screen {
             drawDelta(ctx, left, y, "Energy/hr", a.perHour(a.totalEnergy()), b.perHour(b.totalEnergy()));
             y += 11;
             drawDelta(ctx, left, y, "$/hr", Math.round(a.moneyPerHour()), Math.round(b.moneyPerHour()));
+            // Only when at least one side has it — comparing two pre-block-tracking runs
+            // would print a 0 -> 0 row that says nothing.
+            if (a.totalBlocks() > 0 || b.totalBlocks() > 0) {
+                y += 11;
+                drawDelta(ctx, left, y, "Blocks/hr", a.blocksPerHour(), b.blocksPerHour());
+            }
         }
     }
 
@@ -812,10 +847,11 @@ public final class MiningSimScreen extends Screen {
 
     private @Nullable SortKey columnAt(double mx, int px) {
         if (tab == Tab.SOURCES) {
-            if (mx < px + PANEL_W - 250) return SortKey.ORIGIN;
-            if (mx < px + PANEL_W - 130) return SortKey.XP;
-            if (mx < px + PANEL_W - 10) return SortKey.ENERGY;
-            return SortKey.MONEY;
+            if (mx < px + PANEL_W - COL_XP_RIGHT) return SortKey.ORIGIN;
+            if (mx < px + PANEL_W - COL_ENERGY_RIGHT) return SortKey.XP;
+            if (mx < px + PANEL_W - COL_MONEY_RIGHT) return SortKey.ENERGY;
+            if (mx < px + PANEL_W - COL_BLOCKS_RIGHT) return SortKey.MONEY;
+            return SortKey.BLOCKS;
         }
         if (mx < px + PANEL_W - 130) return SortKey.ORIGIN;
         return SortKey.COUNT;
