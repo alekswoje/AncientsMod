@@ -14,9 +14,6 @@
 
 ## UI & Screens
 
-- The mining sim screen now has a **Blocks** column in Sources, blocks and blocks per hour in the header totals, and a **Blocks/hr** row in the session compare view.
-- Sharing a run from History now types a **[sim:code]** link naming that exact run, so a message written after sharing something else still points where you meant.
-
 ## Input & Keybinds
 
 ## Networking & Server Integration
