@@ -95,6 +95,9 @@ public final class FeatureToggles {
     /** Show the draggable Clock HUD (your own local wall-clock time). Off by default — extra HUD clutter. */
     private static volatile boolean clockHud = false;
 
+    /** Show the Mine Prediction diagnostics HUD (swaps / confirms / rollbacks). Off by default — diagnostic. */
+    private static volatile boolean predictHud = false;
+
     /** Show the jewel sockets as extra hotbar-style slots. On by default — it mirrors real gear state. */
     private static volatile boolean jewelHud = true;
 
@@ -249,6 +252,7 @@ public final class FeatureToggles {
             outpostHud = parseBool(props.getProperty("outpostHud"), outpostHud);
             armorDurabilityHud = parseBool(props.getProperty("armorDurabilityHud"), armorDurabilityHud);
             clockHud = parseBool(props.getProperty("clockHud"), clockHud);
+            predictHud = parseBool(props.getProperty("predictHud"), predictHud);
             jewelHud = parseBool(props.getProperty("jewelHud"), jewelHud);
             jewelSockets = parseBool(props.getProperty("jewelSockets"), jewelSockets);
             saturationOverlay = parseBool(props.getProperty("saturationOverlay"), saturationOverlay);
@@ -308,6 +312,7 @@ public final class FeatureToggles {
         props.setProperty("outpostHud", Boolean.toString(outpostHud));
         props.setProperty("armorDurabilityHud", Boolean.toString(armorDurabilityHud));
         props.setProperty("clockHud", Boolean.toString(clockHud));
+        props.setProperty("predictHud", Boolean.toString(predictHud));
         props.setProperty("jewelHud", Boolean.toString(jewelHud));
         props.setProperty("jewelSockets", Boolean.toString(jewelSockets));
         props.setProperty("saturationOverlay", Boolean.toString(saturationOverlay));
@@ -545,6 +550,14 @@ public final class FeatureToggles {
     public static void setClockHud(boolean value) {
         if (clockHud == value) return;
         clockHud = value;
+        save();
+    }
+
+    public static boolean isPredictHudEnabled() { return predictHud; }
+
+    public static void setPredictHud(boolean value) {
+        if (predictHud == value) return;
+        predictHud = value;
         save();
     }
 

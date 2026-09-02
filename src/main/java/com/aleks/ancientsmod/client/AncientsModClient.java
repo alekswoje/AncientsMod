@@ -9,6 +9,7 @@ import com.aleks.ancientsmod.client.gangping.GangPingManager;
 import com.aleks.ancientsmod.client.hud.ArmorDurabilityHud;
 import com.aleks.ancientsmod.client.hud.BoosterHud;
 import com.aleks.ancientsmod.client.hud.ClockHud;
+import com.aleks.ancientsmod.client.hud.PredictHud;
 import com.aleks.ancientsmod.client.hud.JewelHud;
 import com.aleks.ancientsmod.client.hud.CooldownsHud;
 import com.aleks.ancientsmod.client.hud.EventsHud;
@@ -89,6 +90,7 @@ public final class AncientsModClient implements ClientModInitializer {
         HudRegistry.register(OutpostHud.INSTANCE);
         HudRegistry.register(ArmorDurabilityHud.INSTANCE);
         HudRegistry.register(ClockHud.INSTANCE);
+        HudRegistry.register(PredictHud.INSTANCE);
         HudRegistry.register(JewelHud.INSTANCE);
         HudRenderer.register();
         SaturationOverlay.register();

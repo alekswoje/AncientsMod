@@ -87,6 +87,8 @@ public final class SettingsScreen extends WidgetSettingsScreen {
                 FeatureToggles::isArmorDurabilityHudEnabled, FeatureToggles::setArmorDurabilityHud);
         addToggle("Show clock HUD",
                 FeatureToggles::isClockHudEnabled, FeatureToggles::setClockHud);
+        addToggle("Show mine prediction HUD",
+                FeatureToggles::isPredictHudEnabled, FeatureToggles::setPredictHud);
         addToggle("Show saturation over hunger bar",
                 FeatureToggles::isSaturationOverlayEnabled, FeatureToggles::setSaturationOverlay);
         addToggle("Show meteorite count on block",

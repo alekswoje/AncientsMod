@@ -1630,6 +1630,17 @@ public final class Protocol {
      *  2×latency + 500ms, clamped to this range). On timeout the swap rolls back. */
     public static final long MINE_PREDICT_CONFIRM_MIN_MS = 600L;
     public static final long MINE_PREDICT_CONFIRM_MAX_MS = 3_000L;
+    /** Absolute ceiling on holding an unconfirmed ghost swap. Below this a swap only rolls
+     *  back once the server has demonstrably moved past the block without breaking it (a
+     *  newer block's PKT_MINE_START, or a PKT_MINE_CANCEL for this one) AND the soft confirm
+     *  window has passed. A server that has sent nothing is stalled, not refusing — its
+     *  confirmation is still in flight, and rolling back on a wall-clock timer alone popped
+     *  freshly mined blocks back into place on every server hitch. */
+    public static final long MINE_PREDICT_CONFIRM_HARD_MS = 2_500L;
+    /** Once the server has moved past a swapped block, how much longer its confirming block
+     *  update may still trail in (it flushes with the chunk at the end of the same tick the
+     *  newer PKT_MINE_START was sent in) before the swap is judged refused. */
+    public static final long MINE_PREDICT_MOVED_ON_GRACE_MS = 250L;
     /** After a rollback (server disagreed — e.g. a meteorite block that stays put),
      *  ghost swaps at that exact position are suppressed for this long; the crack
      *  animation still predicts. */

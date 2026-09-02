@@ -41,10 +41,17 @@ import java.util.concurrent.ThreadLocalRandom;
  *       locally swapped to its known replacement (ore → stone/deepslate/netherrack
  *       — mine blocks never become air) and the break flash (particles + sound)
  *       plays locally. The server's real block update confirms it ~RTT/2 later.</li>
- *   <li><b>Rollback on silence.</b> If no server block update confirms the swap
- *       within {@code 2×latency + 500ms}, the original state is restored and ghost
- *       swaps at that position are suppressed for a while, and re-suppressed on
- *       every further predicted break there (covers multi-hit blocks the engine
+ *   <li><b>Rollback on refusal, not on silence.</b> A swap rolls back once the
+ *       server has demonstrably moved past the block without breaking it — it
+ *       started a newer block ({@code PKT_MINE_START} for a later entry) or sent
+ *       {@code PKT_MINE_CANCEL} for this one — and the soft confirm window
+ *       ({@code 2×latency + 500ms}) has passed; or, whatever the server has said,
+ *       after {@link Protocol#MINE_PREDICT_CONFIRM_HARD_MS}. A server that has
+ *       sent nothing is stalled, and its confirmation is still in flight: rolling
+ *       back on a wall-clock timer alone popped freshly mined blocks back into
+ *       place on every server hitch. On rollback the original state is restored
+ *       and ghost swaps at that position are suppressed for a while, re-suppressed
+ *       on every further predicted break there (covers multi-hit blocks the engine
  *       can't model). Meteorites skip the swap up front instead — see
  *       {@link #ghostBreak}.</li>
  * </ol>
@@ -84,8 +91,10 @@ public final class MinePredictRenderer {
     /** Reserved synthetic entity id range. Far above any real player entity id. */
     private static final int BASE_ENTITY_ID = 1_000_000_000;
 
-    /** Hard cap on concurrent predicted animations. */
-    private static final int MAX_ENTRIES = 16;
+    /** Hard cap on concurrent predicted animations. Swapped entries wait out server
+     *  stalls (up to {@link Protocol#MINE_PREDICT_CONFIRM_HARD_MS}) before resolving,
+     *  so at endgame speeds a 2s hitch can leave a dozen of them pending. */
+    private static final int MAX_ENTRIES = 32;
 
     /** Number of block particles in the local break flash. Vanilla world-event 2001
      *  spawns ~30 which is visual noise when ores are mined rapidly. */
@@ -127,6 +136,56 @@ public final class MinePredictRenderer {
 
     private static final Map<BlockPos, Entry> ACTIVE = new HashMap<>();
 
+    private static long entrySeq = 0L;
+
+    // ── Telemetry ────────────────────────────────────────────────────────────
+
+    /** Counters since the last reset. Read by the Predict HUD and {@code /ancientsmod predict}. */
+    public static final class Stats {
+        /** Swing-time predictions started / server-paced entries created. */
+        public long predictions, serverPaced;
+        /** Ghost swaps made / confirmed by a server block update / crack-only completions confirmed. */
+        public long swaps, confirms, crackOnlyConfirms;
+        /** Our own first PKT_MINE_START that landed after the ghost swap (a server hitch) and was adopted. */
+        public long lateStartAdopted;
+        public long rollbackTimeout, rollbackMovedOn, rollbackReassert, rollbackSecondStart, rollbackEvicted;
+        public long cancelsReceived, selfCancels;
+        public long confirmLatencySumMs, confirmLatencyMaxMs;
+        public long lastRollbackMs;
+        public String lastRollbackReason = "";
+
+        public long rollbacks() {
+            return rollbackTimeout + rollbackMovedOn + rollbackReassert + rollbackSecondStart + rollbackEvicted;
+        }
+
+        public long confirmLatencyAvgMs() {
+            return confirms == 0 ? 0L : confirmLatencySumMs / confirms;
+        }
+    }
+
+    private static Stats stats = new Stats();
+    private static long statsSinceMs = System.currentTimeMillis();
+    private static volatile boolean debugLog = false;
+
+    public static Stats stats() { return stats; }
+    public static long statsSinceMs() { return statsSinceMs; }
+    public static void resetStats() { stats = new Stats(); statsSinceMs = System.currentTimeMillis(); }
+    public static boolean isDebugLog() { return debugLog; }
+    public static void setDebugLog(boolean on) { debugLog = on; }
+    public static int activeCount() { return ACTIVE.size(); }
+
+    private static void recordRollback(String reason) {
+        switch (reason) {
+            case "timeout" -> stats.rollbackTimeout++;
+            case "server-moved-on" -> stats.rollbackMovedOn++;
+            case "reassert" -> stats.rollbackReassert++;
+            case "second-start" -> stats.rollbackSecondStart++;
+            default -> stats.rollbackEvicted++;
+        }
+        stats.lastRollbackMs = System.currentTimeMillis();
+        stats.lastRollbackReason = reason;
+    }
+
     private static final class Entry {
         final int entityId;
         final long startMs;
@@ -139,11 +198,23 @@ public final class MinePredictRenderer {
         BlockState swappedTo;
         /** The pre-swap state, for rollback. */
         BlockState priorState;
-        /** Deadline (ms) for the server to confirm the swap before rollback. */
+        /** Soft deadline (ms): the swap may roll back after this, but only once {@link #serverMovedOn}. */
         long confirmDeadlineMs;
+        /** Hard deadline (ms): the swap rolls back after this regardless of what the server has said. */
+        long hardDeadlineMs;
+        /** When the ghost swap happened — confirm latency is measured from here. */
+        long swapMs;
+        /** Set once the server has demonstrably processed our abort of this block without breaking
+         *  it: a PKT_MINE_START for a newer entry, or a PKT_MINE_CANCEL for this one. Until then a
+         *  missing confirmation means the server is stalled, not that it refused the break. */
+        boolean serverMovedOn;
+        /** Creation order. A PKT_MINE_START for a higher seq proves the server has already handled
+         *  every earlier entry's abort (dig packets are processed in order). */
+        final long seq;
         int lastStageSent = -1;
 
         Entry(int entityId, long startMs, int durationMs, Block ore, boolean serverSynced) {
+            this.seq = ++entrySeq;
             this.entityId = entityId;
             this.startMs = startMs;
             this.durationMs = Math.max(1, durationMs);
@@ -182,14 +253,37 @@ public final class MinePredictRenderer {
         if (world == null) return;
 
         BlockPos pos = payload.pos();
+        long now = System.currentTimeMillis();
         Entry existing = ACTIVE.get(pos);
-        if (existing != null && !existing.swapped() && !existing.serverSynced) {
+        if (existing != null && !existing.serverSynced) {
             // We predicted this block on swing — adopt the server's authoritative
             // duration but keep our (earlier) local start time. Also learn the
             // duration for this ore so future first-swings are exact.
+            //
+            // Usually this lands mid-crack. After a server hitch it can land AFTER
+            // our ghost swap — and that is still the FIRST start for this block, not
+            // a rejection: the break the server just began is what will confirm the
+            // swap. (Treating it as a second start rolled every such block back to
+            // ore and blacklisted the position, then the server's break arrived and
+            // swapped it again — the "pops back, then breaks" flicker on every hitch,
+            // and on EVERY sub-100ms insta-break, whose swap always precedes it.)
             existing.durationMs = Math.max(1, payload.durationMs());
             existing.serverSynced = true;
             LEARNED_DURATION.put(existing.ore, payload.durationMs());
+            if (existing.swapped()) {
+                stats.lateStartAdopted++;
+                // The server is only now starting this block: give it the full
+                // duration plus the usual confirm window before judging the swap.
+                existing.confirmDeadlineMs = Math.max(existing.confirmDeadlineMs,
+                        now + existing.durationMs + confirmWindowMs(client));
+                existing.hardDeadlineMs = Math.max(existing.hardDeadlineMs,
+                        now + existing.durationMs + Protocol.MINE_PREDICT_CONFIRM_HARD_MS);
+                if (debugLog) {
+                    AncientsMod.LOGGER.info("[MinePredict] late server start adopted at {} ({}ms, swapped {}ms ago)",
+                            pos, existing.durationMs, now - existing.swapMs);
+                }
+            }
+            markOlderSwapsMovedOn(existing.seq, pos, now);
             return;
         }
         if (existing != null) {
@@ -211,7 +305,7 @@ public final class MinePredictRenderer {
             if (existing.swapped()) {
                 // The server would not start another break here if our ghost
                 // swap had been real — the block never changed. Put it back.
-                rollback(world, pos, existing);
+                rollback(world, pos, existing, "second-start");
             } else {
                 clearCrack(pos, existing);
             }
@@ -228,12 +322,34 @@ public final class MinePredictRenderer {
         // No local prediction was running (unknown block type, or the engine
         // wasn't armed yet) — start a server-paced entry now, like the legacy
         // behavior, so the crack still animates without the server's stream.
-        if (payload.durationMs() < Protocol.INSTA_BREAK_THRESHOLD_MS) {
-            Entry e = newEntry(world, pos, payload.durationMs(), state.getBlock(), true);
-            if (e != null) ghostBreak(client, world, pos, e);
-            return;
+        Entry paced = newEntry(world, pos, payload.durationMs(), state.getBlock(), true);
+        if (paced != null) stats.serverPaced++;
+        // The server processing a START here means it has already processed every
+        // dig packet the client sent before it — including the aborts of all older
+        // swapped entries. Any of those still unconfirmed was not broken.
+        markOlderSwapsMovedOn(paced != null ? paced.seq : Long.MAX_VALUE, pos, now);
+        if (paced != null && payload.durationMs() < Protocol.INSTA_BREAK_THRESHOLD_MS) {
+            ghostBreak(client, world, pos, paced);
         }
-        newEntry(world, pos, payload.durationMs(), state.getBlock(), true);
+    }
+
+    /**
+     * The server has started the entry with {@code seq} (or one at {@code pos} with no
+     * local entry): every OLDER swapped entry at another position has had its abort
+     * processed without a break, so its soft confirm deadline may now fire — after a
+     * short grace for the confirming block update that flushes at the end of the
+     * server's tick, behind the PKT_MINE_START it just sent.
+     */
+    private static void markOlderSwapsMovedOn(long seq, BlockPos pos, long now) {
+        for (Map.Entry<BlockPos, Entry> e : ACTIVE.entrySet()) {
+            Entry other = e.getValue();
+            if (!other.swapped() || other.seq >= seq || e.getKey().equals(pos)) continue;
+            if (!other.serverMovedOn) {
+                other.serverMovedOn = true;
+                other.confirmDeadlineMs = Math.min(other.confirmDeadlineMs,
+                        now + Protocol.MINE_PREDICT_MOVED_ON_GRACE_MS);
+            }
+        }
     }
 
     /** Server-origin ClickLock state. While on, the engine drives server-paced
@@ -244,13 +360,16 @@ public final class MinePredictRenderer {
 
     /** Server-origin cancel — the player released before completion. */
     public static void onMineCancel(BlockPos pos) {
+        stats.cancelsReceived++;
         Entry entry = ACTIVE.get(pos);
         if (entry == null) return;
         if (entry.swapped()) {
-            // The server may still grace-finish this block (its abort fires the
-            // cancel before the grace check completes the break) — shorten the
-            // confirm window and let confirm/rollback resolve it instead of
-            // flickering the block back immediately.
+            // Servers before the 2026-09 fix send this from the abort event itself,
+            // before their completion grace may still finish the block — so keep a
+            // short confirm window rather than flickering the block back at once.
+            // Either way the server has now spoken about this block: the soft
+            // deadline may fire.
+            entry.serverMovedOn = true;
             entry.confirmDeadlineMs = Math.min(entry.confirmDeadlineMs,
                     System.currentTimeMillis() + Protocol.MINE_PREDICT_CONFIRM_MIN_MS);
             return;
@@ -284,6 +403,8 @@ public final class MinePredictRenderer {
             // already shows the server's state; just drop the prediction.
             if (entry.swapped()) {
                 POS_BLACKLIST.put(pos.toImmutable(), System.currentTimeMillis() + Protocol.MINE_PREDICT_POS_BLACKLIST_MS);
+                recordRollback("reassert");
+                if (debugLog) AncientsMod.LOGGER.info("[MinePredict] server re-asserted {} at {}", entry.ore, pos);
             }
             clearCrack(pos, entry);
             ACTIVE.remove(pos);
@@ -295,6 +416,14 @@ public final class MinePredictRenderer {
         POS_BLACKLIST.remove(pos); // proof the server does change this block — predict here again
         if (entry.ore != null && !newState.isAir()) {
             LEARNED_REPLACEMENT.put(entry.ore, newState);
+        }
+        if (entry.swapped()) {
+            long latency = Math.max(0L, System.currentTimeMillis() - entry.swapMs);
+            stats.confirms++;
+            stats.confirmLatencySumMs += latency;
+            if (latency > stats.confirmLatencyMaxMs) stats.confirmLatencyMaxMs = latency;
+        } else {
+            stats.crackOnlyConfirms++;
         }
         if (!entry.swapped()) {
             // Crack-only prediction (no replacement known) — play the flash now,
@@ -337,9 +466,14 @@ public final class MinePredictRenderer {
             BlockPos pos = e.getKey();
 
             if (entry.swapped()) {
-                // Awaiting server confirmation — independent of mouse state.
-                if (now >= entry.confirmDeadlineMs) {
-                    rollback(world, pos, entry);
+                // Awaiting server confirmation — independent of mouse state. The soft
+                // deadline only counts once the server has moved past this block; a
+                // server that has said nothing is stalled and its confirmation is still
+                // on its way. The hard deadline bounds the wait regardless.
+                boolean hard = now >= entry.hardDeadlineMs;
+                boolean soft = entry.serverMovedOn && now >= entry.confirmDeadlineMs;
+                if (hard || soft) {
+                    rollback(world, pos, entry, hard ? "timeout" : "server-moved-on");
                     it.remove();
                 }
                 continue;
@@ -356,6 +490,7 @@ public final class MinePredictRenderer {
             boolean miningHeld = attacking || clickLockActive;
             boolean stillTargeting = pos.equals(targeted);
             if (!miningHeld || !stillTargeting) {
+                stats.selfCancels++;
                 // The server does not necessarily stop here: within a ping-derived
                 // grace of completion it finishes the block instead of pausing, and
                 // it suppresses the break effects for us either way. So leave the
@@ -415,6 +550,7 @@ public final class MinePredictRenderer {
         if (duration == null) return;
 
         Entry entry = newEntry(world, targeted, duration, block, false);
+        if (entry != null) stats.predictions++;
         if (entry != null && duration < Protocol.INSTA_BREAK_THRESHOLD_MS) {
             ghostBreak(client, world, targeted, entry);
             if (!entry.swapped()) {
@@ -432,7 +568,7 @@ public final class MinePredictRenderer {
             if (it.hasNext()) {
                 Map.Entry<BlockPos, Entry> oldest = it.next();
                 if (oldest.getValue().swapped()) {
-                    rollback(world, oldest.getKey(), oldest.getValue());
+                    rollback(world, oldest.getKey(), oldest.getValue(), "evicted");
                 } else {
                     // Evicted before the server resolved it — it may still break,
                     // with the server's own effects suppressed. Leave the flash owed.
@@ -571,9 +707,14 @@ public final class MinePredictRenderer {
         if (replacement != prior) {
             world.setBlockState(pos, replacement, Block.NOTIFY_ALL);
         }
+        long now = System.currentTimeMillis();
         entry.priorState = prior;
         entry.swappedTo = replacement;
-        entry.confirmDeadlineMs = System.currentTimeMillis() + confirmWindowMs(client);
+        entry.swapMs = now;
+        entry.serverMovedOn = false;
+        entry.confirmDeadlineMs = now + confirmWindowMs(client);
+        entry.hardDeadlineMs = now + Protocol.MINE_PREDICT_CONFIRM_HARD_MS;
+        stats.swaps++;
     }
 
     /** 2×latency + 500ms, clamped — how long we wait for the server to confirm a swap. */
@@ -616,12 +757,19 @@ public final class MinePredictRenderer {
 
     /** The server never confirmed our swap — restore reality and remember not to
      *  swap at this position for a while. */
-    private static void rollback(ClientWorld world, BlockPos pos, Entry entry) {
+    private static void rollback(ClientWorld world, BlockPos pos, Entry entry, String reason) {
         if (entry.priorState != null && world.getBlockState(pos) == entry.swappedTo) {
             world.setBlockState(pos, entry.priorState, Block.NOTIFY_ALL);
         }
         POS_BLACKLIST.put(pos.toImmutable(), System.currentTimeMillis() + Protocol.MINE_PREDICT_POS_BLACKLIST_MS);
-        AncientsMod.LOGGER.debug("MinePredict rollback at {}", pos);
+        recordRollback(reason);
+        long waited = entry.swapMs > 0 ? System.currentTimeMillis() - entry.swapMs : -1;
+        if (debugLog) {
+            AncientsMod.LOGGER.info("[MinePredict] rollback ({}) at {}: {} predicted {}ms, waited {}ms, synced={}",
+                    reason, pos, entry.ore, entry.durationMs, waited, entry.serverSynced);
+        } else {
+            AncientsMod.LOGGER.debug("MinePredict rollback ({}) at {}", reason, pos);
+        }
     }
 
     private static void clearCrack(BlockPos pos, Entry entry) {
