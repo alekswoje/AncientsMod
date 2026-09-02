@@ -16,8 +16,6 @@
 
 ## Input & Keybinds
 
-- Removed the **F10** keybind for mine prediction. Toggle it in the settings screen (**F9**) under Advanced instead.
-
 ## Networking & Server Integration
 
 ## Updates & Installation
