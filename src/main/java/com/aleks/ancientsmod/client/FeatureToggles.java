@@ -349,11 +349,6 @@ public final class FeatureToggles {
 
     public static boolean isMinePredictEnabled() { return minePredict; }
 
-    public static boolean toggleMinePredict() {
-        setMinePredict(!minePredict);
-        return minePredict;
-    }
-
     public static void setMinePredict(boolean value) {
         if (minePredict == value) return;
         minePredict = value;

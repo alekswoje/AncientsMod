@@ -5,12 +5,9 @@ import com.aleks.ancientsmod.client.screen.MufflerScreen;
 import com.aleks.ancientsmod.client.screen.SettingsScreen;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
-import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.input.KeyInput;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
 import org.lwjgl.glfw.GLFW;
 
 /**
@@ -20,14 +17,6 @@ import org.lwjgl.glfw.GLFW;
  * users can rebind via Options → Controls → "AncientsMod".
  */
 public final class KeyBinds {
-
-    /** Toggle client-side mining-crack prediction (mine-start latency hint). */
-    public static final KeyBinding TOGGLE_MINE_PREDICT = new KeyBinding(
-            "key.ancientsmod.toggleMinePredict",
-            InputUtil.Type.KEYSYM,
-            GLFW.GLFW_KEY_F10,
-            KeyBinding.Category.MISC
-    );
 
     /** Send a gang ping at feet (tap) or at the cursor target (hold). Default: middle mouse button. */
     public static final KeyBinding GANG_PING = new KeyBinding(
@@ -85,7 +74,6 @@ public final class KeyBinds {
     }
 
     public static void register() {
-        KeyBindingHelper.registerKeyBinding(TOGGLE_MINE_PREDICT);
         KeyBindingHelper.registerKeyBinding(GANG_PING);
         KeyBindingHelper.registerKeyBinding(OPEN_SETTINGS);
         KeyBindingHelper.registerKeyBinding(OPEN_MUFFLER);
@@ -93,12 +81,6 @@ public final class KeyBinds {
         KeyBindingHelper.registerKeyBinding(ZOOM);
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            while (TOGGLE_MINE_PREDICT.wasPressed()) {
-                // Clearing in-flight predictions on switch-off is done by
-                // FeatureToggles.setMinePredict, so the settings screen gets it too.
-                boolean nowOn = FeatureToggles.toggleMinePredict();
-                notify(client, nowOn);
-            }
             while (OPEN_SETTINGS.wasPressed()) {
                 if (client.currentScreen == null) {
                     client.setScreen(new SettingsScreen(null));
@@ -112,15 +94,6 @@ public final class KeyBinds {
         });
 
         AncientsMod.LOGGER.info("AncientsMod keybinds registered");
-    }
-
-    private static void notify(MinecraftClient client, boolean nowOn) {
-        if (client.player == null) return;
-        Formatting color = nowOn ? Formatting.GREEN : Formatting.RED;
-        String state = nowOn ? "ON" : "OFF";
-        Text msg = Text.literal("[AncientsMod] Mine Predict: ")
-                .append(Text.literal(state).formatted(color, Formatting.BOLD));
-        client.player.sendMessage(msg, true); // action bar
     }
 
     private KeyBinds() {}
