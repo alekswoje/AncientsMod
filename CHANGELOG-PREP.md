@@ -10,8 +10,6 @@
 
 ## HUDs
 
-- New **Mine Prediction** HUD (off by default, Settings → HUDs) shows how many predicted breaks the server confirmed, how many rolled back, and how long confirmations took.
-
 ## Rendering & Visuals
 
 ## UI & Screens
@@ -20,11 +18,6 @@
 
 ## Networking & Server Integration
 
-- Predicted breaks no longer flicker back to ore when the server hitches. A block you broke now waits for the server to catch up and only comes back if the server moved on without breaking it.
-- Fast builds that break blocks in under **100ms** no longer see every block pop back for a moment before the server's break lands.
-
 ## Updates & Installation
 
 ## Quality of Life
-
-- `/ancientsmod predict` prints the mine prediction counters, `/ancientsmod predict reset` clears them, and `/ancientsmod predict log` logs every rollback to the game log.
