@@ -31,11 +31,11 @@ public final class EventsHud extends HudElement {
     public static final List<String> ALL_KEYS = List.of(
             "koth", "bah", "meteor", "mining_comp",
             "meteorite", "meteorite_shower", "mining_rush", "hot_zone",
-            "oracle", "outpost", "skywars"
+            "tear", "oracle", "outpost", "skywars"
     );
 
     public static final Set<String> DEFAULT_ENABLED = new LinkedHashSet<>(List.of(
-            "koth", "bah", "meteor", "mining_comp", "outpost", "mining_rush", "skywars"
+            "koth", "bah", "meteor", "mining_comp", "outpost", "mining_rush", "tear", "skywars"
     ));
 
     private static final int MIN_WIDTH    = 158;
@@ -165,6 +165,7 @@ public final class EventsHud extends HudElement {
         if (id == Protocol.EVENT_METEORITE)         return "meteorite";
         if (id == Protocol.EVENT_MINING_RUSH)       return "mining_rush";
         if (id == Protocol.EVENT_HOT_ZONE)          return "hot_zone";
+        if (id == Protocol.EVENT_TEAR)              return "tear";
         if (id == Protocol.EVENT_ORACLE)            return "oracle";
         if (id == Protocol.EVENT_OUTPOST)           return "outpost";
         if (id == Protocol.EVENT_METEORITE_SHOWER)  return "meteorite_shower";
@@ -182,6 +183,7 @@ public final class EventsHud extends HudElement {
             case "meteorite_shower"  -> "Meteorite Shower";
             case "mining_rush"       -> "Mining Rush";
             case "hot_zone"          -> "Hot Zone";
+            case "tear"              -> "Erebus Tear";
             case "oracle"            -> "Oracle";
             case "outpost"           -> "Outpost rotation";
             case "skywars"           -> "Skywars";
@@ -200,6 +202,7 @@ public final class EventsHud extends HudElement {
             case "meteorite_shower"  -> 0xFFFFB070;
             case "mining_rush"       -> 0xFFC8E08A;
             case "hot_zone"          -> 0xFFFF7070;
+            case "tear"              -> 0xFFA855F7;
             case "oracle"            -> 0xFFC6A0FF;
             case "outpost"           -> 0xFF87BFFF;
             case "skywars"           -> 0xFF9DD2FF;

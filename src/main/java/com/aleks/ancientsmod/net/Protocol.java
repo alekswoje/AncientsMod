@@ -1029,6 +1029,9 @@ public final class Protocol {
      */
     public static final byte EVENT_SKYWARS           = 13;
 
+    /** Erebus Tear next-breach timer. Reads OFF while the fund has not unlocked tears. */
+    public static final byte EVENT_TEAR              = 14;
+
     public static final byte EVENT_STATE_COUNTDOWN = 0;
     public static final byte EVENT_STATE_ACTIVE    = 1;
     public static final byte EVENT_STATE_DISABLED  = 2;
