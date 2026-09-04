@@ -10,8 +10,6 @@
 
 ## HUDs
 
-- The Events HUD can now show an **Erebus Tear** row with the time until the next breach. Turn it on in the widget settings.
-
 ## Rendering & Visuals
 
 ## UI & Screens
