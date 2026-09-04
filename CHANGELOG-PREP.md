@@ -18,6 +18,9 @@
 
 ## Networking & Server Integration
 
+- Low-ping mine prediction no longer makes mining slower. Every predicted block cost **250ms** of dead time and popped the ore back into place, worst on mid-tier pickaxes.
+- `/ancientsmod predict` reports how many of those stalls were prevented.
+
 ## Updates & Installation
 
 ## Quality of Life

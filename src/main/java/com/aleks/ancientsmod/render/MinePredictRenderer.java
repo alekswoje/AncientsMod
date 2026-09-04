@@ -150,6 +150,8 @@ public final class MinePredictRenderer {
         public long lateStartAdopted;
         public long rollbackTimeout, rollbackMovedOn, rollbackReassert, rollbackSecondStart, rollbackEvicted;
         public long cancelsReceived, selfCancels;
+        /** Client ticks where vanilla's own break progress was frozen on a ghost-swapped block. */
+        public long localBreakFrozen;
         public long confirmLatencySumMs, confirmLatencyMaxMs;
         public long lastRollbackMs;
         public String lastRollbackReason = "";
@@ -173,6 +175,44 @@ public final class MinePredictRenderer {
     public static boolean isDebugLog() { return debugLog; }
     public static void setDebugLog(boolean on) { debugLog = on; }
     public static int activeCount() { return ACTIVE.size(); }
+
+    /**
+     * True while the block at {@code pos} is showing our ghost replacement, the
+     * server has told us it owns this break, and it has not confirmed it yet.
+     *
+     * <p>The {@code serverSynced} half matters: it means a {@code PKT_MINE_START}
+     * arrived for THIS block, which is the only proof the server is running a
+     * custom mining task on it and will break it on its own schedule. Blocks that
+     * bypass custom mining — cell-region ore, Skywars islands — break with plain
+     * vanilla rules and never get a START. They CAN still be swing-predicted (the
+     * speed table is keyed by ore type and the armed window lasts 60s, so walking
+     * from the mine into a cell can ghost-swap a cell ore), and freezing vanilla's
+     * break there would stop the block from ever breaking until the 2.5s hard
+     * deadline. Requiring the START keeps the freeze on server-owned breaks only.
+     *
+     * <p>Read by {@code MiningLocalBreakFreezeMixin}. Vanilla keeps its own break
+     * progress at the position it is mining and recomputes the per-tick delta from
+     * whatever block state is there — {@code isCurrentlyBreaking} compares position
+     * and held item only, never the state. Our swap puts a SOFTER block under the
+     * crosshair (stone 1.5 vs ore 3.0, netherrack 0.4 vs quartz ore 3.0, nether
+     * bricks 2.0 vs ancient debris 30) and can flip {@code canHarvest} false→true
+     * for another 3.3x, while the progress accumulated on the ore carries over. So
+     * vanilla's local break completes shortly after the ghost swap, sends a
+     * {@code STOP_DESTROY_BLOCK} the server cancels and answers by re-asserting the
+     * un-broken ore, and parks the client in a 5-tick (250ms) breaking cooldown in
+     * which no START goes out for the next block. Net: a 250ms hole in the mining
+     * loop plus a re-assert rollback that pops the ore back, once per block.
+     */
+    public static boolean isServerOwnedGhostAt(BlockPos pos) {
+        if (pos == null) return false;
+        Entry entry = ACTIVE.get(pos);
+        return entry != null && entry.swapped() && entry.serverSynced;
+    }
+
+    /** Counts a client tick where the mixin above froze vanilla's local break. */
+    public static void noteLocalBreakFrozen() {
+        stats.localBreakFrozen++;
+    }
 
     private static void recordRollback(String reason) {
         switch (reason) {

@@ -21,6 +21,7 @@
     "client.HandledScreenTooltipSuppressMixin",
     "client.HoveredTooltipPositionerMixin",
     "client.LivingEntityRendererMixin",
+    "client.MiningLocalBreakFreezeMixin",
     "client.MiningResumeMixin",
     "client.ParticleManagerMufflerMixin",
     "client.SimpleOptionGammaMixin",
