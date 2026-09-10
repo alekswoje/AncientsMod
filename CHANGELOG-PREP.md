@@ -10,6 +10,8 @@
 
 ## HUDs
 
+- Jewel sockets now hide with the rest of the HUD when you press **F1**, and stay hidden while you are in spectator mode.
+
 ## Rendering & Visuals
 
 ## UI & Screens

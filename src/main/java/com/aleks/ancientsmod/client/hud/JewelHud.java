@@ -78,6 +78,13 @@ public final class JewelHud extends HudElement {
     @Override
     public boolean isVisible() {
         if (!FeatureToggles.isJewelHudEnabled()) return false;
+        net.minecraft.client.MinecraftClient mc = net.minecraft.client.MinecraftClient.getInstance();
+        // The sockets are drawn as hotbar chrome, so they follow the hotbar: F1
+        // takes the vanilla HUD away and must take these with it (screenshots,
+        // cinematics), and a spectator has no hotbar to sit beside.
+        if (mc == null) return false;
+        if (mc.options != null && mc.options.hudHidden) return false;
+        if (mc.player != null && mc.player.isSpectator()) return false;
         if (JewelState.isEmpty()) return false;
         if (showWhenEmpty()) return true;
         // Otherwise hide the widget entirely until there's something to show:
