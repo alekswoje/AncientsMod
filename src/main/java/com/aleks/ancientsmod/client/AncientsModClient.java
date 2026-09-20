@@ -114,6 +114,9 @@ public final class AncientsModClient implements ClientModInitializer {
             // backend we actually landed on pushes its own state.
             com.aleks.ancientsmod.client.hud.JewelState.clear();
             com.aleks.ancientsmod.client.hud.JewelLoadoutState.clear();
+            // Same reasoning as the jewel-state clear above: which rarity-word
+            // vocabulary the last backend spoke says nothing about this one.
+            com.aleks.ancientsmod.client.loot.ServerVocabulary.reset();
             if (ServerAllowlist.isAllowed()) {
                 AncientsMod.LOGGER.info("AncientsMod active on this server");
                 UpdateChecker.checkAsync(client);
@@ -237,6 +240,7 @@ public final class AncientsModClient implements ClientModInitializer {
             com.aleks.ancientsmod.client.loot.LootClient.reset();
             com.aleks.ancientsmod.client.hud.JewelState.clear();
             com.aleks.ancientsmod.client.hud.JewelLoadoutState.clear();
+            com.aleks.ancientsmod.client.loot.ServerVocabulary.reset();
             com.aleks.ancientsmod.client.cellterm.CellTermClient.reset();
             com.aleks.ancientsmod.client.pv.PvClient.reset();
             com.aleks.ancientsmod.client.energycalc.EnergyReferenceState.clear();

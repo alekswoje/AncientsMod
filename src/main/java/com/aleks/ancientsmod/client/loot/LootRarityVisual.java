@@ -44,15 +44,24 @@ public final class LootRarityVisual {
         };
     }
 
-    /** Upper-case rarity name, or empty for NONE / unknown. */
+    /**
+     * Upper-case rarity name, or empty for NONE / unknown. The server sends only
+     * the int level (ANCT-525 renamed the words, not the levels), so which word
+     * a given level prints picks between the live cluster's vocabulary
+     * (COMMON/RARE/EPIC/MYTHIC) and the renamed one (SIMPLE/ELITE/ULTIMATE/GODLY)
+     * using {@link ServerVocabulary#isNewGeneration()} — see that class for how
+     * the generation is inferred and its failure mode. Colours ({@link
+     * #argb(int)}) don't change: the rename kept the same colour per level.
+     */
     public static String name(int level) {
+        boolean newGen = ServerVocabulary.isNewGeneration();
         return switch (level) {
-            case 0 -> "COMMON";
+            case 0 -> newGen ? "SIMPLE"   : "COMMON";
             case 1 -> "UNCOMMON";
-            case 2 -> "RARE";
-            case 3 -> "EPIC";
+            case 2 -> newGen ? "ELITE"    : "RARE";
+            case 3 -> newGen ? "ULTIMATE" : "EPIC";
             case 4 -> "LEGENDARY";
-            case 5 -> "MYTHIC";
+            case 5 -> newGen ? "GODLY"    : "MYTHIC";
             default -> "";
         };
     }

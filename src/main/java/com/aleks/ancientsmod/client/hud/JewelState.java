@@ -14,6 +14,11 @@ public final class JewelState {
 
     public static void update(JewelSlotsPayload payload) {
         slots = payload.slots();
+        // A server only pushes 4 sockets once it knows about the fourth one,
+        // which landed alongside the ANCT-525 rarity-word rename — so the count
+        // doubles as a signal for which vocabulary generation this server
+        // speaks. See ServerVocabulary for how that's used and its failure mode.
+        com.aleks.ancientsmod.client.loot.ServerVocabulary.noteJewelSlotCount(slots.size());
         // Pushes are rare (join, handshake, socket changes, prestige), so this
         // is a couple of lines a session and makes "is the HUD empty or is the
         // packet missing?" answerable straight from the client log.

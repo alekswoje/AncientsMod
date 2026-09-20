@@ -53,9 +53,21 @@ public final class StatsHud extends HudElement {
      * Drop rarity tiers, rarest → most common. The server tallies each drop
      * into one of these buckets (mirroring the plugin's {@code LootRarity}); the
      * HUD renders one row per non-empty tier in this order.
+     *
+     * <p>ANCT-525 renamed the same six levels on the map-3+ line (COMMON/
+     * UNCOMMON/RARE/EPIC/LEGENDARY/MYTHIC → SIMPLE/UNCOMMON/ELITE/ULTIMATE/
+     * LEGENDARY/GODLY), and the live cluster still runs the old words — a
+     * session only ever sees one vocabulary's words, never a mix, so both
+     * generations' words are listed here at their level's rank and whichever
+     * one the server actually sent renders (see {@link #dropRows()}).
      */
-    private static final List<String> RARITY_ORDER =
-            List.of("mythic", "legendary", "epic", "rare", "uncommon", "common");
+    private static final List<String> RARITY_ORDER = List.of(
+            "mythic", "godly",
+            "legendary",
+            "epic", "ultimate",
+            "rare", "elite",
+            "uncommon",
+            "common", "simple");
 
     public static final List<String> ALL_SECTIONS = List.of("world", "hunter", "mining", "session", "sim", "blocks", "kills", "drops");
 
@@ -635,10 +647,12 @@ public final class StatsHud extends HudElement {
     }
 
     /**
-     * Drops grouped by rarity tier. The server sends one entry per rarity
-     * ("common".."mythic"); we render them rarest-first. Any non-rarity key
-     * (e.g. an older server still sending per-item keys mid-rollout) falls
-     * through to its own row so nothing is silently hidden.
+     * Drops grouped by rarity tier. The server sends one entry per rarity,
+     * spelled in whichever vocabulary that server runs ("common".."mythic" on
+     * live, "simple".."godly" post-ANCT-525); we render them rarest-first
+     * under whichever word actually arrived. Any non-rarity key (e.g. an older
+     * server still sending per-item keys mid-rollout) falls through to its own
+     * row so nothing is silently hidden.
      */
     private List<Row> dropRows() {
         Map<String, Integer> all = PveStatsState.drops();
@@ -710,16 +724,21 @@ public final class StatsHud extends HudElement {
         };
     }
 
-    /** Per-rarity strip colour; unknown keys use the neutral drop blue. */
+    /**
+     * Per-rarity strip colour; unknown keys use the neutral drop blue. Each
+     * post-ANCT-525 word shares its predecessor's colour at the same level
+     * (simple=common, elite=rare, ultimate=epic, godly=mythic) — the rename
+     * changed the words, not the colours.
+     */
     private static int dropColorFor(String key) {
         return switch (key) {
-            case "common"    -> 0xFFB0B0B8;
-            case "uncommon"  -> 0xFF8AE08A;
-            case "rare"      -> 0xFF8AC2FF;
-            case "epic"      -> 0xFFC6A0FF;
-            case "legendary" -> 0xFFE6B05A;
-            case "mythic"    -> 0xFFFF7CC8;
-            default          -> DROP_DEFAULT_ACCENT;
+            case "common", "simple"     -> 0xFFB0B0B8;
+            case "uncommon"             -> 0xFF8AE08A;
+            case "rare", "elite"        -> 0xFF8AC2FF;
+            case "epic", "ultimate"     -> 0xFFC6A0FF;
+            case "legendary"            -> 0xFFE6B05A;
+            case "mythic", "godly"      -> 0xFFFF7CC8;
+            default                     -> DROP_DEFAULT_ACCENT;
         };
     }
 

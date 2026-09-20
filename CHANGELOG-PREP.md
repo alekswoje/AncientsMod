@@ -11,6 +11,7 @@
 ## HUDs
 
 - The jewel socket bar and the inventory socket column now show a **4th** jewel socket on servers that have one.
+- The loot browser and the drop tally now use the renamed rarity words (Simple, Elite, Ultimate, Godly) on servers that have them.
 
 ## Rendering & Visuals
 

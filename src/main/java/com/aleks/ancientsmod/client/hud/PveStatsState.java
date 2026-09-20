@@ -29,6 +29,13 @@ public final class PveStatsState {
         worldName = payload.worldName() == null ? "" : payload.worldName();
         kills = new LinkedHashMap<>(payload.kills());
         drops = new LinkedHashMap<>(payload.drops());
+        // Drop-tally keys are the server's own rarity words (or a subtyped
+        // lootbox key carrying one). A word that only exists post-ANCT-525
+        // (simple/elite/ultimate/godly) proves this server is renamed — see
+        // ServerVocabulary for how the loot browser uses that.
+        for (String key : drops.keySet()) {
+            com.aleks.ancientsmod.client.loot.ServerVocabulary.noteKey(key);
+        }
         hunterXpPerHour = Math.max(0L, payload.hunterXpPerHour());
         sessionHunterXp = Math.max(0L, payload.sessionHunterXp());
         receivedMs = payload.receivedMs();
