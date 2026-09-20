@@ -1,5 +1,6 @@
 package com.aleks.ancientsmod.client.hud;
 
+import com.aleks.ancientsmod.net.Protocol;
 import com.aleks.ancientsmod.net.payload.JewelSlotsPayload;
 
 import java.util.List;
@@ -22,6 +23,22 @@ public final class JewelState {
 
     public static List<JewelSlotsPayload.Slot> slots() {
         return slots;
+    }
+
+    /**
+     * Sockets the server's last push carried — and therefore the number of
+     * name/model pairs it is writing per page in the loadout packet, which has
+     * no width field of its own.
+     *
+     * <p>Before anything has arrived this answers {@link
+     * Protocol#MAX_JEWEL_SLOTS}: a server that knows this client's protocol
+     * minor writes four, and an older one always writes three, which
+     * {@code JewelLoadoutsPayload} detects for itself rather than depending on
+     * the two packets arriving in order.
+     */
+    public static int socketWireWidth() {
+        List<JewelSlotsPayload.Slot> current = slots;
+        return current.isEmpty() ? Protocol.MAX_JEWEL_SLOTS : current.size();
     }
 
     /** True until the server has pushed anything (vanilla-ish servers, pre-join). */

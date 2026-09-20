@@ -418,7 +418,7 @@ public final class NetworkHandler {
                 }
                 case Protocol.PKT_JEWEL_SLOTS -> {
                     // Deliberately NOT rate-limited. This is a last-write-wins
-                    // snapshot of all three sockets, so dropping one doesn't
+                    // snapshot of every socket, so dropping one doesn't
                     // shed load in any useful way — it freezes the display on
                     // stale data until some later push happens through, which
                     // showed up as a jewel still drawn in a socket the server

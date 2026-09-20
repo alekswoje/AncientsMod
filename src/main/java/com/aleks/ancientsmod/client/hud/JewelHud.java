@@ -13,7 +13,8 @@ import java.util.List;
 
 /**
  * Jewel sockets rendered as extra hotbar-style slots — the client-side mirror
- * of the server's three global jewel slots.
+ * of the server's global jewel slots. However many the server sends is however
+ * many are drawn: the count is not fixed, and an older server sends one fewer.
  *
  * <p>Slots are drawn from the vanilla hotbar's own sprites so they sit beside
  * it as if they belonged there, and restyle with whatever pack is loaded. A
@@ -155,10 +156,28 @@ public final class JewelHud extends HudElement {
         return out;
     }
 
-    /** Clear of the hotbar's right edge (vanilla ends it at centre + 91). */
-    @Override public int defaultX(int screenWidth)  { return screenWidth / 2 + 96; }
-    /** Sits on the hotbar's own baseline: vanilla draws it 22px off the bottom. */
-    @Override public int defaultY(int screenHeight) { return screenHeight - 22; }
+    /**
+     * Clear of the hotbar's right edge (vanilla ends it at centre + 91), pulled
+     * back when the bar would hang off the right of the screen.
+     *
+     * <p>The offset alone used to be enough, because a three-cell bar ended at
+     * centre + 158 and Minecraft never scales the GUI below 320px wide. The
+     * fourth socket takes it to centre + 178, which is past the edge at that
+     * narrowest scale — so on a small window the run is nudged left instead of
+     * starting with a socket the player cannot see. Any roomier screen gets the
+     * same + 96 it always did.
+     */
+    @Override public int defaultX(int screenWidth) {
+        return Math.max(0, Math.min(screenWidth / 2 + 96, screenWidth - slotsWidth()));
+    }
+
+    /**
+     * Sits on the hotbar's own baseline: vanilla draws it 22px off the bottom.
+     * Stacked vertically the cells run DOWNWARD from the top-left, so the
+     * baseline has to allow for the whole column or the lower sockets start
+     * below the bottom of the screen. Horizontally this is the same 22 as ever.
+     */
+    @Override public int defaultY(int screenHeight) { return screenHeight - slotsHeight(); }
 
     @Override
     public void render(DrawContext ctx, TextRenderer fr, float tickDelta) {

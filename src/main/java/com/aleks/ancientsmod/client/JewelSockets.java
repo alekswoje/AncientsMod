@@ -21,10 +21,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * The three jewel sockets drawn beside the survival inventory, behaving like
- * vanilla equipment slots: pick a jewel up onto the cursor, click a socket to
- * put it in; click a filled socket to take it back out. Dragging a jewel onto
- * a socket and letting go there is the same request as a click on it.
+ * The jewel sockets drawn beside the survival inventory, behaving like vanilla
+ * equipment slots: pick a jewel up onto the cursor, click a socket to put it
+ * in; click a filled socket to take it back out. Dragging a jewel onto a socket
+ * and letting go there is the same request as a click on it.
+ *
+ * <p>The column is as long as the server says: every measurement here comes off
+ * {@code JewelState.slots().size()}, so a server sending a socket more or less
+ * needs no change in this file.
  *
  * <p>Slot chrome is blitted straight out of the pack's own
  * {@code gui/container/inventory.png} (the first storage cell at 7,83), so the

@@ -446,10 +446,10 @@ public final class Protocol {
     // servers never disagree on packet identity.
 
     /**
-     * The player's three jewel sockets (server → mod), driving the jewel-slot
-     * HUD. Pushed on join, on every socket mutation (equip / unequip / death
-     * roll / wipe) and on prestige-up, since prestige is what unlocks slots 2
-     * and 3.
+     * The player's jewel sockets (server → mod), driving the jewel-slot HUD.
+     * Pushed on join, on every socket mutation (equip / unequip / death roll /
+     * wipe) and on prestige-up, since prestige is what unlocks slots 2, 3
+     * and 4.
      *
      * <p>Body: {@code count}, then per slot {@code state}
      * ({@link #JEWEL_STATE_LOCKED} / {@link #JEWEL_STATE_EMPTY} /
@@ -459,10 +459,26 @@ public final class Protocol {
      * {@code loreCount} and that many flavour lines. Every field is present for
      * every slot regardless of state.
      *
+     * <p>{@code count} carries the width, so the socket count is the server's
+     * to state and nothing here may assume it. Anything past this client's cap
+     * is left in the buffer and discarded.
+     *
      * <p>Byte 51 is the first free id above the reserved block (28-30, 46, 50).
      */
     public static final byte PKT_JEWEL_SLOTS = 51;
-    public static final int MAX_JEWEL_SLOTS = 3;
+    /**
+     * Sockets this client can read. Grew 3 → 4 with the prestige-1 socket; a
+     * server that has not been told this client is on
+     * {@link #PROTOCOL_MINOR} 8 still sends {@link #LEGACY_MAX_JEWEL_SLOTS},
+     * so this is a ceiling, never a count.
+     */
+    public static final int MAX_JEWEL_SLOTS = 4;
+    /**
+     * What every server sent before the fourth socket, and what one that
+     * predates it still sends. The loadout packet has no width field, so its
+     * decode needs the older width to fall back on.
+     */
+    public static final int LEGACY_MAX_JEWEL_SLOTS = 3;
     /**
      * Description lines per slot. Not the same bound as the server's stat cap —
      * a unique's effect is prose that wraps past three lines.
@@ -534,9 +550,15 @@ public final class Protocol {
      * making one active swaps every socket at once.
      *
      * <p>Body: {@code activePage}, {@code count}, then per page {@code name},
-     * {@code unlocked} (0/1), and exactly {@link #MAX_JEWEL_SLOTS} pairs of
-     * {@code jewelName} / {@code modelPath} ("" for an empty socket). Fixed
-     * per-page width, so the decode never branches on the wire.
+     * {@code unlocked} (0/1), and a fixed number of pairs of {@code jewelName}
+     * / {@code modelPath} ("" for an empty socket) — as many as the server
+     * believes this client reads, so {@link #MAX_JEWEL_SLOTS} from a server
+     * that knows about the fourth socket and {@link #LEGACY_MAX_JEWEL_SLOTS}
+     * from one that doesn't.
+     *
+     * <p>The width is the one thing this packet does NOT carry, which is why
+     * {@code JewelLoadoutsPayload} infers it instead of trusting a constant:
+     * reading one pair too many or too few shifts every later page.
      *
      * <p>A count of 0 blanks the tabs — that is what an unloaded player or a
      * server with the feature off sends, so stale tabs can't linger.
@@ -1064,8 +1086,13 @@ public final class Protocol {
      *  and {@link #PKT_MININGSIM_SHARE_ACK} carries the {@code [sim:<id>]} token naming
      *  the run just uploaded. The block fields sit mid-payload, so a minor 6 server omits
      *  them and a minor 6 client is sent none — neither side may guess.
+     *  Minor 8 = client reads a fourth jewel socket in {@link #PKT_JEWEL_SLOTS} and a
+     *  fourth name/model pair per page in {@link #PKT_JEWEL_LOADOUTS}. Below this the
+     *  server keeps sending three of each, so the fourth socket is simply invisible
+     *  rather than broken. Must match the plugin's
+     *  {@code PrisonsModChannel.JEWEL_SLOTS_PROTOCOL_MINOR}.
      */
-    public static final int PROTOCOL_MINOR = 7;
+    public static final int PROTOCOL_MINOR = 8;
     /**
      * Client request: "I want to ping this world-space point for my gang."
      * Payload carries only coordinates + a hold-flag. Server authenticates the

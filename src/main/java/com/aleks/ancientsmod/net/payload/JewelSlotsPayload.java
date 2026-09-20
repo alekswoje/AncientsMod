@@ -16,6 +16,12 @@ import java.util.List;
  * state, so the decode never branches on the wire — unused fields arrive as
  * 0 / "".
  *
+ * <p>{@code count} is the server's to state: it sends as many sockets as it
+ * believes this client reads, so everything downstream sizes itself off
+ * {@link #slots()} rather than off {@link Protocol#MAX_JEWEL_SLOTS}. A count
+ * above that cap is clamped and the surplus left in the buffer, which
+ * {@code NetworkHandler} discards.
+ *
  * <p>{@code displayName} and {@code modelPath} are server-authored on purpose.
  * This class used to carry only the parts (rarity ordinal + type name) and let
  * the client reassemble the label and pick the texture, which cannot express a

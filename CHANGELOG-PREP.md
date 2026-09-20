@@ -10,6 +10,8 @@
 
 ## HUDs
 
+- The jewel socket bar and the inventory socket column now show a **4th** jewel socket on servers that have one.
+
 ## Rendering & Visuals
 
 ## UI & Screens
