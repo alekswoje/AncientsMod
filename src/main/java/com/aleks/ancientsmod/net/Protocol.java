@@ -74,6 +74,11 @@ public final class Protocol {
      * same tick as {@code BlockDamageEvent} so the mod can begin a predicted
      * break-crack animation ~100ms before the server's normal progress packets
      * would arrive.
+     *
+     * <p>Wire: {@code int x, int y, int z, int durationMs[, int graceTicks]}. The
+     * trailing {@code graceTicks} (optional, servers from 2026-09-24) is the
+     * look-away completion grace the server applies to this block; see
+     * {@link com.aleks.ancientsmod.net.payload.MineStartPayload}.
      */
     public static final byte PKT_MINE_START = 4;
 
@@ -1682,6 +1687,13 @@ public final class Protocol {
     public static final long MINE_PREDICT_RESUME_WINDOW_MS = 60_000L;
     /** Bound on the paused-progress and owed-flash bookkeeping maps. */
     public static final int MINE_PREDICT_MAX_TRACKED_POSITIONS = 64;
+    /** Fallback for the server's look-away completion grace when PKT_MINE_START carries
+     *  no grace field (older server): PrisonsCore's {@code predict-completion-grace-max-ticks}
+     *  default. The grace is {@code min(this, max(1, floor(durationTicks x fraction)),
+     *  2 + ping/100)} ticks, and only for blocks longer than one tick. */
+    public static final int MINE_PREDICT_GRACE_MAX_TICKS_DEFAULT = 8;
+    /** Fallback for PrisonsCore's {@code completion-grace-max-duration-fraction} default. */
+    public static final double MINE_PREDICT_GRACE_DURATION_FRACTION_DEFAULT = 0.34;
 
     private Protocol() {}
 }

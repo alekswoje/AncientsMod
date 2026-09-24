@@ -15,6 +15,8 @@
 
 ## Rendering & Visuals
 
+- With low-ping mine prediction on, a block you finish as you look away now breaks on screen straight away instead of hanging for a moment.
+
 ## UI & Screens
 
 ## Input & Keybinds

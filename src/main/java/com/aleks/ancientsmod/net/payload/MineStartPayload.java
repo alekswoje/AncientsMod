@@ -10,9 +10,21 @@ import net.minecraft.util.math.BlockPos;
  * predicted break-crack animation immediately, hiding the ~100ms round-trip
  * before the server's normal {@code BlockDestructionPacket} would arrive.
  *
- * <p>Wire format: {@code int x, int y, int z, int durationMs}.
+ * <p>Wire format: {@code int x, int y, int z, int durationMs[, int graceTicks]}.
+ *
+ * <p>{@code graceTicks} is an optional trailing field (servers from 2026-09-24 on):
+ * the look-away completion grace the server will apply to this block, i.e. if the
+ * player stops holding it with at most this many ticks left, the server finishes it
+ * instead of pausing. {@code 0} means the server will not grace-finish this block.
+ * Absent (older server) or negative decodes as {@link #GRACE_UNKNOWN}, and the mod
+ * falls back to computing the grace itself. Every mod version before this one reads
+ * exactly the first four ints and ignores anything after them, so appending the
+ * field is safe for old clients.
  */
-public record MineStartPayload(BlockPos pos, int durationMs) {
+public record MineStartPayload(BlockPos pos, int durationMs, int graceTicks) {
+
+    /** The server did not say what grace it applies (field absent or negative). */
+    public static final int GRACE_UNKNOWN = -1;
 
     public static MineStartPayload decode(PacketByteBuf buf) {
         int x = buf.readInt();
@@ -29,6 +41,13 @@ public record MineStartPayload(BlockPos pos, int durationMs) {
         if (durationMs < 0 || durationMs > Protocol.MAX_MINE_DURATION_MS) {
             throw new IllegalArgumentException("durationMs out of range: " + durationMs);
         }
-        return new MineStartPayload(new BlockPos(x, y, z), durationMs);
+        // Optional trailing field. Anything after it is ignored, so a later server
+        // can append more fields without breaking this decoder either.
+        int graceTicks = GRACE_UNKNOWN;
+        if (buf.isReadable(4)) {
+            int raw = buf.readInt();
+            graceTicks = raw < 0 ? GRACE_UNKNOWN : Math.min(raw, Protocol.MAX_MINE_DURATION_MS / 50);
+        }
+        return new MineStartPayload(new BlockPos(x, y, z), durationMs, graceTicks);
     }
 }

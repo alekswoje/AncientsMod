@@ -62,6 +62,19 @@ import java.util.concurrent.ThreadLocalRandom;
  * (so nothing renders twice) and grants a ping-bounded completion grace when the
  * player retargets early, so predicted breaks confirm instead of rolling back.
  *
+ * <p><b>Look-away grace finish.</b> That grace is not a corner case at endgame
+ * speeds: walk-mining holds each block for 150-200ms against a 200ms break, so the
+ * server finishes most walked blocks on it. When the player stops holding a block
+ * (crosshair moved off, or attack released) within the grace of its end, the break
+ * is shown at once through the normal ghost-swap path ({@link #ghostBreak}), and
+ * that swap's confirm / rollback rules decide it like any other. The hold is
+ * measured from the entry's start (our swing, the same client tick vanilla sent
+ * {@code START_DESTROY_BLOCK} in) to the look-away tick (the tick vanilla sent the
+ * abort or the next START in). The server measures the same interval between those
+ * two packets' arrivals, and both packets cross the same link, so the two views
+ * agree up to jitter. The grace itself comes from {@code PKT_MINE_START} when the
+ * server sends it, else from the server's formula with its default config.
+ *
  * <p><b>The server's break-effect suppression is unconditional</b> — it keys off
  * the reported predict-on flag alone, not off whether this engine still holds a
  * live prediction for that block. So every break we abandon early would render
@@ -152,6 +165,9 @@ public final class MinePredictRenderer {
         public long cancelsReceived, selfCancels;
         /** Client ticks where vanilla's own break progress was frozen on a ghost-swapped block. */
         public long localBreakFrozen;
+        /** Breaks shown at look-away because the server's completion grace should finish them,
+         *  and how many of those the server confirmed / did not (a subset of the rollbacks). */
+        public long graceShown, graceConfirmed, graceRolledBack;
         public long confirmLatencySumMs, confirmLatencyMaxMs;
         public long lastRollbackMs;
         public String lastRollbackReason = "";
@@ -214,7 +230,8 @@ public final class MinePredictRenderer {
         stats.localBreakFrozen++;
     }
 
-    private static void recordRollback(String reason) {
+    private static void recordRollback(String reason, Entry entry) {
+        if (entry.graceFinish) stats.graceRolledBack++;
         switch (reason) {
             case "timeout" -> stats.rollbackTimeout++;
             case "server-moved-on" -> stats.rollbackMovedOn++;
@@ -252,6 +269,17 @@ public final class MinePredictRenderer {
          *  every earlier entry's abort (dig packets are processed in order). */
         final long seq;
         int lastStageSent = -1;
+        /** Look-away completion grace (ticks) the server sent in PKT_MINE_START for this block,
+         *  or {@link MineStartPayload#GRACE_UNKNOWN} (not synced yet, or an older server). */
+        int serverGraceTicks = MineStartPayload.GRACE_UNKNOWN;
+        /** True once a client tick saw the player holding this block. Server-paced entries can be
+         *  created for a block the player already left (a START that arrived late); their
+         *  start time is not the player's hold, so they never get a look-away grace finish. */
+        boolean heldSeen;
+        /** The swap was made at look-away, on the server's completion grace. */
+        boolean graceFinish;
+        /** How long the player had held the block when {@link #graceFinish} swapped it. */
+        long graceHeldMs;
 
         Entry(int entityId, long startMs, int durationMs, Block ore, boolean serverSynced) {
             this.seq = ++entrySeq;
@@ -309,6 +337,7 @@ public final class MinePredictRenderer {
             // and on EVERY sub-100ms insta-break, whose swap always precedes it.)
             existing.durationMs = Math.max(1, payload.durationMs());
             existing.serverSynced = true;
+            existing.serverGraceTicks = payload.graceTicks();
             LEARNED_DURATION.put(existing.ore, payload.durationMs());
             if (existing.swapped()) {
                 stats.lateStartAdopted++;
@@ -363,7 +392,10 @@ public final class MinePredictRenderer {
         // wasn't armed yet) — start a server-paced entry now, like the legacy
         // behavior, so the crack still animates without the server's stream.
         Entry paced = newEntry(world, pos, payload.durationMs(), state.getBlock(), true);
-        if (paced != null) stats.serverPaced++;
+        if (paced != null) {
+            stats.serverPaced++;
+            paced.serverGraceTicks = payload.graceTicks();
+        }
         // The server processing a START here means it has already processed every
         // dig packet the client sent before it — including the aborts of all older
         // swapped entries. Any of those still unconfirmed was not broken.
@@ -431,6 +463,11 @@ public final class MinePredictRenderer {
     public static void onServerBlockUpdate(BlockPos pos, BlockState newState) {
         Entry entry = ACTIVE.get(pos);
         if (entry == null) {
+            // The block changed away from a paused ore: whatever progress the server
+            // held there is gone (a late break after a rolled-back grace swap, say),
+            // so a regenerated ore here must not resume from it.
+            PausedProgress paused = PAUSED.get(pos);
+            if (paused != null && paused.ore() != newState.getBlock()) PAUSED.remove(pos);
             payOwedFlash(pos, newState);
             return;
         }
@@ -443,8 +480,10 @@ public final class MinePredictRenderer {
             // already shows the server's state; just drop the prediction.
             if (entry.swapped()) {
                 POS_BLACKLIST.put(pos.toImmutable(), System.currentTimeMillis() + Protocol.MINE_PREDICT_POS_BLACKLIST_MS);
-                recordRollback("reassert");
-                if (debugLog) AncientsMod.LOGGER.info("[MinePredict] server re-asserted {} at {}", entry.ore, pos);
+                recordRollback("reassert", entry);
+                rememberGraceProgress(pos, entry);
+                if (debugLog) AncientsMod.LOGGER.info("[MinePredict] server re-asserted {} at {} (grace={})",
+                        entry.ore, pos, entry.graceFinish);
             }
             clearCrack(pos, entry);
             ACTIVE.remove(pos);
@@ -460,6 +499,7 @@ public final class MinePredictRenderer {
         if (entry.swapped()) {
             long latency = Math.max(0L, System.currentTimeMillis() - entry.swapMs);
             stats.confirms++;
+            if (entry.graceFinish) stats.graceConfirmed++;
             stats.confirmLatencySumMs += latency;
             if (latency > stats.confirmLatencyMaxMs) stats.confirmLatencyMaxMs = latency;
         } else {
@@ -530,17 +570,26 @@ public final class MinePredictRenderer {
             boolean miningHeld = attacking || clickLockActive;
             boolean stillTargeting = pos.equals(targeted);
             if (!miningHeld || !stillTargeting) {
+                // Within the server's completion grace of the end, the server finishes
+                // the block instead of pausing it: show that break now rather than
+                // waiting a round trip for its block update. The swap then waits for
+                // confirmation like any predicted break, so a block the server paused
+                // after all is rolled back by its cancel or the confirm deadlines.
+                if (entry.heldSeen && showGraceFinish(client, world, pos, entry, now)) {
+                    continue;
+                }
                 stats.selfCancels++;
-                // The server does not necessarily stop here: within a ping-derived
-                // grace of completion it finishes the block instead of pausing, and
-                // it suppresses the break effects for us either way. So leave the
-                // position owed a flash, and remember the progress the server is
-                // persisting so a resumed break continues this crack.
+                // Outside the grace (or no replacement to show) the server may still
+                // finish it on its own tick count, and it suppresses the break effects
+                // for us either way. So leave the position owed a flash, and remember
+                // the progress the server is persisting so a resumed break continues
+                // this crack.
                 clearCrack(pos, entry);
                 pauseEntry(pos, entry);
                 it.remove();
                 continue;
             }
+            entry.heldSeen = true;
 
             if (elapsed >= entry.durationMs) {
                 ghostBreak(client, world, pos, entry);
@@ -590,7 +639,10 @@ public final class MinePredictRenderer {
         if (duration == null) return;
 
         Entry entry = newEntry(world, targeted, duration, block, false);
-        if (entry != null) stats.predictions++;
+        if (entry != null) {
+            stats.predictions++;
+            entry.heldSeen = true; // created because the player is attacking it right now
+        }
         if (entry != null && duration < Protocol.INSTA_BREAK_THRESHOLD_MS) {
             ghostBreak(client, world, targeted, entry);
             if (!entry.swapped()) {
@@ -693,14 +745,76 @@ public final class MinePredictRenderer {
         MinecraftClient client = MinecraftClient.getInstance();
         owePendingFlash(client, client.world, pos);
 
-        long elapsed = System.currentTimeMillis() - entry.startMs;
-        if (elapsed < 50L || entry.ore == null) return; // sub-tick tap: server persists nothing
+        rememberPausedProgress(pos, entry, System.currentTimeMillis() - entry.startMs);
+    }
+
+    /** Remember {@code elapsedMs} of progress at {@code pos} so a resumed break continues the crack. */
+    private static void rememberPausedProgress(BlockPos pos, Entry entry, long elapsedMs) {
+        if (elapsedMs < 50L || entry.ore == null) return; // sub-tick tap: server persists nothing
         if (PAUSED.size() >= Protocol.MINE_PREDICT_MAX_TRACKED_POSITIONS) {
             Iterator<Map.Entry<BlockPos, PausedProgress>> it = PAUSED.entrySet().iterator();
             if (it.hasNext()) { it.next(); it.remove(); }
         }
-        PAUSED.put(pos.toImmutable(), new PausedProgress(entry.ore, Math.min(elapsed, entry.durationMs),
+        PAUSED.put(pos.toImmutable(), new PausedProgress(entry.ore, Math.min(elapsedMs, entry.durationMs),
                 System.currentTimeMillis() + Protocol.MINE_PREDICT_RESUME_WINDOW_MS));
+    }
+
+    /**
+     * A look-away grace swap turned out wrong: the server paused the block instead of
+     * finishing it, and kept the progress. Remember that progress as the ordinary
+     * look-away path would have, so a resumed break continues the crack.
+     */
+    private static void rememberGraceProgress(BlockPos pos, Entry entry) {
+        if (entry.graceFinish) rememberPausedProgress(pos, entry, entry.graceHeldMs);
+    }
+
+    /**
+     * The player just stopped holding the unswapped {@code entry} (crosshair moved off,
+     * or attack released). If the server's look-away completion grace covers what is
+     * left of the block, the server finishes it on the abort instead of pausing it, so
+     * show the break now through the normal ghost swap. Returns true when it swapped;
+     * false leaves the entry for the caller's ordinary pause path.
+     *
+     * <p>Mirrors PrisonsCore's {@code pauseMining} wall-clock check
+     * ({@code durationMs - heldMs <= graceTicks x 50}). The server graces when either that
+     * check or its own tick count passes, so it finishes every block this check accepts,
+     * up to network jitter between the two packets. The tick count is the one view the
+     * client cannot reproduce.
+     */
+    private static boolean showGraceFinish(MinecraftClient client, ClientWorld world, BlockPos pos, Entry entry, long now) {
+        long heldMs = Math.max(0L, now - entry.startMs);
+        int graceTicks = graceTicksFor(client, entry);
+        if (graceTicks <= 0 || entry.durationMs - heldMs > graceTicks * 50L) return false;
+
+        ghostBreak(client, world, pos, entry);
+        if (!entry.swapped()) return false; // no replacement known / blacklisted / meteorite
+
+        entry.graceFinish = true;
+        entry.graceHeldMs = Math.min(heldMs, entry.durationMs);
+        stats.graceShown++;
+        if (debugLog) {
+            AncientsMod.LOGGER.info("[MinePredict] grace finish shown at {}: held {}ms of {}ms, grace {} ticks ({}), synced={}",
+                    pos, heldMs, entry.durationMs, graceTicks,
+                    entry.serverGraceTicks >= 0 ? "server" : "fallback", entry.serverSynced);
+        }
+        return true;
+    }
+
+    /**
+     * The server's look-away completion grace for this block, in ticks. Uses the value
+     * the server sent in {@code PKT_MINE_START} when it has one. Otherwise (the START has
+     * not arrived yet, or an older server that doesn't send it) this is PrisonsCore's
+     * formula with its default config: {@code min(8, max(1, floor(durationTicks x 0.34)),
+     * 2 + ping/100)}, and none for one-tick blocks.
+     */
+    private static int graceTicksFor(MinecraftClient client, Entry entry) {
+        if (entry.serverGraceTicks >= 0) return entry.serverGraceTicks;
+        long durationTicks = entry.durationMs / 50L;
+        if (durationTicks <= 1) return 0;
+        long fractionCap = Math.max(1L,
+                (long) Math.floor(durationTicks * Protocol.MINE_PREDICT_GRACE_DURATION_FRACTION_DEFAULT));
+        long pingTicks = 2L + selfLatencyMs(client) / 100L;
+        return (int) Math.min(Math.min(Protocol.MINE_PREDICT_GRACE_MAX_TICKS_DEFAULT, fractionCap), pingTicks);
     }
 
     /**
@@ -759,17 +873,21 @@ public final class MinePredictRenderer {
 
     /** 2×latency + 500ms, clamped — how long we wait for the server to confirm a swap. */
     private static long confirmWindowMs(MinecraftClient client) {
-        int latency = 0;
+        long window = 2L * selfLatencyMs(client) + 500L;
+        return Math.max(Protocol.MINE_PREDICT_CONFIRM_MIN_MS,
+                Math.min(Protocol.MINE_PREDICT_CONFIRM_MAX_MS, window));
+    }
+
+    /** Our own latency as the server reports it in the player list (its getPing()), or 0. */
+    private static int selfLatencyMs(MinecraftClient client) {
         try {
             if (client.player != null && client.getNetworkHandler() != null) {
                 PlayerListEntry self = client.getNetworkHandler().getPlayerListEntry(client.player.getUuid());
-                if (self != null) latency = Math.max(0, self.getLatency());
+                if (self != null) return Math.max(0, self.getLatency());
             }
         } catch (Throwable ignored) {
         }
-        long window = 2L * latency + 500L;
-        return Math.max(Protocol.MINE_PREDICT_CONFIRM_MIN_MS,
-                Math.min(Protocol.MINE_PREDICT_CONFIRM_MAX_MS, window));
+        return 0;
     }
 
     /** Local break flash: a handful of block particles + the break sound. */
@@ -802,11 +920,13 @@ public final class MinePredictRenderer {
             world.setBlockState(pos, entry.priorState, Block.NOTIFY_ALL);
         }
         POS_BLACKLIST.put(pos.toImmutable(), System.currentTimeMillis() + Protocol.MINE_PREDICT_POS_BLACKLIST_MS);
-        recordRollback(reason);
+        recordRollback(reason, entry);
+        rememberGraceProgress(pos, entry);
         long waited = entry.swapMs > 0 ? System.currentTimeMillis() - entry.swapMs : -1;
         if (debugLog) {
-            AncientsMod.LOGGER.info("[MinePredict] rollback ({}) at {}: {} predicted {}ms, waited {}ms, synced={}",
-                    reason, pos, entry.ore, entry.durationMs, waited, entry.serverSynced);
+            AncientsMod.LOGGER.info("[MinePredict] rollback ({}) at {}: {} predicted {}ms, waited {}ms, synced={}, grace={}",
+                    reason, pos, entry.ore, entry.durationMs, waited, entry.serverSynced,
+                    entry.graceFinish ? "held " + entry.graceHeldMs + "ms" : "no");
         } else {
             AncientsMod.LOGGER.debug("MinePredict rollback ({}) at {}", reason, pos);
         }

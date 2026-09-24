@@ -121,6 +121,8 @@ public final class ClientCommands {
         say(client, String.format(Locale.US, "§7rolled back §%s%d §7(moved-on %d, timeout %d, re-asserted %d, second-start %d, evicted %d)",
                 s.rollbacks() == 0 ? "a" : "c", s.rollbacks(), s.rollbackMovedOn, s.rollbackTimeout,
                 s.rollbackReassert, s.rollbackSecondStart, s.rollbackEvicted));
+        say(client, String.format(Locale.US, "§7look-away grace finishes shown §f%d §7· confirmed §a%d §7· rolled back §%s%d",
+                s.graceShown, s.graceConfirmed, s.graceRolledBack == 0 ? "a" : "c", s.graceRolledBack));
         say(client, String.format(Locale.US, "§7vanilla local breaks frozen §f%d §7(each one would have cost 250ms + a pop-back)",
                 s.localBreakFrozen));
         say(client, s.confirms == 0
