@@ -15,7 +15,7 @@
 
 ## Rendering & Visuals
 
-- With low-ping mine prediction on, a block you finish as you look away now breaks on screen straight away instead of hanging for a moment.
+- Removed low-ping mine prediction. Mining now shows exactly what the server does, which fixes blocks popping back and flickering.
 
 ## UI & Screens
 

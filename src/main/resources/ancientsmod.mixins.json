@@ -5,7 +5,6 @@
   "compatibilityLevel": "JAVA_21",
   "client": [
     "client.ChatHudAccessor",
-    "client.ClientPlayNetworkHandlerBlockUpdateMixin",
     "client.ClientPlayerItemLockMixin",
     "client.ClientWorldRedstoneUnlitMixin",
     "client.CustomModelDataFloatPropertyMixin",
@@ -21,7 +20,6 @@
     "client.HandledScreenTooltipSuppressMixin",
     "client.HoveredTooltipPositionerMixin",
     "client.LivingEntityRendererMixin",
-    "client.MiningLocalBreakFreezeMixin",
     "client.MiningResumeMixin",
     "client.ParticleManagerMufflerMixin",
     "client.SimpleOptionGammaMixin",

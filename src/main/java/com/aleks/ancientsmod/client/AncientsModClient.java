@@ -9,7 +9,6 @@ import com.aleks.ancientsmod.client.gangping.GangPingManager;
 import com.aleks.ancientsmod.client.hud.ArmorDurabilityHud;
 import com.aleks.ancientsmod.client.hud.BoosterHud;
 import com.aleks.ancientsmod.client.hud.ClockHud;
-import com.aleks.ancientsmod.client.hud.PredictHud;
 import com.aleks.ancientsmod.client.hud.JewelHud;
 import com.aleks.ancientsmod.client.hud.CooldownsHud;
 import com.aleks.ancientsmod.client.hud.EventsHud;
@@ -26,7 +25,6 @@ import com.aleks.ancientsmod.net.NetworkHandler;
 import com.aleks.ancientsmod.render.FloatingNumberRenderer;
 import com.aleks.ancientsmod.render.GangPingRenderer;
 import com.aleks.ancientsmod.render.MeteoriteLabelRenderer;
-import com.aleks.ancientsmod.render.MinePredictRenderer;
 import com.aleks.ancientsmod.render.PowerballRenderer;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -90,7 +88,6 @@ public final class AncientsModClient implements ClientModInitializer {
         HudRegistry.register(OutpostHud.INSTANCE);
         HudRegistry.register(ArmorDurabilityHud.INSTANCE);
         HudRegistry.register(ClockHud.INSTANCE);
-        HudRegistry.register(PredictHud.INSTANCE);
         HudRegistry.register(JewelHud.INSTANCE);
         HudRenderer.register();
         SaturationOverlay.register();
@@ -141,9 +138,6 @@ public final class AncientsModClient implements ClientModInitializer {
                     // Tell the server whether we render Powerball client-side so it
                     // can suppress its per-ball ItemDisplay + per-tick packet stream.
                     NetworkHandler.sendPowerballState(FeatureToggles.isPowerballRenderEnabled());
-                    // Tell the server whether we run swing-time mine prediction so it
-                    // streams the speed table and suppresses its own crack/effects.
-                    NetworkHandler.sendMinePredictState(FeatureToggles.isMinePredictEnabled());
                     // Tell the server whether the cell-vault terminal is enabled so
                     // it knows to intercept vault-chest opens with the custom
                     // terminal (disabled → the vanilla chest GUI stays).
@@ -226,7 +220,6 @@ public final class AncientsModClient implements ClientModInitializer {
 
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             ServerAllowlist.onDisconnect();
-            MinePredictRenderer.reset();
             PowerballRenderer.reset();
             GangPingManager.reset();
             GangRoster.reset();
@@ -253,7 +246,6 @@ public final class AncientsModClient implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             long now = System.currentTimeMillis();
             FloatingNumberRenderer.tick(now);
-            MinePredictRenderer.tick();
             PowerballRenderer.tick(now);
             GangPingManager.tick(now);
             BugReportClient.tick();

@@ -17,8 +17,6 @@ public final class RateLimiter {
     public enum Kind {
         POINT_GAIN(Protocol.RATE_POINT_GAIN_PER_SEC),
         HUD_UPDATE(Protocol.RATE_HUD_UPDATE_PER_SEC),
-        MINE_START(Protocol.RATE_MINE_START_PER_SEC),
-        MINE_CANCEL(Protocol.RATE_MINE_CANCEL_PER_SEC),
         GANG_PING(Protocol.RATE_GANG_PING_PER_SEC),
         METEOR_PING(Protocol.RATE_METEOR_PING_PER_SEC),
         MINING_RUSH_PING(Protocol.RATE_MINING_RUSH_PING_PER_SEC),
@@ -40,8 +38,6 @@ public final class RateLimiter {
         MINING_BLOCKS(Protocol.RATE_MINING_BLOCKS_PER_SEC),
         MINING_SESSION(Protocol.RATE_MINING_SESSION_PER_SEC),
         MININGSIM(Protocol.RATE_MININGSIM_PER_SEC),
-        MINE_SPEEDS(Protocol.RATE_MINE_SPEEDS_PER_SEC),
-        CLICKLOCK_STATE(Protocol.RATE_CLICKLOCK_STATE_PER_SEC),
         BUGREPORT(Protocol.RATE_BUGREPORT_PER_SEC),
         SUGGEST(Protocol.RATE_SUGGEST_PER_SEC),
         NAMETAG(Protocol.RATE_NAMETAG_PER_SEC),

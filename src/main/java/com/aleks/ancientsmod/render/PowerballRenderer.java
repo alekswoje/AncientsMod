@@ -40,7 +40,7 @@ import java.util.concurrent.ThreadLocalRandom;
  *
  * <p><b>Trail.</b> One vanilla {@code FLAME} particle every 2 ticks at the ball
  * position — matching the server's original trail. Particles render under every
- * modpack (same system the mine-prediction crack uses).
+ * modpack.
  */
 public final class PowerballRenderer {
 

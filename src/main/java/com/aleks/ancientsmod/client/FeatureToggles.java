@@ -28,14 +28,11 @@ public final class FeatureToggles {
     private static final String CHAT_COPY_OFF_MIGRATION = "chatCopyDefaultOffApplied";
 
     // ── Toggles (defaults below) ─────────────────────────────────────────────
-
-    /** Swing-time mine prediction. On by default: the crack starts the instant you
-     *  swing (no round trip), the block ghost-swaps to its replacement when the
-     *  predicted timer ends, and the break flash plays locally. The server is told
-     *  via PKT_MINE_PREDICT_STATE and suppresses its own crack stream + break
-     *  effects for this client (no doubled crack), so high-ping mining feels like
-     *  low-ping. Off = legacy server-driven crack + effects. */
-    private static volatile boolean minePredict = true;
+    //
+    // Retired keys: "minePredict" and "predictHud" (low-ping mine prediction and
+    // its diagnostics HUD, removed 2026-09). Old config files may still carry
+    // them; load() only reads the keys it knows, so they are ignored, and the
+    // next save() rewrites the file without them. Don't reuse those names.
 
     /** Collapse marked enchant tooltip lines behind Shift. Off by default — full enchant list always visible. */
     private static volatile boolean enchantCollapse = false;
@@ -94,9 +91,6 @@ public final class FeatureToggles {
 
     /** Show the draggable Clock HUD (your own local wall-clock time). Off by default — extra HUD clutter. */
     private static volatile boolean clockHud = false;
-
-    /** Show the Mine Prediction diagnostics HUD (swaps / confirms / rollbacks). Off by default — diagnostic. */
-    private static volatile boolean predictHud = false;
 
     /** Show the jewel sockets as extra hotbar-style slots. On by default — it mirrors real gear state. */
     private static volatile boolean jewelHud = true;
@@ -233,7 +227,6 @@ public final class FeatureToggles {
         try (var in = Files.newInputStream(path)) {
             props.load(in);
             applyChatCopyOffMigration = props.getProperty(CHAT_COPY_OFF_MIGRATION) == null;
-            minePredict = parseBool(props.getProperty("minePredict"), minePredict);
             enchantCollapse = parseBool(props.getProperty("enchantCollapse"), enchantCollapse);
             scrollableTooltips = parseBool(props.getProperty("scrollableTooltips"), scrollableTooltips);
             itemWiki = parseBool(props.getProperty("itemWiki"), itemWiki);
@@ -252,7 +245,6 @@ public final class FeatureToggles {
             outpostHud = parseBool(props.getProperty("outpostHud"), outpostHud);
             armorDurabilityHud = parseBool(props.getProperty("armorDurabilityHud"), armorDurabilityHud);
             clockHud = parseBool(props.getProperty("clockHud"), clockHud);
-            predictHud = parseBool(props.getProperty("predictHud"), predictHud);
             jewelHud = parseBool(props.getProperty("jewelHud"), jewelHud);
             jewelSockets = parseBool(props.getProperty("jewelSockets"), jewelSockets);
             saturationOverlay = parseBool(props.getProperty("saturationOverlay"), saturationOverlay);
@@ -293,7 +285,6 @@ public final class FeatureToggles {
 
     public static void save() {
         Properties props = new Properties();
-        props.setProperty("minePredict", Boolean.toString(minePredict));
         props.setProperty("enchantCollapse", Boolean.toString(enchantCollapse));
         props.setProperty("scrollableTooltips", Boolean.toString(scrollableTooltips));
         props.setProperty("itemWiki", Boolean.toString(itemWiki));
@@ -312,7 +303,6 @@ public final class FeatureToggles {
         props.setProperty("outpostHud", Boolean.toString(outpostHud));
         props.setProperty("armorDurabilityHud", Boolean.toString(armorDurabilityHud));
         props.setProperty("clockHud", Boolean.toString(clockHud));
-        props.setProperty("predictHud", Boolean.toString(predictHud));
         props.setProperty("jewelHud", Boolean.toString(jewelHud));
         props.setProperty("jewelSockets", Boolean.toString(jewelSockets));
         props.setProperty("saturationOverlay", Boolean.toString(saturationOverlay));
@@ -350,25 +340,6 @@ public final class FeatureToggles {
         } catch (IOException e) {
             AncientsMod.LOGGER.warn("failed to save {}: {}", FILE_NAME, e.getMessage());
         }
-    }
-
-    public static boolean isMinePredictEnabled() { return minePredict; }
-
-    public static void setMinePredict(boolean value) {
-        if (minePredict == value) return;
-        minePredict = value;
-        save();
-        if (!value) {
-            // Drop in-flight predicted cracks, ghost swaps and owed break flashes
-            // so the switch-off is immediate and nothing left over renders on top
-            // of the server's effects once it resumes sending them. Every path
-            // that flips this toggle (keybind, settings screen) gets this — the
-            // reset lives here rather than at the call site for that reason.
-            com.aleks.ancientsmod.render.MinePredictRenderer.reset();
-        }
-        // Tell the server so it flips its side (speed-table stream, crack/effect
-        // suppression, completion grace) together with us. No-op when not connected.
-        com.aleks.ancientsmod.net.NetworkHandler.sendMinePredictState(value);
     }
 
     public static boolean isEnchantCollapseEnabled() { return enchantCollapse; }
@@ -550,14 +521,6 @@ public final class FeatureToggles {
     public static void setClockHud(boolean value) {
         if (clockHud == value) return;
         clockHud = value;
-        save();
-    }
-
-    public static boolean isPredictHudEnabled() { return predictHud; }
-
-    public static void setPredictHud(boolean value) {
-        if (predictHud == value) return;
-        predictHud = value;
         save();
     }
 

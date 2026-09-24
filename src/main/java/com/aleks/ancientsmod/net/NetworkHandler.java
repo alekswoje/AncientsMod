@@ -48,13 +48,10 @@ import com.aleks.ancientsmod.net.payload.MeteorPingPayload;
 import com.aleks.ancientsmod.net.payload.MiningRushPingPayload;
 import com.aleks.ancientsmod.net.payload.MiningRushPingClearPayload;
 import com.aleks.ancientsmod.net.payload.HotZonePingPayload;
-import com.aleks.ancientsmod.net.payload.MineCancelPayload;
-import com.aleks.ancientsmod.net.payload.MineStartPayload;
 import com.aleks.ancientsmod.net.payload.CellTermBundlePayload;
 import com.aleks.ancientsmod.net.payload.PointGainPayload;
 import com.aleks.ancientsmod.net.payload.PvBundlePayload;
 import com.aleks.ancientsmod.render.FloatingNumberRenderer;
-import com.aleks.ancientsmod.render.MinePredictRenderer;
 import com.aleks.ancientsmod.render.PowerballRenderer;
 import com.aleks.ancientsmod.render.RiftHud;
 import io.netty.buffer.Unpooled;
@@ -120,25 +117,11 @@ public final class NetworkHandler {
                     HudUpdatePayload p = HudUpdatePayload.decode(buf);
                     RiftHud.update(p);
                 }
-                case Protocol.PKT_MINE_START -> {
-                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.MINE_START)) return;
-                    MineStartPayload p = MineStartPayload.decode(buf);
-                    MinePredictRenderer.onMineStart(p);
-                }
-                case Protocol.PKT_MINE_CANCEL -> {
-                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.MINE_CANCEL)) return;
-                    MineCancelPayload p = MineCancelPayload.decode(buf);
-                    MinePredictRenderer.onMineCancel(p.pos());
-                }
-                case Protocol.PKT_MINE_SPEEDS -> {
-                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.MINE_SPEEDS)) return;
-                    com.aleks.ancientsmod.net.payload.MineSpeedsPayload p =
-                            com.aleks.ancientsmod.net.payload.MineSpeedsPayload.decode(buf);
-                    MinePredictRenderer.onSpeedTable(p);
-                }
-                case Protocol.PKT_CLICKLOCK_STATE -> {
-                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.CLICKLOCK_STATE)) return;
-                    MinePredictRenderer.onClickLockState(buf.readByte() != 0);
+                case Protocol.PKT_MINE_START, Protocol.PKT_MINE_CANCEL,
+                     Protocol.PKT_MINE_SPEEDS, Protocol.PKT_CLICKLOCK_STATE -> {
+                    // Retired with low-ping mine prediction (ANCT-489). Servers from
+                    // before the removal still send these, up to one per mined block;
+                    // drop them without decoding or logging.
                 }
                 case Protocol.PKT_GANG_PING -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.GANG_PING)) return;
@@ -595,13 +578,6 @@ public final class NetworkHandler {
     }
 
     /**
-     * Report whether the mod runs swing-time mine prediction. When on, the
-     * server streams {@link Protocol#PKT_MINE_SPEEDS}, suppresses its own
-     * crack-stage stream + break particle/sound/fragment for this player's own
-     * breaks, and grants a ping-bounded completion grace on early retarget.
-     * Sent after the handshake on join and on every toggle change.
-     */
-    /**
      * Ask the server to socket the cursor stack into a jewel slot, or to take
      * the jewel in one back out. Fired by the inventory-screen sockets; the
      * server re-validates everything and answers with a fresh
@@ -759,18 +735,6 @@ public final class NetworkHandler {
             out.add(src.get((int) ((long) i * (n - 1) / (max - 1))));
         }
         return out;
-    }
-
-    public static void sendMinePredictState(boolean on) {
-        if (!ServerAllowlist.isAllowed()) return;
-        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
-        try {
-            ClientPlayNetworking.send(new RawPayload(new byte[] {
-                    Protocol.PKT_MINE_PREDICT_STATE, (byte) (on ? 1 : 0)
-            }));
-        } catch (Throwable t) {
-            AncientsMod.LOGGER.debug("send mine predict state failed", t);
-        }
     }
 
     /**
