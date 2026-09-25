@@ -14,6 +14,7 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.particle.ParticleTypes;
+import net.minecraft.particle.DustParticleEffect;
 import java.io.*;
 import java.util.*;
 
@@ -126,6 +127,12 @@ public final class ExcavationRenderer {
                         y + Math.sin(angle * 1.4) * radius * .5, z + Math.sin(angle) * radius + wobble);
             }
             if (tick % 2 == 0) {
+                int color = switch (v.kind) { case 1 -> 0x42eddf; case 2 -> 0xba63ff; case 3, 4 -> 0xffb545; default -> 0xcd76ff; };
+                double helix = age * .32;
+                client.particleManager.addParticle(new DustParticleEffect(color, 1.1f),
+                        x + Math.cos(helix) * .22, y + Math.sin(helix) * .22, z, 0, 0, 0);
+                client.particleManager.addParticle(new DustParticleEffect(0x66fff0, .8f),
+                        x - Math.cos(helix) * .22, y - Math.sin(helix) * .22, z, 0, 0, 0);
                 client.particleManager.addParticle(t < 1 ? ParticleTypes.END_ROD : ParticleTypes.ENCHANT,
                         x, y, z, 0, .01, 0);
                 if (v.recoveringAt != 0) client.particleManager.addParticle(ParticleTypes.ELECTRIC_SPARK,
@@ -145,8 +152,8 @@ public final class ExcavationRenderer {
     private static void ensurePieces(Visual v, double x, double y, double z) {
         if (!v.pieces.isEmpty()) return;
         Item item = switch (v.kind) {
-            case 1 -> Items.PRISMARINE_CRYSTALS; case 2 -> Items.ECHO_SHARD;
-            case 3 -> Items.NAUTILUS_SHELL; case 4 -> Items.HEART_OF_THE_SEA; default -> Items.AMETHYST_SHARD;
+            case 1 -> Items.AMETHYST_SHARD; case 2 -> Items.AMETHYST_CLUSTER;
+            case 3 -> Items.PRISMARINE_CRYSTALS; case 4 -> Items.HEART_OF_THE_SEA; default -> Items.HEART_OF_THE_SEA;
         };
         for (int i = 0; i < 3; i++) {
             ItemStack stack = new ItemStack(item); stack.set(DataComponentTypes.ENCHANTMENT_GLINT_OVERRIDE, true);
