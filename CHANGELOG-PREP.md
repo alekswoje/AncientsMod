@@ -17,6 +17,8 @@
 ## Rendering & Visuals
 
 - Removed low-ping mine prediction. Mining now shows exactly what the server does, which fixes blocks popping back and flickering.
+- Awakened mining artifacts gain orbiting pieces, curved trails, countdown rings, and a recovery animation; toggle them under World settings.
+
 
 ## UI & Screens
 

@@ -26,6 +26,7 @@ import com.aleks.ancientsmod.render.FloatingNumberRenderer;
 import com.aleks.ancientsmod.render.GangPingRenderer;
 import com.aleks.ancientsmod.render.MeteoriteLabelRenderer;
 import com.aleks.ancientsmod.render.PowerballRenderer;
+import com.aleks.ancientsmod.render.ExcavationRenderer;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
@@ -66,6 +67,7 @@ public final class AncientsModClient implements ClientModInitializer {
         KeyBinds.register();
         RiftTexturePackManager.register();
         NetworkHandler.register();
+        ExcavationRenderer.register();
         TooltipCollapse.register();
         TooltipScroll.register();
         PickaxeBlocksTooltip.register();
@@ -221,6 +223,7 @@ public final class AncientsModClient implements ClientModInitializer {
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             ServerAllowlist.onDisconnect();
             PowerballRenderer.reset();
+            ExcavationRenderer.reset();
             GangPingManager.reset();
             GangRoster.reset();
             DuelState.reset();
@@ -247,6 +250,7 @@ public final class AncientsModClient implements ClientModInitializer {
             long now = System.currentTimeMillis();
             FloatingNumberRenderer.tick(now);
             PowerballRenderer.tick(now);
+            ExcavationRenderer.tick(now);
             GangPingManager.tick(now);
             BugReportClient.tick();
             SuggestClient.tick();

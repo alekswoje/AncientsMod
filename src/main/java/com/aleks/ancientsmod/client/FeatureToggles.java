@@ -64,6 +64,7 @@ public final class FeatureToggles {
 
     /** Show a world-space beam + label pinging where a mining rush spawned in your tier's mine (same look as meteor pings). Off = no beam; the chat announcement still fires. */
     private static volatile boolean miningRushPings = true;
+    private static volatile boolean excavationEffects = true;
 
     /** Show a world-space beam + label marking the active hot zone in your tier's mine (same look as mining-rush pings). Off = no beam; the chat announcement still fires. */
     private static volatile boolean hotZoneIndicator = true;
@@ -236,6 +237,7 @@ public final class FeatureToggles {
             boosterHud = parseBool(props.getProperty("boosterHud"), boosterHud);
             meteoriteHud = parseBool(props.getProperty("meteoriteHud"), meteoriteHud);
             miningRushPings = parseBool(props.getProperty("miningRushPings"), miningRushPings);
+            excavationEffects = parseBool(props.getProperty("excavationEffects"), excavationEffects);
             hotZoneIndicator = parseBool(props.getProperty("hotZoneIndicator"), hotZoneIndicator);
             meteoriteShowerPings = parseBool(props.getProperty("meteoriteShowerPings"), meteoriteShowerPings);
             tearPings = parseBool(props.getProperty("tearPings"), tearPings);
@@ -294,6 +296,7 @@ public final class FeatureToggles {
         props.setProperty("boosterHud", Boolean.toString(boosterHud));
         props.setProperty("meteoriteHud", Boolean.toString(meteoriteHud));
         props.setProperty("miningRushPings", Boolean.toString(miningRushPings));
+        props.setProperty("excavationEffects", Boolean.toString(excavationEffects));
         props.setProperty("hotZoneIndicator", Boolean.toString(hotZoneIndicator));
         props.setProperty("meteoriteShowerPings", Boolean.toString(meteoriteShowerPings));
         props.setProperty("tearPings", Boolean.toString(tearPings));
@@ -436,6 +439,13 @@ public final class FeatureToggles {
     public static void setMeteoriteHud(boolean value) {
         if (meteoriteHud == value) return;
         meteoriteHud = value;
+        save();
+    }
+
+    public static boolean isExcavationEffectsEnabled() { return excavationEffects; }
+    public static void setExcavationEffects(boolean value) {
+        excavationEffects = value;
+        if (!value) com.aleks.ancientsmod.render.ExcavationRenderer.reset();
         save();
     }
 

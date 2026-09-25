@@ -104,6 +104,8 @@ public final class SettingsScreen extends WidgetSettingsScreen {
         addSection("World");
         addToggle("Fullbright",
                 FeatureToggles::isFullbrightEnabled, FeatureToggles::setFullbright);
+        addToggle("Excavation artifact effects",
+                FeatureToggles::isExcavationEffectsEnabled, FeatureToggles::setExcavationEffects);
         addToggle("Mining rush pings",
                 FeatureToggles::isMiningRushPingsEnabled, FeatureToggles::setMiningRushPings);
         addToggle("Hot zone indicator",
