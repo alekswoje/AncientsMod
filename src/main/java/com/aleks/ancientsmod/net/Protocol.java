@@ -479,10 +479,19 @@ public final class Protocol {
      */
     public static final int LEGACY_MAX_JEWEL_SLOTS = 3;
     /**
-     * Description lines per slot. Not the same bound as the server's stat cap —
-     * a unique's effect is prose that wraps past three lines.
+     * Stat lines this client can read per slot. Raised 6 → 12 ({@link
+     * #PROTOCOL_MINOR} 9) so a unique like Omphalos (2 header lines + 6-9
+     * rolled stat lines, 8-11 total) shows every line instead of being cut at
+     * 6. The count is on the wire ahead of the lines themselves ({@code
+     * statCount} ints), so this is purely this client's own read ceiling —
+     * whatever the server actually sent decodes fine as long as it sent no
+     * more than this; a server on the matching minor never sends more than a
+     * client below {@link #PROTOCOL_MINOR} 9 can read, so this raise is safe
+     * to build against any server.
      */
-    public static final int MAX_JEWEL_STATS = 6;
+    public static final int MAX_JEWEL_STATS = 12;
+    /** What {@link #MAX_JEWEL_STATS} was before {@link #PROTOCOL_MINOR} 9 — kept only as a reference point. */
+    public static final int LEGACY_MAX_JEWEL_STATS = 6;
     /** Flavour lines per slot — the trailer under the description. */
     public static final int MAX_JEWEL_LORE = 8;
     public static final int JEWEL_MAX_FAMILY_CHARS = 24;
@@ -1068,8 +1077,14 @@ public final class Protocol {
      *  server keeps sending three of each, so the fourth socket is simply invisible
      *  rather than broken. Must match the plugin's
      *  {@code PrisonsModChannel.JEWEL_SLOTS_PROTOCOL_MINOR}.
+     *  Minor 9 = client reads up to {@link #MAX_JEWEL_STATS} (12, was 6) stat lines
+     *  per slot in {@link #PKT_JEWEL_SLOTS}. Below this the server holds every slot
+     *  to {@link #LEGACY_MAX_JEWEL_STATS} (6), same reasoning as minor 8: {@code
+     *  statCount} sits ahead of the lines on the wire, so a client sent more lines
+     *  than it reads would desync every field after them, not just lose the tail.
+     *  Must match the plugin's {@code PrisonsModChannel.JEWEL_STATS_PROTOCOL_MINOR}.
      */
-    public static final int PROTOCOL_MINOR = 8;
+    public static final int PROTOCOL_MINOR = 9;
     /**
      * Client request: "I want to ping this world-space point for my gang."
      * Payload carries only coordinates + a hold-flag. Server authenticates the

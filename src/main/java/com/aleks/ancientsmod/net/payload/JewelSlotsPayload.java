@@ -40,6 +40,10 @@ public record JewelSlotsPayload(List<Slot> slots) {
             String familyName = buf.readString(Protocol.JEWEL_MAX_FAMILY_CHARS);
             String displayName = buf.readString(Protocol.JEWEL_MAX_NAME_CHARS);
             String modelPath = buf.readString(Protocol.JEWEL_MAX_MODEL_CHARS);
+            // statCount is on the wire ahead of the lines it counts, unlike the
+            // outer socket count above: a server gated on Protocol.PROTOCOL_MINOR
+            // never sends more than this client's own MAX_JEWEL_STATS ceiling, so
+            // clamping here is a safety net, not something expected to trigger.
             int statCount = Math.min(buf.readByte() & 0xFF, Protocol.MAX_JEWEL_STATS);
             List<String> stats = new ArrayList<>(statCount);
             for (int s = 0; s < statCount; s++) {
