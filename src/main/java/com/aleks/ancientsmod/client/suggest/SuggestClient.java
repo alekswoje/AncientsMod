@@ -49,7 +49,8 @@ public final class SuggestClient {
     private static volatile boolean passingThroughFallback = false;
 
     public static void register() {
-        ClientSendMessageEvents.ALLOW_COMMAND.register(SuggestClient::onCommand);
+        // /bugreport and /suggest are now server-owned native dialogs.
+        // Leave commands untouched; retain packet readers for older servers.
     }
 
     private static boolean onCommand(String command) {

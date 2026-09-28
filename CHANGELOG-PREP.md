@@ -29,3 +29,5 @@
 ## Updates & Installation
 
 ## Quality of Life
+
+- Bug reports and suggestions use the server text-box forms, matching players without the mod.

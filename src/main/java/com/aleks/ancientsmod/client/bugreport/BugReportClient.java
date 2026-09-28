@@ -64,7 +64,8 @@ public final class BugReportClient {
 
     /** Register the outbound-command interceptor. Call once during client init. */
     public static void register() {
-        ClientSendMessageEvents.ALLOW_COMMAND.register(BugReportClient::onCommand);
+        // /bugreport and /suggest are now server-owned native dialogs.
+        // Leave commands untouched; retain packet readers for older servers.
     }
 
     /**
