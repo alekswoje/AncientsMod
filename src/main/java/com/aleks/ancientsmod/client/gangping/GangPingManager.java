@@ -5,7 +5,6 @@ import com.aleks.ancientsmod.net.payload.GangPingPayload;
 import com.aleks.ancientsmod.net.payload.MeteorPingPayload;
 import com.aleks.ancientsmod.net.payload.MiningRushPingPayload;
 import com.aleks.ancientsmod.net.payload.MiningRushPingClearPayload;
-import com.aleks.ancientsmod.net.payload.HotZonePingPayload;
 import com.aleks.ancientsmod.net.payload.MeteoriteShowerPingPayload;
 import com.aleks.ancientsmod.net.payload.TearPingPayload;
 import com.aleks.ancientsmod.net.payload.TearPingClearPayload;
@@ -143,42 +142,7 @@ public final class GangPingManager {
     }
 
     /**
-     * Handle an incoming hot-zone ping. Identical render path to mining-rush
-     * pings — only keying and the gating toggle differ. Gated at intake: when
-     * the "Hot zone indicator" toggle is off we drop the packet entirely (no
-     * sound, no marker). Key is label+world+block-coords so a re-sent zone
-     * refreshes in place and distinct tier zones coexist.
-     */
-    public static void onHotZonePing(HotZonePingPayload payload) {
-        if (payload == null) return;
-        if (!FeatureToggles.isHotZoneIndicatorEnabled()) return;
-        String key = hotZoneKey(payload);
-        if (pings.size() >= MAX_ACTIVE && !pings.containsKey(key)) {
-            pings.entrySet().removeIf(e -> e.getValue().expired(System.currentTimeMillis()));
-            if (pings.size() >= MAX_ACTIVE) return;
-        }
-        boolean refresh = pings.containsKey(key);
-        pings.put(key, new GangPing(
-                payload.label(),
-                payload.colorRgb(),
-                payload.x(),
-                payload.y(),
-                payload.z(),
-                payload.worldName(),
-                System.currentTimeMillis(),
-                payload.lifetimeMs()));
-        if (!refresh) playPingSound();
-    }
-
-    private static String hotZoneKey(HotZonePingPayload p) {
-        long bx = (long) Math.floor(p.x());
-        long by = (long) Math.floor(p.y());
-        long bz = (long) Math.floor(p.z());
-        return "hot_zone:" + p.label() + '@' + p.worldName() + ':' + bx + ',' + by + ',' + bz;
-    }
-
-    /**
-     * Handle an incoming meteorite-shower ping. Identical render path to hot-zone
+     * Handle an incoming meteorite-shower ping. Identical render path to mining-rush
      * pings — only keying and the gating toggle differ. Gated at intake: when the
      * "Meteorite shower pings" toggle is off we drop the packet entirely (no
      * sound, no marker). Key is label+world+block-coords so back-to-back showers

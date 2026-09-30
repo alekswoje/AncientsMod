@@ -47,7 +47,6 @@ import com.aleks.ancientsmod.net.payload.HudUpdatePayload;
 import com.aleks.ancientsmod.net.payload.MeteorPingPayload;
 import com.aleks.ancientsmod.net.payload.MiningRushPingPayload;
 import com.aleks.ancientsmod.net.payload.MiningRushPingClearPayload;
-import com.aleks.ancientsmod.net.payload.HotZonePingPayload;
 import com.aleks.ancientsmod.net.payload.CellTermBundlePayload;
 import com.aleks.ancientsmod.net.payload.PointGainPayload;
 import com.aleks.ancientsmod.net.payload.PvBundlePayload;
@@ -142,11 +141,6 @@ public final class NetworkHandler {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.MINING_RUSH_PING_CLEAR)) return;
                     MiningRushPingClearPayload p = MiningRushPingClearPayload.decode(buf);
                     GangPingManager.clearMiningRushPing(p);
-                }
-                case Protocol.PKT_HOT_ZONE_PING -> {
-                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.HOT_ZONE_PING)) return;
-                    HotZonePingPayload p = HotZonePingPayload.decode(buf);
-                    GangPingManager.onHotZonePing(p);
                 }
                 case Protocol.PKT_METEORITE_SHOWER_PING -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.METEORITE_SHOWER_PING)) return;

@@ -333,19 +333,7 @@ public final class Protocol {
      */
     public static final byte PKT_RIFT_PRELOAD = 47;
 
-    /**
-     * S2C — Hot Zone beam ping: "the {tier} hot zone is here". Same wire format
-     * and renderer path as {@link #PKT_MINING_RUSH_PING} — a world-space beam +
-     * HUD label with a fiery colour and a payload-carried lifetime sized to the
-     * zone's duration. The server only sends it to players of the zone's tier, so
-     * each player sees the beam for the mine they can actually bonus-mine.
-     * Client-gated by the "Hot zone indicator" toggle (dropped at intake when off).
-     *
-     * <p>Byte 48 is free on BOTH the master/dev scheme and the season2 scheme
-     * (both top out at 47), so it needs no renumber when merging dev→season2 —
-     * same anchor strategy as {@link #PKT_MINING_RUSH_PING}. Keep it that way.
-     */
-    public static final byte PKT_HOT_ZONE_PING = 48;
+    // PKT_HOT_ZONE_PING = 48: retired 2026-09-30 (hot zones removed), id reserved, never reuse.
 
     /**
      * S2C — clear an active mining-rush beam. Sent the moment a rush ends
@@ -358,15 +346,15 @@ public final class Protocol {
      * <p>Wire after the type byte: {@code varint+string worldName; double x,y,z}.
      *
      * <p>Byte 49 is free on BOTH the master/dev scheme and the season2 scheme
-     * (both top out at 48 = hot-zone), so it needs no renumber when merging
-     * dev→season2 — same anchor strategy as {@link #PKT_HOT_ZONE_PING}. Keep it
+     * (both top out at 48), so it needs no renumber when merging
+     * dev→season2 — same anchor strategy as {@link #PKT_MINING_RUSH_PING}. Keep it
      * that way.
      */
     public static final byte PKT_MINING_RUSH_PING_CLEAR = 49;
 
     /**
      * S2C — Meteorite Shower beam ping: "a meteorite shower came down here".
-     * Same wire format and renderer path as {@link #PKT_HOT_ZONE_PING} — a
+     * Same wire format and renderer path as {@link #PKT_MINING_RUSH_PING} — a
      * world-space beam + HUD label with a payload-carried lifetime — anchored on
      * the shower's centre so the burst is findable without reading coords out of
      * chat. The server only sends it to players in the shower's world who haven't
@@ -375,7 +363,7 @@ public final class Protocol {
      *
      * <p>Byte 55 is free on BOTH the master/dev scheme (tops out at 54) and the
      * season2 scheme (tops out at 46), so it needs no renumber when merging —
-     * same anchor strategy as {@link #PKT_HOT_ZONE_PING}. Keep it that way.
+     * same anchor strategy as {@link #PKT_MINING_RUSH_PING}. Keep it that way.
      */
     public static final byte PKT_METEORITE_SHOWER_PING = 55;
 
@@ -1019,7 +1007,7 @@ public final class Protocol {
     public static final byte EVENT_MINING_COMP       = 4;
     public static final byte EVENT_METEORITE         = 5;
     public static final byte EVENT_MINING_RUSH       = 6;
-    public static final byte EVENT_HOT_ZONE          = 7;
+    // EVENT_HOT_ZONE = 7: retired 2026-09-30 (hot zones removed), id reserved, never reuse.
     public static final byte EVENT_HEROIC_METEOR     = 8;
     public static final byte EVENT_ORACLE            = 9;
     public static final byte EVENT_OUTPOST           = 10;
@@ -1519,8 +1507,6 @@ public final class Protocol {
     public static final int RATE_METEOR_PING_PER_SEC = 5;
     /** Max inbound mining-rush pings per second. At most one per tier per spawn cycle. */
     public static final int RATE_MINING_RUSH_PING_PER_SEC = 5;
-    /** Max inbound hot-zone pings per second. At most one per tier per spawn cycle. */
-    public static final int RATE_HOT_ZONE_PING_PER_SEC = 5;
     /** Max inbound mining-rush clears per second. At most one per rush end. */
     public static final int RATE_MINING_RUSH_PING_CLEAR_PER_SEC = 5;
     /** Max inbound meteorite-shower pings per second. At most one per shower. */

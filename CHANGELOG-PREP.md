@@ -13,6 +13,7 @@
 - The jewel socket bar and the inventory socket column now show a **4th** jewel socket on servers that have one.
 - The loot browser and the drop tally now use the renamed rarity words (Simple, Elite, Ultimate, Godly) on servers that have them.
 - Jewels with more than 6 lines, like Omphalos, now show every line on the jewel HUD.
+- Hot zones are gone from the game, so the hot zone beam, its settings toggle and its event timer are removed.
 
 ## Rendering & Visuals
 

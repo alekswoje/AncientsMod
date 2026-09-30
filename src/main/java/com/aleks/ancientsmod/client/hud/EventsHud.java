@@ -30,7 +30,7 @@ public final class EventsHud extends HudElement {
 
     public static final List<String> ALL_KEYS = List.of(
             "koth", "bah", "meteor", "mining_comp",
-            "meteorite", "meteorite_shower", "mining_rush", "hot_zone",
+            "meteorite", "meteorite_shower", "mining_rush",
             "tear", "oracle", "outpost", "skywars"
     );
 
@@ -164,7 +164,6 @@ public final class EventsHud extends HudElement {
         if (id == Protocol.EVENT_MINING_COMP)       return "mining_comp";
         if (id == Protocol.EVENT_METEORITE)         return "meteorite";
         if (id == Protocol.EVENT_MINING_RUSH)       return "mining_rush";
-        if (id == Protocol.EVENT_HOT_ZONE)          return "hot_zone";
         if (id == Protocol.EVENT_TEAR)              return "tear";
         if (id == Protocol.EVENT_ORACLE)            return "oracle";
         if (id == Protocol.EVENT_OUTPOST)           return "outpost";
@@ -182,7 +181,6 @@ public final class EventsHud extends HudElement {
             case "meteorite"         -> "Meteorite";
             case "meteorite_shower"  -> "Meteorite Shower";
             case "mining_rush"       -> "Mining Rush";
-            case "hot_zone"          -> "Hot Zone";
             case "tear"              -> "Erebus Tear";
             case "oracle"            -> "Oracle";
             case "outpost"           -> "Outpost rotation";
@@ -201,7 +199,6 @@ public final class EventsHud extends HudElement {
             case "meteorite"         -> 0xFFE6B05A;
             case "meteorite_shower"  -> 0xFFFFB070;
             case "mining_rush"       -> 0xFFC8E08A;
-            case "hot_zone"          -> 0xFFFF7070;
             case "tear"              -> 0xFFA855F7;
             case "oracle"            -> 0xFFC6A0FF;
             case "outpost"           -> 0xFF87BFFF;

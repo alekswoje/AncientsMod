@@ -6,7 +6,7 @@ import net.minecraft.network.PacketByteBuf;
 /**
  * Decoded form of {@link Protocol#PKT_METEORITE_SHOWER_PING}.
  *
- * <p>Wire format is byte-for-byte identical to {@link HotZonePingPayload}
+ * <p>Wire format is byte-for-byte identical to {@link MiningRushPingPayload}
  * (label, RGB, x/y/z, world name, lifetimeMs) — shower pings reuse the same
  * beam renderer. It's a separate packet/payload so the client can gate it
  * behind its own toggle. All fields are bounds-checked at decode time.
