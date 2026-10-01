@@ -10,23 +10,9 @@
 
 ## HUDs
 
-- The jewel socket bar and the inventory socket column now show a **4th** jewel socket on servers that have one.
-- The loot browser and the drop tally now use the renamed rarity words (Simple, Elite, Ultimate, Godly) on servers that have them.
-- Jewels with more than 6 lines, like Omphalos, now show every line on the jewel HUD.
-- Hot zones are gone from the game, so the hot zone beam, its settings toggle and its event timer are removed.
-
 ## Rendering & Visuals
 
-- Removed low-ping mine prediction. Mining now shows exactly what the server does, which fixes blocks popping back and flickering.
-- Awakened mining artifacts gain cyan/violet helix trails, orbiting crystals, countdown rings, and a recovery animation; toggle them under World settings.
-
-
 ## UI & Screens
-
-- Every mod screen and HUD has a new look in the server's warm ember and bronze colours: flat glass panels, cleaner rows, smaller switches.
-- The F9 settings menu now has a category list on the left. The search box still finds a setting in any category, and the menu reopens on the category you last used.
-- Buttons that open another menu, like Edit HUD positions, now show as links with an arrow.
-- An Ancient Energy icon button next to the recipe book in your inventory runs /combine to merge your energy stacks. Turn it off under Item display in F9.
 
 ## Input & Keybinds
 
@@ -35,5 +21,3 @@
 ## Updates & Installation
 
 ## Quality of Life
-
-- Bug reports and suggestions use the server text-box forms, matching players without the mod.
