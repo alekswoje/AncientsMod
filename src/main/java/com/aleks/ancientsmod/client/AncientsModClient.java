@@ -165,6 +165,8 @@ public final class AncientsModClient implements ClientModInitializer {
                         return true;
                     });
         });
+        // "Combine energy" button above the survival inventory (runs /combine).
+        ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> CombineButton.attach(screen));
         // Jewel sockets in the survival inventory. Deliberately the Fabric
         // screen API rather than a mixin on render: afterRender fires after the
         // screen has drawn everything (status effects, recipe book included),

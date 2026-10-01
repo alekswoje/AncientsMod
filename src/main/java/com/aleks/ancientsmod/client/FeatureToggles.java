@@ -199,6 +199,9 @@ public final class FeatureToggles {
      *  and keeps working either way. See {@link #CHAT_COPY_OFF_MIGRATION}. */
     private static volatile boolean chatCopy = false;
 
+    /** "Combine energy" button above the survival inventory, which runs {@code /combine}. */
+    private static volatile boolean combineButton = true;
+
     /** Glass GUI theme variant: false = dark smoked glass (default), true = light frosted glass.
      *  Drives {@link com.aleks.ancientsmod.client.glass.GlassTheme}; affects every mod screen + HUD. */
     private static volatile boolean glassLightTheme = false;
@@ -271,6 +274,7 @@ public final class FeatureToggles {
             dustPercentOverlay = parseBool(props.getProperty("dustPercentOverlay"), dustPercentOverlay);
             glassLightTheme = parseBool(props.getProperty("glassLightTheme"), glassLightTheme);
             chatCopy = parseBool(props.getProperty("chatCopy"), chatCopy);
+            combineButton = parseBool(props.getProperty("combineButton"), combineButton);
         } catch (IOException e) {
             AncientsMod.LOGGER.warn("failed to load {}: {}", FILE_NAME, e.getMessage());
             return; // don't stamp the migration marker over a config we failed to read
@@ -329,6 +333,7 @@ public final class FeatureToggles {
         props.setProperty("dustPercentOverlay", Boolean.toString(dustPercentOverlay));
         props.setProperty("glassLightTheme", Boolean.toString(glassLightTheme));
         props.setProperty("chatCopy", Boolean.toString(chatCopy));
+        props.setProperty("combineButton", Boolean.toString(combineButton));
         props.setProperty(CHAT_COPY_OFF_MIGRATION, "true");
         try {
             Files.createDirectories(configPath().getParent());
@@ -766,6 +771,14 @@ public final class FeatureToggles {
     }
 
     public static boolean isChatCopyEnabled() { return chatCopy; }
+
+    public static boolean isCombineButtonEnabled() { return combineButton; }
+
+    public static void setCombineButton(boolean value) {
+        if (combineButton == value) return;
+        combineButton = value;
+        save();
+    }
 
     public static void setChatCopy(boolean value) {
         if (chatCopy == value) return;

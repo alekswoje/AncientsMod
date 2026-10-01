@@ -80,6 +80,8 @@ public final class SettingsScreen extends WidgetSettingsScreen {
                 FeatureToggles::isBoosterInfoOverlayEnabled, FeatureToggles::setBoosterInfoOverlay);
         addToggle("Percent on enchant dust",
                 FeatureToggles::isDustPercentOverlayEnabled, FeatureToggles::setDustPercentOverlay);
+        addToggle("Combine energy button in inventory",
+                FeatureToggles::isCombineButtonEnabled, FeatureToggles::setCombineButton);
 
         addSection("Tooltips");
         addToggle("Collapse enchants on gear",
