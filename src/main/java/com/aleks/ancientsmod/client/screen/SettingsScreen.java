@@ -7,96 +7,94 @@ import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.text.Text;
 
 /**
- * Top-level AncientsMod options screen (F9). Built on the same scrollable +
- * searchable + sectioned base as the per-widget settings popups so the whole
- * mod has one consistent settings UX. Each row is a CyclingButtonWidget
- * (ON/OFF) wired to a {@link FeatureToggles} setter; edits persist to
+ * Top-level AncientsMod options screen (F9). Built on {@link WidgetSettingsScreen} in its
+ * sidebar layout: each section is a category on the left, the right pane shows one category,
+ * and the search box finds a setting in any category. Edits persist to
  * {@code config/ancientsmod.properties} immediately.
  *
  * <p>Only the toggles players actually change session-to-session live here. The
- * "set-and-forget" features that ~everyone leaves on (the custom screens,
- * scrollable tooltips, item wiki, peaceful mining, item lock, etc.) are tucked
- * behind the <b>Advanced settings…</b> button into {@link AdvancedSettingsScreen}
- * so this list stays short.
+ * set-and-forget features (custom screens, scrollable tooltips, item wiki, peaceful mining,
+ * item lock, etc.) sit behind the <b>Advanced settings</b> row in {@link AdvancedSettingsScreen}.
  */
 public final class SettingsScreen extends WidgetSettingsScreen {
 
     public SettingsScreen(Screen parent) {
         super(parent,
-                Text.literal("AncientsMod Settings"),
-                Text.literal("Search the list or scroll to find a setting"));
+                Text.literal("AncientsMod"),
+                Text.literal("Search the list or pick a category"));
     }
 
     @Override
     protected int buttonWidth() {
-        // Wider than the per-HUD popups so the long F9 list isn't a thin strip,
-        // but clamped so it never overruns a small window.
-        return Math.min(320, this.width - 60);
+        return Math.min(260, this.width - 150);
+    }
+
+    @Override
+    protected boolean useSidebar() {
+        return true;
     }
 
     @Override
     protected void addRows() {
-        addSection("More");
-        addAction("Advanced settings…", () -> {
+        addSection("General");
+        addToggle("Light theme",
+                FeatureToggles::isGlassLightThemeEnabled, FeatureToggles::setGlassLightTheme);
+        addToggle("Update alert on server join",
+                FeatureToggles::isUpdateAlertEnabled, FeatureToggles::setUpdateAlert);
+        addAction("Sound and particle muffler", () -> {
+            if (this.client != null) this.client.setScreen(new MufflerScreen(this));
+        });
+        addAction("Advanced settings", () -> {
             if (this.client != null) this.client.setScreen(new AdvancedSettingsScreen(this));
         });
 
-        addSection("Audio & Particles");
-        addAction("Sound & particle muffler…", () -> {
-            if (this.client != null) this.client.setScreen(new MufflerScreen(this));
+        addSection("HUDs");
+        addToggle("Booster HUD",
+                FeatureToggles::isBoosterHudEnabled, FeatureToggles::setBoosterHud);
+        addToggle("Events HUD",
+                FeatureToggles::isEventsHudEnabled, FeatureToggles::setEventsHud);
+        addToggle("Cooldowns HUD",
+                FeatureToggles::isCooldownsHudEnabled, FeatureToggles::setCooldownsHud);
+        addToggle("Stats HUD",
+                FeatureToggles::isStatsHudEnabled, FeatureToggles::setStatsHud);
+        addToggle("Outpost HUD",
+                FeatureToggles::isOutpostHudEnabled, FeatureToggles::setOutpostHud);
+        addToggle("Armor durability HUD",
+                FeatureToggles::isArmorDurabilityHudEnabled, FeatureToggles::setArmorDurabilityHud);
+        addToggle("Clock HUD",
+                FeatureToggles::isClockHudEnabled, FeatureToggles::setClockHud);
+        addToggle("Saturation on hunger bar",
+                FeatureToggles::isSaturationOverlayEnabled, FeatureToggles::setSaturationOverlay);
+        addToggle("Meteorite count on block",
+                FeatureToggles::isMeteoriteHudEnabled, FeatureToggles::setMeteoriteHud);
+        addAction("Edit HUD positions", () -> {
+            if (this.client != null) this.client.setScreen(new HudEditScreen(this));
         });
 
-        addSection("Appearance");
-        addToggle("Light glass theme",
-                FeatureToggles::isGlassLightThemeEnabled, FeatureToggles::setGlassLightTheme);
-
-        addSection("Chat");
-        addToggle("Hover chat message to copy",
-                FeatureToggles::isChatCopyEnabled, FeatureToggles::setChatCopy);
+        addSection("Item display");
+        addToggle("Amount on currency items",
+                FeatureToggles::isCurrencyAmountOverlayEnabled, FeatureToggles::setCurrencyAmountOverlay);
+        addToggle("Level and prestige on gear",
+                FeatureToggles::isGearStatsOverlayEnabled, FeatureToggles::setGearStatsOverlay);
+        addToggle("Multiplier and time on boosters",
+                FeatureToggles::isBoosterInfoOverlayEnabled, FeatureToggles::setBoosterInfoOverlay);
+        addToggle("Percent on enchant dust",
+                FeatureToggles::isDustPercentOverlayEnabled, FeatureToggles::setDustPercentOverlay);
 
         addSection("Tooltips");
         addToggle("Collapse enchants on gear",
                 FeatureToggles::isEnchantCollapseEnabled, FeatureToggles::setEnchantCollapse);
 
-        addSection("Item Display");
-        addToggle("Amount on currency items",
-                FeatureToggles::isCurrencyAmountOverlayEnabled, FeatureToggles::setCurrencyAmountOverlay);
-        addToggle("Level / prestige on gear & picks",
-                FeatureToggles::isGearStatsOverlayEnabled, FeatureToggles::setGearStatsOverlay);
-        addToggle("Multiplier / duration on boosters",
-                FeatureToggles::isBoosterInfoOverlayEnabled, FeatureToggles::setBoosterInfoOverlay);
-        addToggle("% on enchant / calcified dust",
-                FeatureToggles::isDustPercentOverlayEnabled, FeatureToggles::setDustPercentOverlay);
+        addSection("Chat");
+        addToggle("Hover a message to copy it",
+                FeatureToggles::isChatCopyEnabled, FeatureToggles::setChatCopy);
 
         addSection("PvP");
         addToggle("Peaceful PvP",
                 FeatureToggles::isPeacefulPvpEnabled, FeatureToggles::setPeacefulPvp);
 
-        addSection("HUDs");
-        addToggle("Show booster HUD",
-                FeatureToggles::isBoosterHudEnabled, FeatureToggles::setBoosterHud);
-        addToggle("Show events HUD",
-                FeatureToggles::isEventsHudEnabled, FeatureToggles::setEventsHud);
-        addToggle("Show cooldowns HUD",
-                FeatureToggles::isCooldownsHudEnabled, FeatureToggles::setCooldownsHud);
-        addToggle("Show stats HUD",
-                FeatureToggles::isStatsHudEnabled, FeatureToggles::setStatsHud);
-        addToggle("Show outpost HUD",
-                FeatureToggles::isOutpostHudEnabled, FeatureToggles::setOutpostHud);
-        addToggle("Show armor durability HUD",
-                FeatureToggles::isArmorDurabilityHudEnabled, FeatureToggles::setArmorDurabilityHud);
-        addToggle("Show clock HUD",
-                FeatureToggles::isClockHudEnabled, FeatureToggles::setClockHud);
-        addToggle("Show saturation over hunger bar",
-                FeatureToggles::isSaturationOverlayEnabled, FeatureToggles::setSaturationOverlay);
-        addToggle("Show meteorite count on block",
-                FeatureToggles::isMeteoriteHudEnabled, FeatureToggles::setMeteoriteHud);
-        addAction("Edit HUD positions...", () -> {
-            if (this.client != null) this.client.setScreen(new HudEditScreen(this));
-        });
-
         addSection("Camera");
-        addToggle("Hold-to-zoom (C)",
+        addToggle("Hold C to zoom",
                 FeatureToggles::isZoomEnabled, FeatureToggles::setZoom);
         addSlider("Zoom FOV %", 10, 70,
                 FeatureToggles::getZoomFovPercent, FeatureToggles::setZoomFovPercent);
@@ -115,12 +113,8 @@ public final class SettingsScreen extends WidgetSettingsScreen {
         addToggle("Rift texture pack",
                 FeatureToggles::isRiftTexturePackEnabled, FeatureToggles::setRiftTexturePack);
 
-        addSection("Custom Screens");
+        addSection("Screens");
         addToggle("Cell terminal on vault chest",
                 FeatureToggles::isCellTerminalEnabled, FeatureToggles::setCellTerminal);
-
-        addSection("Network");
-        addToggle("Update alert on server join",
-                FeatureToggles::isUpdateAlertEnabled, FeatureToggles::setUpdateAlert);
     }
 }

@@ -1,6 +1,8 @@
 package com.aleks.ancientsmod.client.hud;
 
 import com.aleks.ancientsmod.client.FeatureToggles;
+import com.aleks.ancientsmod.client.glass.GlassRender;
+import com.aleks.ancientsmod.client.glass.GlassTheme;
 import com.aleks.ancientsmod.net.Protocol;
 import com.aleks.ancientsmod.net.payload.BoosterUpdatePayload;
 import net.minecraft.client.MinecraftClient;
@@ -20,17 +22,16 @@ import java.util.Map;
  * comp, chat games — as a stack of rows. Reads from {@link BoosterState} every
  * frame, so countdowns animate smoothly between server heartbeats.
  *
- * <p>Layout per row: {@code [accent strip] label  ×mult        time} with the
- * strip color identifying the source (global / personal / comp / chatgame) and
- * the time right-aligned to the panel edge.
+ * <p>Layout per row: {@code [accent strip] label  xmult        time}. The 1px
+ * strip color identifies the source (global / personal / comp / chatgame); the
+ * label is body text, the multiplier a Flame value and the time Ash, right-aligned
+ * to the panel edge.
  */
 public final class BoosterHud extends HudElement {
 
     public static final BoosterHud INSTANCE = new BoosterHud();
 
     private static final int MIN_WIDTH    = 158;
-    private static final int MULT_COLOR   = 0xFFFFFFFF;
-    private static final int PAUSED       = 0xFF888888;
 
     /** Setting key: collapse N matching kinds of the same source into one "All" row. Default ON. */
     public static final String KEY_COLLAPSE = "collapse";
@@ -106,7 +107,8 @@ public final class BoosterHud extends HudElement {
         int colGap = HudStyle.columnGap(id());
 
         for (Row r : rows) {
-            ctx.fill(padX, rowY, padX + stripW, rowY + rowH - 2, r.accent);
+            GlassRender.accentStrip(ctx, padX, rowY, rowH - 2, r.accent);
+            int paused = GlassTheme.textMuted();
 
             int textX = padX + stripW + stripGap;
             int textY = rowY + 2;
@@ -116,18 +118,18 @@ public final class BoosterHud extends HudElement {
 
             int timeW = fr.getWidth(time);
             int timeX = w - padX - timeW;
-            ctx.drawText(fr, Text.literal(time), timeX, textY, r.paused ? PAUSED : HudStyle.TIME_COLOR, true);
+            ctx.drawText(fr, Text.literal(time), timeX, textY, r.paused ? paused : HudStyle.TIME_COLOR, true);
 
             int multW = fr.getWidth(mult);
             int multX = timeX - colGap - multW;
-            ctx.drawText(fr, Text.literal(mult), multX, textY, r.paused ? PAUSED : MULT_COLOR, true);
+            ctx.drawText(fr, Text.literal(mult), multX, textY, r.paused ? paused : GlassTheme.VALUE, true);
 
             ctx.drawText(fr, Text.literal(r.label), textX, textY,
-                    r.paused ? PAUSED : (r.accent & 0x00FFFFFF) | 0xFF000000, true);
+                    r.paused ? paused : GlassTheme.textDim(), true);
 
             if (r.paused) {
                 int labelW = fr.getWidth(r.label);
-                ctx.drawText(fr, Text.literal("II"), textX + labelW + 4, textY, PAUSED, true);
+                ctx.drawText(fr, Text.literal("II"), textX + labelW + 4, textY, paused, true);
             }
 
             rowY += rowH;
@@ -212,10 +214,10 @@ public final class BoosterHud extends HudElement {
 
     private static int collapsedColorFor(byte source) {
         if (source == Protocol.BOOSTER_SRC_GLOBAL)   return 0xFFFFC857;
-        if (source == Protocol.BOOSTER_SRC_PERSONAL) return 0xFFE6E8EE;
-        if (source == Protocol.BOOSTER_SRC_COMP)     return 0xFFD37CFF;
+        if (source == Protocol.BOOSTER_SRC_PERSONAL) return GlassTheme.BRONZE;
+        if (source == Protocol.BOOSTER_SRC_COMP)     return GlassTheme.ACCENT;
         if (source == Protocol.BOOSTER_SRC_CHATGAME) return 0xFF6FE8C9;
-        return 0xFFFFFFFF;
+        return GlassTheme.BRONZE;
     }
 
     private record Row(String label, double multiplier, int secondsRemaining, boolean paused, int accent, byte source) {}
@@ -244,13 +246,13 @@ public final class BoosterHud extends HudElement {
 
     private static int colorFor(BoosterUpdatePayload.Entry e) {
         if (e.source() == Protocol.BOOSTER_SRC_GLOBAL)   return 0xFFFFC857;
-        if (e.source() == Protocol.BOOSTER_SRC_COMP)     return 0xFFD37CFF;
+        if (e.source() == Protocol.BOOSTER_SRC_COMP)     return GlassTheme.ACCENT;
         if (e.source() == Protocol.BOOSTER_SRC_CHATGAME) return 0xFF6FE8C9;
         if (e.kind() == Protocol.BOOSTER_KIND_XP)     return 0xFF8AE08A;
         if (e.kind() == Protocol.BOOSTER_KIND_ENERGY) return 0xFF8AC2FF;
         if (e.kind() == Protocol.BOOSTER_KIND_ORE)    return 0xFFE6B05A;
         if (e.kind() == Protocol.BOOSTER_KIND_SHARD)  return 0xFFE68AE0;
-        return 0xFFFFFFFF;
+        return GlassTheme.BRONZE;
     }
 
     private static String formatMult(double mult) {

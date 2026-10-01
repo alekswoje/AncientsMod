@@ -1,6 +1,8 @@
 package com.aleks.ancientsmod.client.hud;
 
 import com.aleks.ancientsmod.client.FeatureToggles;
+import com.aleks.ancientsmod.client.glass.GlassRender;
+import com.aleks.ancientsmod.client.glass.GlassTheme;
 import com.aleks.ancientsmod.net.Protocol;
 import com.aleks.ancientsmod.net.payload.EventTimersPayload;
 import net.minecraft.client.MinecraftClient;
@@ -20,7 +22,9 @@ import java.util.Set;
 /**
  * Moveable Events HUD. Renders next-fire timers (or "LIVE"/"OFF" status) for
  * the cluster events the player has opted in to. Visible event list is
- * configurable per widget via {@link EventsHudSettingsScreen}.
+ * configurable per widget via {@link EventsHudSettingsScreen}. Each row has a
+ * 1px per-event accent strip, the event name in body text and the timer in Ash
+ * (LIVE in Moss, OFF muted).
  */
 public final class EventsHud extends HudElement {
 
@@ -39,9 +43,6 @@ public final class EventsHud extends HudElement {
     ));
 
     private static final int MIN_WIDTH    = 158;
-    private static final int STATE_LIVE   = 0xFF7FE07F;
-    private static final int STATE_OFF    = 0xFF888888;
-    private static final int LABEL_FALLBACK = 0xFFE6E8EE;
 
     private EventsHud() {}
 
@@ -107,7 +108,7 @@ public final class EventsHud extends HudElement {
         int rowH = HudStyle.rowH(id());
 
         for (Row r : rows) {
-            ctx.fill(padX, rowY, padX + stripW, rowY + rowH - 2, r.accent);
+            GlassRender.accentStrip(ctx, padX, rowY, rowH - 2, r.accent);
 
             int textX = padX + stripW + stripGap;
             int textY = rowY + 2;
@@ -116,8 +117,7 @@ public final class EventsHud extends HudElement {
             int rightX = w - padX - rightW;
             ctx.drawText(fr, Text.literal(r.rightText), rightX, textY, r.rightColor, true);
 
-            ctx.drawText(fr, Text.literal(r.label), textX, textY,
-                    (r.accent & 0x00FFFFFF) | 0xFF000000, true);
+            ctx.drawText(fr, Text.literal(r.label), textX, textY, GlassTheme.textDim(), true);
 
             rowY += rowH;
         }
@@ -144,11 +144,11 @@ public final class EventsHud extends HudElement {
             if (e == null) continue;
             if (e.state() == Protocol.EVENT_STATE_UNKNOWN) continue;
             if (e.state() == Protocol.EVENT_STATE_DISABLED) {
-                out.add(new Row(displayNameFor(key), "OFF", STATE_OFF, accentFor(key)));
+                out.add(new Row(displayNameFor(key), "OFF", GlassTheme.textMuted(), accentFor(key)));
                 continue;
             }
             if (e.state() == Protocol.EVENT_STATE_ACTIVE) {
-                out.add(new Row(displayNameFor(key), "LIVE", STATE_LIVE, accentFor(key)));
+                out.add(new Row(displayNameFor(key), "LIVE", GlassTheme.OK, accentFor(key)));
                 continue;
             }
             int seconds = EventState.liveSecondsUntilFire(e);
@@ -203,7 +203,7 @@ public final class EventsHud extends HudElement {
             case "oracle"            -> 0xFFC6A0FF;
             case "outpost"           -> 0xFF87BFFF;
             case "skywars"           -> 0xFF9DD2FF;
-            default                  -> LABEL_FALLBACK;
+            default                  -> GlassTheme.BRONZE;
         };
     }
 

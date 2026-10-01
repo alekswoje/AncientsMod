@@ -10,8 +10,8 @@ import java.util.function.IntConsumer;
 
 /**
  * Glass integer slider — replaces the anonymous {@code SliderWidget} in the settings
- * base. Keeps vanilla drag/keyboard behavior; only the look (frosted rail + accent fill
- * + glossy knob + centered label) is overridden.
+ * base. Keeps vanilla drag/keyboard behavior; only the look (label left, thin ember rail,
+ * value in flame on the right) is overridden.
  */
 public class GlassSlider extends SliderWidget {
 
@@ -49,16 +49,22 @@ public class GlassSlider extends SliderWidget {
         int x1 = getX(), y1 = getY(), x2 = x1 + getWidth(), y2 = y1 + getHeight();
         GlassRender.row(ctx, x1, y1, x2, y2, isHovered());
 
-        int ty = y1 + getHeight() / 2;
-        int tx1 = x1 + 10, tx2 = x2 - 10;
-        GlassRender.sliderTrack(ctx, tx1, ty - 2, tx2, ty + 2, (float) this.value);
-
-        int kx = tx1 + (int) Math.round(this.value * (tx2 - tx1));
-        GlassRender.roundedRect(ctx, kx - 4, y1 + 4, kx + 4, y2 - 4, 4, 0xFFFFFFFF);
-
         TextRenderer fr = MinecraftClient.getInstance().textRenderer;
-        Text m = getMessage();
-        int tw = fr.getWidth(m);
-        ctx.drawText(fr, m, x1 + (getWidth() - tw) / 2, y1 + (getHeight() - fr.fontHeight) / 2, GlassTheme.text(), true);
+        int midV = y1 + (getHeight() - fr.fontHeight) / 2;
+
+        // Label on the left, value in flame on the right, rail between them.
+        String val = String.valueOf(currentValue());
+        int vw = fr.getWidth(val);
+        ctx.drawText(fr, Text.literal(val), x2 - 6 - vw, midV, GlassTheme.VALUE, false);
+        int lw = Math.min(fr.getWidth(label), getWidth() / 2 - 12);
+        ctx.drawText(fr, Text.literal(fr.trimToWidth(label, lw)), x1 + 6, midV,
+                isHovered() ? GlassTheme.text() : GlassTheme.textDim(), false);
+
+        int tx1 = x1 + 6 + lw + 10, tx2 = x2 - 6 - Math.max(vw, fr.getWidth("00")) - 10;
+        if (tx2 - tx1 < 20) tx1 = tx2 - 20;
+        int ty = y1 + getHeight() / 2;
+        GlassRender.sliderTrack(ctx, tx1, ty - 1, tx2, ty + 1, (float) this.value);
+        int kx = tx1 + (int) Math.round(this.value * (tx2 - tx1));
+        GlassRender.roundedRect(ctx, kx - 2, ty - 4, kx + 3, ty + 5, 1, 0xFFFFF4E2);
     }
 }

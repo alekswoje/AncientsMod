@@ -1,6 +1,7 @@
 package com.aleks.ancientsmod.client.hud;
 
 import com.aleks.ancientsmod.client.FeatureToggles;
+import com.aleks.ancientsmod.client.glass.GlassTheme;
 import com.aleks.ancientsmod.net.payload.JewelSlotsPayload;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gl.RenderPipelines;
@@ -67,9 +68,15 @@ public final class JewelHud extends HudElement {
     private static final int ITEM_INSET_X = 2;
     private static final int ITEM_INSET_Y = 3;
 
-    private static final int LOCK_COLOR     = 0xFF7C838F;
-    private static final int CAPTION_COLOR  = 0xFFBFC4CC;
-    private static final int STAT_COLOR     = 0xFF9BE59B;
+    // Fixed (not mode-aware) colors: these draw on the vanilla hotbar sprite or
+    // straight over the world, never on a themed panel, so a light-mode ink
+    // would vanish. Ash for the lock and captions, Moss for the stat fallback.
+    private static final int LOCK_COLOR     = HudStyle.TIME_COLOR;
+    private static final int CAPTION_COLOR  = HudStyle.TIME_COLOR;
+    private static final int STAT_COLOR     = GlassTheme.OK;
+    /** Warm charcoal behind a locked cell and inside the keyhole. */
+    private static final int LOCK_SHADE     = 0x991E140F;
+    private static final int KEYHOLE        = 0xFF1E140F;
 
     private JewelHud() {}
 
@@ -227,7 +234,7 @@ public final class JewelHud extends HudElement {
     private void drawContents(DrawContext ctx, TextRenderer fr,
                               JewelSlotsPayload.Slot slot, int cx, int cy) {
         if (slot.isLocked()) {
-            ctx.fill(cx, cy, cx + 16, cy + 16, 0x99101014);
+            ctx.fill(cx, cy, cx + 16, cy + 16, LOCK_SHADE);
             drawPadlock(ctx, cx + 5, cy + 4);
             if (slot.requiredPrestige() > 0) {
                 String tag = "P" + slot.requiredPrestige();
@@ -256,7 +263,7 @@ public final class JewelHud extends HudElement {
         // Body.
         ctx.fill(x, y + 3, x + 7, y + 9, LOCK_COLOR);
         // Keyhole.
-        ctx.fill(x + 3, y + 5, x + 4, y + 7, 0xFF20242C);
+        ctx.fill(x + 3, y + 5, x + 4, y + 7, KEYHOLE);
     }
 
     /**

@@ -17,7 +17,7 @@ public final class OutpostHudSettingsScreen extends WidgetSettingsScreen {
     protected void addRows() {
         addToggle("Show this HUD",
                 FeatureToggles::isOutpostHudEnabled, FeatureToggles::setOutpostHud);
-        addSection("Visible Outposts");
+        addSection("Visible outposts");
         for (String id : new String[]{"chain", "gold", "iron", "diamond", "netherite"}) {
             String label = id.substring(0, 1).toUpperCase() + id.substring(1);
             addToggle("Show " + label,

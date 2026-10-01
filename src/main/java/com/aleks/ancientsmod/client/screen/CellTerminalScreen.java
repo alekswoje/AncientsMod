@@ -46,7 +46,7 @@ public final class CellTerminalScreen extends ItemTerminalScreen {
     public CellTerminalScreen(CellTermBundlePayload bundle, String cellLabel, boolean editable) {
         super(Text.literal(stripColor(cellLabel == null || cellLabel.isEmpty()
                 ? "Cell Terminal" : cellLabel)));
-        this.cellLabel = (cellLabel == null || cellLabel.isEmpty()) ? "§eCell Terminal" : cellLabel;
+        this.cellLabel = (cellLabel == null || cellLabel.isEmpty()) ? "Cell Terminal" : cellLabel;
         this.editable = editable;
         this.bundle = bundle;
         rebuildContainerLabels();
@@ -124,28 +124,27 @@ public final class CellTerminalScreen extends ItemTerminalScreen {
     }
 
     @Override
-    protected Text titleText(String statsSuffix) {
+    protected Text titleText() {
         // The cell label may carry legacy § codes including §x hex runs, so
         // build it through legacyText (same renderer PV uses for coloured item
-        // names) rather than a raw literal.
-        return Text.empty().copy()
-                .append(legacyText(cellLabel))
-                .append(Text.literal(statsSuffix));
+        // names) rather than a raw literal. Uncoloured runs fall back to the
+        // base's ember title colour.
+        return legacyText(cellLabel);
     }
 
     @Override
     protected String viewOnlyBadge() {
-        return "§c⚠ View only";
+        return "View only";
     }
 
     @Override
     protected String blockedMessage() {
-        return "§cYou don't have permission to modify this cell!";
+        return "You don't have permission to modify this cell!";
     }
 
     @Override
     protected String emptyMessage() {
-        return "§7This cell's containers are empty.";
+        return "This cell's containers are empty.";
     }
 
     @Override
@@ -155,7 +154,7 @@ public final class CellTerminalScreen extends ItemTerminalScreen {
 
     @Override
     protected String depositHintViewOnly() {
-        return "§cView only — you can't deposit here";
+        return "§cView only: you can't deposit here";
     }
 
     /** "Vault, Chest 2" — the distinct containers this tile's stacks live in

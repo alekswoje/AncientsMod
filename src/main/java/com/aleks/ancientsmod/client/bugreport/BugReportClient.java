@@ -142,7 +142,7 @@ public final class BugReportClient {
                 case Protocol.BR_STATUS_RESOLVED  -> state = State.RESOLVED;
                 case Protocol.BR_STATUS_ESCALATED -> state = State.ESCALATED;
                 case Protocol.BR_STATUS_ERROR     -> {
-                    addChatLine(ChatLine.system("Hermes hit an error — staff have been notified."));
+                    addChatLine(ChatLine.system("Hermes hit an error. Staff have been notified."));
                     state = State.ESCALATED;
                 }
                 default -> state = State.CHATTING;
@@ -225,7 +225,7 @@ public final class BugReportClient {
                 passingThroughFallback = false;
             }
             client.player.sendMessage(
-                    Text.literal("§7[BugReport] Server didn't respond — sent the command directly."),
+                    Text.literal("§7[BugReport] Server didn't respond, so the command was sent directly."),
                     false);
         }
     }

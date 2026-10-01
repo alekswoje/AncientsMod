@@ -41,10 +41,21 @@ import java.util.Locale;
  * <p>Pause is a real server-side pause, not a display freeze: nothing is recorded and the
  * paused span is subtracted from the rate denominator, so stepping away doesn't drag the
  * /hr numbers down.
+ *
+ * <p>Drawn as one flat glass window: title and status on the left of the header with the
+ * session totals under them, a tab strip, the tab body, then a footer row of actions
+ * right-aligned with Done last. Bronze rules separate the bands.
  */
 public final class MiningSimScreen extends Screen {
 
     private static final int PADDING = 10;
+    /** Header band above the content area: title, headline, totals, tab strip. */
+    private static final int HEAD_H = 82;
+    /** Footer band below the content area: rule, action row, bottom padding. */
+    private static final int FOOT_H = 6 + 18 + PADDING;
+    private static final int BTN_H = 18;
+    private static final int BTN_GAP = 4;
+    private static final int TAB_H = 16;
     private static final int ROW_H = 12;
     /** Width of each right-aligned rate column in the saved-sessions list. */
     private static final int RATE_COL_W = 78;
@@ -158,7 +169,7 @@ public final class MiningSimScreen extends Screen {
             if (mc.player == null) return;
             String msg = status == Protocol.MININGSIM_SHARE_EMPTY
                     ? "That session recorded nothing worth sharing."
-                    : "Couldn't share that session — wait a moment and try again.";
+                    : "Couldn't share that session. Wait a moment and try again.";
             mc.player.sendMessage(Text.literal(msg)
                     .formatted(net.minecraft.util.Formatting.RED), false);
         });
@@ -173,16 +184,7 @@ public final class MiningSimScreen extends Screen {
             NetworkHandler.sendMiningSimCommand(Protocol.MININGSIM_ACTION_REFRESH);
         }
 
-        int tabW = 104;
-        int tabY = PADDING + 40;
-        int totalW = tabW * 4 + 12;
-        int tabX = (this.width - totalW) / 2;
-        addDrawableChild(tabButton(tabX, tabY, tabW, "Sources", Tab.SOURCES));
-        addDrawableChild(tabButton(tabX + (tabW + 4), tabY, tabW, "Procs", Tab.PROCS));
-        addDrawableChild(tabButton(tabX + (tabW + 4) * 2, tabY, tabW, "Graph", Tab.GRAPH));
-        addDrawableChild(tabButton(tabX + (tabW + 4) * 3, tabY, tabW, "History", Tab.HISTORY));
-
-        int btnY = this.height - PADDING - 24;
+        int btnY = footerY();
         boolean live = MiningSimState.liveSession() != null;
         boolean paused = MiningSimState.isPaused();
         builtForState = stateSignature();
@@ -190,7 +192,8 @@ public final class MiningSimScreen extends Screen {
         if (viewingShared && MiningSimState.shared() != null) {
             // Somebody else's run: nothing here can be renamed, deleted or stopped. Import
             // is the one action, and it turns the share into a normal saved session.
-            addDrawableChild(new GlassButton(this.width / 2 - 158, btnY, 100, 20,
+            int x = footerStartX(3, 100);
+            addDrawableChild(new GlassButton(x, btnY, 100, BTN_H,
                     Text.literal("Import"), () -> {
                 int idx = MiningSimState.importShared(MiningSimState.shared());
                 if (idx >= 0) {
@@ -203,14 +206,14 @@ public final class MiningSimScreen extends Screen {
                 }
                 this.clearAndInit();
             }).primary());
-            addDrawableChild(new GlassButton(this.width / 2 - 52, btnY, 100, 20,
+            addDrawableChild(new GlassButton(x + 100 + BTN_GAP, btnY, 100, BTN_H,
                     Text.literal("Back to mine"), () -> {
                 viewingShared = false;
                 MiningSimState.clearShared();
                 scrollOffset = 0;
                 this.clearAndInit();
             }));
-            addDrawableChild(new GlassButton(this.width / 2 + 54, btnY, 100, 20,
+            addDrawableChild(new GlassButton(x + (100 + BTN_GAP) * 2, btnY, 100, BTN_H,
                     Text.literal("Done"), this::close));
             return;
         }
@@ -221,17 +224,18 @@ public final class MiningSimScreen extends Screen {
             // Pause/Stop would be meaningless against a run that already finished.
             if (renameField != null) {
                 addDrawableChild(renameField);
-                addDrawableChild(new GlassButton(this.width / 2 + 54, btnY, 100, 20,
+                addDrawableChild(new GlassButton(footerStartX(1, 100), btnY, 100, BTN_H,
                         Text.literal("Save name"), this::commitRename).primary());
             } else {
                 // Five controls now, so they are narrower than the two-or-three-button
                 // rows elsewhere on this screen.
-                final int w = 84, gap = 4, step = w + gap;
-                int x = this.width / 2 - (w * 5 + gap * 4) / 2;
-                addDrawableChild(new GlassButton(x, btnY, w, 20,
+                final int w = 84, step = w + BTN_GAP;
+                int x = footerStartX(5, w);
+                addDrawableChild(new GlassButton(x, btnY, w, BTN_H,
                         Text.literal("Rename"), () -> {
+                    int fx = panelX() + PADDING;
                     GlassTextField f = new GlassTextField(this.textRenderer,
-                            this.width / 2 - 210, btnY, 204, 20, Text.literal("Session name"));
+                            fx, btnY, footerStartX(1, 100) - BTN_GAP - fx, BTN_H, Text.literal("Session name"));
                     f.setMaxLength(48);
                     f.setText(viewed.label());
                     f.setSelectionStart(0);
@@ -243,68 +247,75 @@ public final class MiningSimScreen extends Screen {
                 }));
                 // Share uploads this run to the server and hands us to chat with the
                 // [sim] token typed, so anyone can click through to the same breakdown.
-                addDrawableChild(new GlassButton(x + step, btnY, w, 20,
+                addDrawableChild(new GlassButton(x + step, btnY, w, BTN_H,
                         Text.literal("Share"), () -> NetworkHandler.sendMiningSimShare(viewed)));
-                addDrawableChild(new GlassButton(x + step * 2, btnY, w, 20,
+                addDrawableChild(new GlassButton(x + step * 2, btnY, w, BTN_H,
                         Text.literal("Delete"), () -> {
                     MiningSimState.delete(viewingIndex);
                     viewingIndex = -1;
                     tab = Tab.HISTORY;
                     this.clearAndInit();
                 }));
-                addDrawableChild(new GlassButton(x + step * 3, btnY, w, 20,
+                addDrawableChild(new GlassButton(x + step * 3, btnY, w, BTN_H,
                         Text.literal("Back"), () -> {
                     viewingIndex = -1;
                     scrollOffset = 0;
                     this.clearAndInit();
                 }).primary());
-                addDrawableChild(new GlassButton(x + step * 4, btnY, w, 20,
+                addDrawableChild(new GlassButton(x + step * 4, btnY, w, BTN_H,
                         Text.literal("Done"), this::close));
             }
             return;
         }
 
         if (live) {
-            GlassButton pause = new GlassButton(this.width / 2 - 158, btnY, 100, 20,
+            int x = footerStartX(3, 100);
+            GlassButton pause = new GlassButton(x, btnY, 100, BTN_H,
                     Text.literal(paused ? "Resume" : "Pause"), () ->
                     NetworkHandler.sendMiningSimCommand(paused
                             ? Protocol.MININGSIM_ACTION_RESUME
                             : Protocol.MININGSIM_ACTION_PAUSE));
             addDrawableChild(paused ? pause.primary() : pause);
 
-            addDrawableChild(new GlassButton(this.width / 2 - 52, btnY, 100, 20,
+            addDrawableChild(new GlassButton(x + 100 + BTN_GAP, btnY, 100, BTN_H,
                     Text.literal("Stop"), () ->
                     NetworkHandler.sendMiningSimCommand(Protocol.MININGSIM_ACTION_STOP)));
-            addDrawableChild(new GlassButton(this.width / 2 + 54, btnY, 100, 20,
+            addDrawableChild(new GlassButton(x + (100 + BTN_GAP) * 2, btnY, 100, BTN_H,
                     Text.literal("Done"), this::close));
             return;
         }
 
         // Not running. The last archived session is the run that just ended, so Share sits
-        // here too — the common case is wanting to show off the session you only just
+        // here too: the common case is wanting to show off the session you only just
         // stopped, and making that a trip through the History tab would be a detour.
         List<MiningSimState.ArchivedSession> archive = MiningSimState.archive();
         MiningSimState.ArchivedSession latestRun = archive.isEmpty() ? null : archive.get(archive.size() - 1);
-        int startX = latestRun != null ? this.width / 2 - 210 : this.width / 2 - 158;
+        final int step = 100 + BTN_GAP;
+        int startX = footerStartX(latestRun != null ? 4 : 3, 100);
 
-        addDrawableChild(new GlassButton(startX, btnY, 100, 20,
+        addDrawableChild(new GlassButton(startX, btnY, 100, BTN_H,
                 Text.literal("Auto-stop: " + autoStopLabel()), () -> {
             autoStopIndex = (autoStopIndex + 1) % AUTO_STOP_CHOICES.length;
             this.clearAndInit();
         }));
 
-        addDrawableChild(new GlassButton(startX + 106, btnY, 100, 20,
+        addDrawableChild(new GlassButton(startX + step, btnY, 100, BTN_H,
                 Text.literal("Start"), () ->
                 NetworkHandler.sendMiningSimCommand(Protocol.MININGSIM_ACTION_START,
                         AUTO_STOP_CHOICES[autoStopIndex])).primary());
 
         if (latestRun != null) {
-            addDrawableChild(new GlassButton(startX + 212, btnY, 100, 20,
+            addDrawableChild(new GlassButton(startX + step * 2, btnY, 100, BTN_H,
                     Text.literal("Share last"), () -> NetworkHandler.sendMiningSimShare(latestRun)));
         }
 
-        addDrawableChild(new GlassButton(startX + (latestRun != null ? 318 : 212), btnY, 100, 20,
+        addDrawableChild(new GlassButton(startX + step * (latestRun != null ? 3 : 2), btnY, 100, BTN_H,
                 Text.literal("Done"), this::close));
+    }
+
+    /** Left edge of a right-aligned footer row of {@code count} buttons {@code w} wide. */
+    private int footerStartX(int count, int w) {
+        return panelX() + PANEL_W - PADDING - (count * w + (count - 1) * BTN_GAP);
     }
 
     private String autoStopLabel() {
@@ -371,15 +382,6 @@ public final class MiningSimScreen extends Screen {
         }
     }
 
-    private GlassButton tabButton(int x, int y, int w, String label, Tab target) {
-        GlassButton b = new GlassButton(x, y, w, 18, Text.literal(label), () -> {
-            this.tab = target;
-            this.scrollOffset = 0;
-            this.clearAndInit();
-        });
-        return tab == target ? b.primary() : b;
-    }
-
     @Override
     public void close() {
         if (this.client != null) this.client.setScreen(parent);
@@ -389,26 +391,32 @@ public final class MiningSimScreen extends Screen {
     public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
         GlassRender.menuBackdrop(ctx, this.width, this.height);
 
+        int px = panelX(), oy = outerY();
+        int outerH = HEAD_H + panelH() + FOOT_H;
+        GlassRender.panel(ctx, px, oy, PANEL_W, outerH);
+
         MiningSimPayload snap = viewedSnapshot();
         MiningSimState.ArchivedSession viewed = viewedArchive();
 
         var shared = viewedShare();
         String title;
         if (shared != null) {
-            title = shared.ownerName() + "'s Mining Sim — " + shared.label();
+            title = shared.ownerName() + "'s Mining Sim: " + shared.label();
         } else if (viewed != null) {
-            title = "Mining Simulation — " + viewed.label();
+            title = "Mining Simulation: " + viewed.label();
         } else {
             title = "Mining Simulation";
         }
-        ctx.drawCenteredTextWithShadow(textRenderer, Text.literal(title),
-                this.width / 2, PADDING + 2, GlassTheme.ACCENT_SOFT);
-        ctx.drawCenteredTextWithShadow(textRenderer, Text.literal(headline(snap)),
-                this.width / 2, PADDING + 14, GlassTheme.textDim());
-        if (snap != null) {
-            ctx.drawCenteredTextWithShadow(textRenderer, Text.literal(totalsLine(snap)),
-                    this.width / 2, PADDING + 26, GlassTheme.text());
-        }
+        int left = px + PADDING;
+        int innerW = PANEL_W - 2 * PADDING;
+        ctx.drawText(textRenderer, Text.literal(textRenderer.trimToWidth(title, innerW)),
+                left, oy + PADDING, GlassTheme.ACCENT, true);
+        ctx.drawText(textRenderer, Text.literal(textRenderer.trimToWidth(headline(snap), innerW)),
+                left, oy + PADDING + 12, GlassTheme.textMuted(), false);
+        if (snap != null) renderTotals(ctx, snap, left, oy + PADDING + 26, innerW);
+
+        renderTabs(ctx, mouseX, mouseY);
+        GlassRender.rule(ctx, px + 1, px + PANEL_W - 1, panelY() - 3);
 
         switch (tab) {
             case SOURCES -> renderSources(ctx, snap, mouseX, mouseY);
@@ -417,7 +425,37 @@ public final class MiningSimScreen extends Screen {
             case HISTORY -> renderHistory(ctx, mouseX, mouseY);
         }
 
+        // Footer rule above the action row.
+        GlassRender.rule(ctx, px + 1, px + PANEL_W - 1, panelY() + panelH());
+
         super.render(ctx, mouseX, mouseY, delta);
+    }
+
+    /** Tab strip: transparent at rest, soft tint on hover, ember plate under the active tab. */
+    private void renderTabs(DrawContext ctx, int mouseX, int mouseY) {
+        Tab[] tabs = Tab.values();
+        int y = tabsY();
+        for (int i = 0; i < tabs.length; i++) {
+            int x1 = tabX(i), x2 = tabX(i + 1) - BTN_GAP;
+            boolean active = tabs[i] == tab;
+            boolean hover = mouseX >= x1 && mouseX < x2 && mouseY >= y && mouseY < y + TAB_H;
+            if (active) GlassRender.selected(ctx, x1, y, x2, y + TAB_H);
+            else GlassRender.row(ctx, x1, y, x2, y + TAB_H, hover);
+            String label = TAB_LABELS[i];
+            int color = active ? GlassTheme.text() : hover ? GlassTheme.textDim() : GlassTheme.textMuted();
+            ctx.drawText(textRenderer, Text.literal(label), (x1 + x2 - textRenderer.getWidth(label)) / 2,
+                    y + (TAB_H - textRenderer.fontHeight) / 2 + 1, color, false);
+        }
+    }
+
+    private static final String[] TAB_LABELS = {"Sources", "Procs", "Graph", "History"};
+
+    private int tabsY() { return outerY() + HEAD_H - TAB_H - 6; }
+
+    /** Left edge of tab {@code i}; {@code i == 4} gives the strip's right edge (+ gap). */
+    private int tabX(int i) {
+        int innerW = PANEL_W - 2 * PADDING + BTN_GAP;
+        return panelX() + PADDING + innerW * i / Tab.values().length;
     }
 
     private String headline(@Nullable MiningSimPayload snap) {
@@ -426,43 +464,62 @@ public final class MiningSimScreen extends Screen {
             // Say whose it is on every tab, not just in the title: these are somebody
             // else's numbers and mistaking them for your own is the one real hazard here.
             return (shared.own() ? "Your shared run" : "Shared by " + shared.ownerName())
-                    + " · " + formatDuration(shared.snapshot().elapsedMs())
-                    + " · Import to keep it";
+                    + ", " + formatDuration(shared.snapshot().elapsedMs())
+                    + ". Import to keep it.";
         }
         MiningSimState.ArchivedSession viewed = viewedArchive();
         if (viewed != null) {
-            return "Saved session · " + formatDuration(viewed.finalSnapshot().elapsedMs());
+            return "Saved session, " + formatDuration(viewed.finalSnapshot().elapsedMs());
         }
         if (snap == null) {
-            return "No session running — press Start.";
+            return "No session running. Press Start.";
         }
         if (snap.isFinal()) {
             return "Session ended after " + formatDuration(snap.elapsedMs());
         }
         if (!MiningSimState.isLive()) {
-            return "Session lost contact — last seen " + formatDuration(snap.elapsedMs()) + " in";
+            return "Session lost contact. Last seen " + formatDuration(snap.elapsedMs()) + " in";
         }
         return (snap.paused() ? "PAUSED at " : "Running for ") + formatDuration(snap.elapsedMs());
     }
 
-    private String totalsLine(MiningSimPayload s) {
-        String line = compact(s.totalXp()) + " XP (" + compact(s.perHour(s.totalXp())) + "/hr)"
-             + "   " + compact(s.totalEnergy()) + " energy (" + compact(s.perHour(s.totalEnergy())) + "/hr)"
-             + "   " + money(s.totalMoney()) + " (" + money(s.moneyPerHour()) + "/hr)";
+    /**
+     * Session totals as a row of stat columns: the total in flame with its unit, the hourly
+     * rate muted underneath.
+     */
+    private void renderTotals(DrawContext ctx, MiningSimPayload s, int x, int y, int w) {
+        List<String[]> stats = new ArrayList<>(4);
+        stats.add(new String[]{compact(s.totalXp()), " XP", compact(s.perHour(s.totalXp())) + "/hr"});
+        stats.add(new String[]{compact(s.totalEnergy()), " energy", compact(s.perHour(s.totalEnergy())) + "/hr"});
+        stats.add(new String[]{money(s.totalMoney()), "", money(s.moneyPerHour()) + "/hr"});
         // Absent from a run recorded before blocks were tracked, and from an older server.
         // Printing "0 blocks" there would read as a session that broke nothing.
         if (s.totalBlocks() > 0) {
-            line += "   " + compact(Math.round(s.totalBlocks())) + " blocks ("
-                    + compact(s.blocksPerHour()) + "/hr)";
+            stats.add(new String[]{compact(Math.round(s.totalBlocks())), " blocks",
+                    compact(s.blocksPerHour()) + "/hr"});
         }
-        return line;
+        int colW = w / 4;
+        for (int i = 0; i < stats.size(); i++) {
+            String[] st = stats.get(i);
+            int cx = x + i * colW;
+            ctx.drawText(textRenderer, Text.literal(st[0]), cx, y, GlassTheme.VALUE, false);
+            if (!st[1].isEmpty()) {
+                ctx.drawText(textRenderer, Text.literal(st[1]), cx + textRenderer.getWidth(st[0]), y,
+                        GlassTheme.textDim(), false);
+            }
+            ctx.drawText(textRenderer, Text.literal(st[2]), cx, y + 10, GlassTheme.textMuted(), false);
+        }
     }
 
     // ── Sources ─────────────────────────────────────────────────────────────
 
     private int panelX() { return (this.width - PANEL_W) / 2; }
-    private int panelY() { return PADDING + 64; }
+    /** Top of the whole window (header, content and footer), centred vertically. */
+    private int outerY() { return Math.max(4, (this.height - (HEAD_H + panelH() + FOOT_H)) / 2); }
+    /** Top of the content area (the tab body). Column headers and hit tests hang off this. */
+    private int panelY() { return outerY() + HEAD_H; }
     private int panelH() { return ROWS_VISIBLE * ROW_H + 26; }
+    private int footerY() { return panelY() + panelH() + 6; }
 
     private List<MiningSimPayload.Row> sortedSources(@Nullable MiningSimPayload snap) {
         if (snap == null) return List.of();
@@ -480,9 +537,8 @@ public final class MiningSimScreen extends Screen {
 
     private void renderSources(DrawContext ctx, @Nullable MiningSimPayload snap, int mouseX, int mouseY) {
         int px = panelX(), py = panelY();
-        GlassRender.panel(ctx, px, py, PANEL_W, panelH());
 
-        int left = px + 8;
+        int left = px + PADDING;
         int xpRight = px + PANEL_W - COL_XP_RIGHT;
         int energyRight = px + PANEL_W - COL_ENERGY_RIGHT;
         int moneyRight = px + PANEL_W - COL_MONEY_RIGHT;
@@ -495,7 +551,7 @@ public final class MiningSimScreen extends Screen {
         drawRight(ctx, header("Money", SortKey.MONEY), moneyRight, y, GlassTheme.textDim());
         drawRight(ctx, header("Blocks", SortKey.BLOCKS), blocksRight, y, GlassTheme.textDim());
         y += 11;
-        ctx.fill(px + 4, y, px + PANEL_W - 4, y + 1, GlassTheme.rim());
+        GlassRender.rule(ctx, px + 6, px + PANEL_W - 6, y);
         y += 3;
 
         List<MiningSimPayload.Row> rows = sortedSources(snap);
@@ -510,7 +566,7 @@ public final class MiningSimScreen extends Screen {
             MiningSimPayload.Row r = rows.get(i);
             int textY = y + 2;
             if (mouseY >= y && mouseY < y + ROW_H && mouseX >= px && mouseX < px + PANEL_W) {
-                ctx.fill(px + 4, y, px + PANEL_W - 4, y + ROW_H, GlassTheme.rowHover());
+                GlassRender.row(ctx, px + 6, y, px + PANEL_W - 6, y + ROW_H, true);
             }
 
             // Origin in accent, the rest of the chain dimmed — the origin is the number
@@ -523,13 +579,13 @@ public final class MiningSimScreen extends Screen {
                 ctx.drawText(textRenderer, Text.literal(" > " + path), ox, textY, GlassTheme.textMuted(), false);
             }
 
-            drawRight(ctx, r.xp() > 0 ? compact(r.xp()) : "—", xpRight, textY,
+            drawRight(ctx, r.xp() > 0 ? compact(r.xp()) : "-", xpRight, textY,
                     r.xp() > 0 ? GlassTheme.text() : GlassTheme.textMuted());
-            drawRight(ctx, r.energy() > 0 ? compact(r.energy()) : "—", energyRight, textY,
+            drawRight(ctx, r.energy() > 0 ? compact(r.energy()) : "-", energyRight, textY,
                     r.energy() > 0 ? GlassTheme.VALUE : GlassTheme.textMuted());
-            drawRight(ctx, r.money() > 0 ? money(r.money()) : "—", moneyRight, textY,
+            drawRight(ctx, r.money() > 0 ? money(r.money()) : "-", moneyRight, textY,
                     r.money() > 0 ? GlassTheme.OK : GlassTheme.textMuted());
-            drawRight(ctx, r.blocks() > 0 ? compact(Math.round(r.blocks())) : "—", blocksRight, textY,
+            drawRight(ctx, r.blocks() > 0 ? compact(Math.round(r.blocks())) : "-", blocksRight, textY,
                     r.blocks() > 0 ? GlassTheme.text() : GlassTheme.textMuted());
             y += ROW_H;
         }
@@ -551,9 +607,8 @@ public final class MiningSimScreen extends Screen {
 
     private void renderProcs(DrawContext ctx, @Nullable MiningSimPayload snap, int mouseX, int mouseY) {
         int px = panelX(), py = panelY();
-        GlassRender.panel(ctx, px, py, PANEL_W, panelH());
 
-        int left = px + 8;
+        int left = px + PADDING;
         int countRight = px + PANEL_W - 130;
         int rateRight = px + PANEL_W - 10;
         int y = py + 6;
@@ -562,7 +617,7 @@ public final class MiningSimScreen extends Screen {
         drawRight(ctx, header("Procs", SortKey.COUNT), countRight, y, GlassTheme.textDim());
         drawRight(ctx, "Per hour", rateRight, y, GlassTheme.textDim());
         y += 11;
-        ctx.fill(px + 4, y, px + PANEL_W - 4, y + 1, GlassTheme.rim());
+        GlassRender.rule(ctx, px + 6, px + PANEL_W - 6, y);
         y += 3;
 
         List<MiningSimPayload.ProcRow> rows = sortedProcs(snap);
@@ -578,7 +633,7 @@ public final class MiningSimScreen extends Screen {
             MiningSimPayload.ProcRow r = rows.get(i);
             int textY = y + 2;
             if (mouseY >= y && mouseY < y + ROW_H && mouseX >= px && mouseX < px + PANEL_W) {
-                ctx.fill(px + 4, y, px + PANEL_W - 4, y + ROW_H, GlassTheme.rowHover());
+                GlassRender.row(ctx, px + 6, y, px + PANEL_W - 6, y + ROW_H, true);
             }
             String origin = r.origin();
             String path = r.path();
@@ -590,7 +645,7 @@ public final class MiningSimScreen extends Screen {
             drawRight(ctx, String.valueOf(r.count()), countRight, textY, GlassTheme.text());
             String perHour = denom > 0
                     ? compact(Math.round(r.count() * (3_600_000.0 / denom)))
-                    : "—";
+                    : "-";
             drawRight(ctx, perHour, rateRight, textY, GlassTheme.textDim());
             y += ROW_H;
         }
@@ -603,7 +658,6 @@ public final class MiningSimScreen extends Screen {
     private void renderGraph(DrawContext ctx) {
         int px = panelX(), py = panelY();
         int ph = panelH();
-        GlassRender.panel(ctx, px, py, PANEL_W, ph);
 
         List<MiningSimState.RatePoint> pts = viewedHistory();
         if (pts.size() < 2) {
@@ -611,14 +665,14 @@ public final class MiningSimScreen extends Screen {
             // knows totals, so an old session captured server-side has no samples to send.
             String empty = viewedShare() != null
                     ? "No rate graph was shared with this session."
-                    : "Not enough samples yet — the graph fills in as you mine.";
+                    : "Not enough samples yet. The graph fills in as you mine.";
             ctx.drawText(textRenderer, Text.literal(empty),
-                    px + 8, py + 8, GlassTheme.textMuted(), false);
+                    px + PADDING, py + 8, GlassTheme.textMuted(), false);
             return;
         }
 
-        int plotX = px + 8, plotY = py + 18;
-        int plotW = PANEL_W - 16, plotH = ph - 34;
+        int plotX = px + PADDING, plotY = py + 18;
+        int plotW = PANEL_W - 2 * PADDING, plotH = ph - 34;
 
         long maxXp = 1, maxEnergy = 1;
         double maxMoney = 1;
@@ -639,7 +693,7 @@ public final class MiningSimScreen extends Screen {
         plotSeries(ctx, pts, plotX, plotY, plotW, plotH, maxEnergy, GlassTheme.VALUE, 1);
         plotSeries(ctx, pts, plotX, plotY, plotW, plotH, (long) Math.ceil(maxMoney), GlassTheme.OK, 2);
 
-        ctx.fill(plotX, plotY + plotH, plotX + plotW, plotY + plotH + 1, GlassTheme.rim());
+        GlassRender.rule(ctx, plotX, plotX + plotW, plotY + plotH);
     }
 
     /** Draw one normalised series as a column chart — one column per horizontal pixel bucket. */
@@ -669,19 +723,18 @@ public final class MiningSimScreen extends Screen {
 
     private void renderHistory(DrawContext ctx, int mouseX, int mouseY) {
         int px = panelX(), py = panelY();
-        GlassRender.panel(ctx, px, py, PANEL_W, panelH());
 
         List<MiningSimState.ArchivedSession> archive = MiningSimState.archive();
-        int left = px + 8;
+        int left = px + PADDING;
         int y = py + 6;
 
-        ctx.drawText(textRenderer, Text.literal("Saved sessions — click to open, shift-click two to compare"),
+        ctx.drawText(textRenderer, Text.literal("Saved sessions: click to open, shift-click two to compare"),
                 left, y, GlassTheme.textDim(), false);
         drawRight(ctx, "XP/hr", px + PANEL_W - 10 - RATE_COL_W * 2, y, GlassTheme.textDim());
         drawRight(ctx, "Energy/hr", px + PANEL_W - 10 - RATE_COL_W, y, GlassTheme.textDim());
         drawRight(ctx, "$/hr", px + PANEL_W - 10, y, GlassTheme.textDim());
         y += 11;
-        ctx.fill(px + 4, y, px + PANEL_W - 4, y + 1, GlassTheme.rim());
+        GlassRender.rule(ctx, px + 6, px + PANEL_W - 6, y);
         y += 3;
 
         if (archive.isEmpty()) {
@@ -696,7 +749,7 @@ public final class MiningSimScreen extends Screen {
             MiningSimPayload f = s.finalSnapshot();
             boolean picked = (i == compareA || i == compareB);
             if (mouseY >= y && mouseY < y + ROW_H && mouseX >= px && mouseX < px + PANEL_W) {
-                ctx.fill(px + 4, y, px + PANEL_W - 4, y + ROW_H, GlassTheme.rowHover());
+                GlassRender.row(ctx, px + 6, y, px + PANEL_W - 6, y + ROW_H, true);
             }
             int nameColor = picked ? GlassTheme.ACCENT : GlassTheme.text();
             ctx.drawText(textRenderer, Text.literal((picked ? "> " : "  ") + s.label()
@@ -717,7 +770,7 @@ public final class MiningSimScreen extends Screen {
         if (compareA >= 0 && compareB >= 0
                 && compareA < archive.size() && compareB < archive.size()) {
             y += 6;
-            ctx.fill(px + 4, y, px + PANEL_W - 4, y + 1, GlassTheme.rim());
+            GlassRender.rule(ctx, px + 6, px + PANEL_W - 6, y);
             y += 4;
             MiningSimPayload a = archive.get(compareA).finalSnapshot();
             MiningSimPayload b = archive.get(compareB).finalSnapshot();
@@ -794,6 +847,20 @@ public final class MiningSimScreen extends Screen {
         if (click.button() == 0) {
             int px = panelX(), py = panelY();
             double mx = click.x(), my = click.y();
+
+            // Tab strip.
+            int ty = tabsY();
+            if (my >= ty && my < ty + TAB_H) {
+                Tab[] tabs = Tab.values();
+                for (int i = 0; i < tabs.length; i++) {
+                    if (mx >= tabX(i) && mx < tabX(i + 1) - BTN_GAP) {
+                        this.tab = tabs[i];
+                        this.scrollOffset = 0;
+                        this.clearAndInit();
+                        return true;
+                    }
+                }
+            }
 
             // Column headers toggle the sort. Same band for both tables.
             if ((tab == Tab.SOURCES || tab == Tab.PROCS)

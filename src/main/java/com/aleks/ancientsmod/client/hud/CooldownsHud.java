@@ -1,6 +1,8 @@
 package com.aleks.ancientsmod.client.hud;
 
 import com.aleks.ancientsmod.client.FeatureToggles;
+import com.aleks.ancientsmod.client.glass.GlassRender;
+import com.aleks.ancientsmod.client.glass.GlassTheme;
 import com.aleks.ancientsmod.net.Protocol;
 import com.aleks.ancientsmod.net.payload.CooldownsPayload;
 import net.minecraft.client.MinecraftClient;
@@ -18,7 +20,8 @@ import java.util.Set;
 /**
  * Moveable Cooldowns HUD. Renders the player's active command, combat, enchant
  * and pickaxe cooldowns as rows. Per-widget settings let the player mute
- * entire categories.
+ * entire categories. Each row: 1px category accent strip, label in body text,
+ * time in Ash.
  */
 public final class CooldownsHud extends HudElement {
 
@@ -116,7 +119,7 @@ public final class CooldownsHud extends HudElement {
         int rowH = HudStyle.rowH(id());
 
         for (Row r : rows) {
-            ctx.fill(padX, rowY, padX + stripW, rowY + rowH - 2, r.accent);
+            GlassRender.accentStrip(ctx, padX, rowY, rowH - 2, r.accent);
 
             int textX = padX + stripW + stripGap;
             int textY = rowY + 2;
@@ -126,8 +129,7 @@ public final class CooldownsHud extends HudElement {
             int timeX = w - padX - timeW;
             ctx.drawText(fr, Text.literal(time), timeX, textY, HudStyle.TIME_COLOR, true);
 
-            ctx.drawText(fr, Text.literal(r.label), textX, textY,
-                    (r.accent & 0x00FFFFFF) | 0xFF000000, true);
+            ctx.drawText(fr, Text.literal(r.label), textX, textY, GlassTheme.textDim(), true);
 
             rowY += rowH;
         }
@@ -222,7 +224,7 @@ public final class CooldownsHud extends HudElement {
         if (e.category() == Protocol.CD_CAT_COMBAT)   return 0xFFFF8A66;
         if (e.category() == Protocol.CD_CAT_ENCHANT)  return 0xFFD37CFF;
         if (e.category() == Protocol.CD_CAT_PICKAXE)  return 0xFFE6B05A;
-        return 0xFFFFFFFF;
+        return GlassTheme.BRONZE;
     }
 
     private static String formatDuration(int seconds) {

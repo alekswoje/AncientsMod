@@ -1,6 +1,8 @@
 package com.aleks.ancientsmod.client.hud;
 
 import com.aleks.ancientsmod.client.FeatureToggles;
+import com.aleks.ancientsmod.client.glass.GlassRender;
+import com.aleks.ancientsmod.client.glass.GlassTheme;
 import com.aleks.ancientsmod.net.payload.MiningSimPayload;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
@@ -27,6 +29,10 @@ import java.util.Set;
  * <p>The panel shows <b>either</b> its PvE half (Hunter XP, kills, drops) or its
  * mining half (rates, session, sim, blocks) — never both. Whichever the player
  * last actually did wins; see {@link #miningModeActive()}.
+ *
+ * <p>Rows follow the shared HUD look: a 1px accent strip carrying the row's
+ * semantic color (ore, mob, rarity, resource), the label in body text, the
+ * number in Flame ({@link GlassTheme#VALUE}) and sub-headers in Ash.
  */
 public final class StatsHud extends HudElement {
 
@@ -109,10 +115,9 @@ public final class StatsHud extends HudElement {
     );
 
     private static final int MIN_WIDTH    = 158;
-    private static final int VALUE_COLOR  = 0xFFFFFFFF;
-    private static final int SUBHEADER    = 0xFFA0A8B4;
-    /** Hunter-section strip colour — the Polis/hunter violet (ServerTheme accent). */
-    private static final int HUNTER_ACCENT = 0xFFA78BFA;
+    private static final int VALUE_COLOR  = GlassTheme.VALUE;
+    /** Hunter-section strip colour: the Ember brand accent (was the old Polis violet). */
+    private static final int HUNTER_ACCENT = GlassTheme.ACCENT;
     /** Fallback drop-row colour for keys that aren't a known rarity tier. */
     private static final int DROP_DEFAULT_ACCENT = 0xFF8AC2FF;
 
@@ -351,7 +356,7 @@ public final class StatsHud extends HudElement {
 
         if (sections.contains("world") && !PveStatsState.worldName().isEmpty()) {
             String pretty = prettyWorld(PveStatsState.worldName());
-            ctx.drawText(fr, Text.literal(pretty), padX + stripW + stripGap, rowY + 2, SUBHEADER, true);
+            ctx.drawText(fr, Text.literal(pretty), padX + stripW + stripGap, rowY + 2, GlassTheme.textMuted(), true);
             rowY += rowH;
         }
 
@@ -370,16 +375,15 @@ public final class StatsHud extends HudElement {
         if (sections.contains("session") && MiningSessionState.isLive()) {
             List<MiningRow> sr = sessionRows();
             if (!sr.isEmpty()) {
-                ctx.drawText(fr, Text.literal(sessionHeader()), padX + stripW + stripGap, rowY + 2, SUBHEADER, true);
+                ctx.drawText(fr, Text.literal(sessionHeader()), padX + stripW + stripGap, rowY + 2, GlassTheme.textMuted(), true);
                 rowY += rowH;
                 for (MiningRow r : sr) {
-                    ctx.fill(padX, rowY, padX + stripW, rowY + rowH - 2, r.accent);
+                    GlassRender.accentStrip(ctx, padX, rowY, rowH - 2, r.accent);
                     int textX = padX + stripW + stripGap;
                     int textY = rowY + 2;
                     int valW = fr.getWidth(r.value);
                     ctx.drawText(fr, Text.literal(r.value), w - padX - valW, textY, VALUE_COLOR, true);
-                    ctx.drawText(fr, Text.literal(r.label), textX, textY,
-                            (r.accent & 0x00FFFFFF) | 0xFF000000, true);
+                    ctx.drawText(fr, Text.literal(r.label), textX, textY, GlassTheme.textDim(), true);
                     rowY += rowH;
                 }
             }
@@ -388,16 +392,15 @@ public final class StatsHud extends HudElement {
         if (sections.contains("sim") && MiningSimState.liveSession() != null) {
             List<MiningRow> qr = simRows();
             if (!qr.isEmpty()) {
-                ctx.drawText(fr, Text.literal(simHeader()), padX + stripW + stripGap, rowY + 2, SUBHEADER, true);
+                ctx.drawText(fr, Text.literal(simHeader()), padX + stripW + stripGap, rowY + 2, GlassTheme.textMuted(), true);
                 rowY += rowH;
                 for (MiningRow r : qr) {
-                    ctx.fill(padX, rowY, padX + stripW, rowY + rowH - 2, r.accent);
+                    GlassRender.accentStrip(ctx, padX, rowY, rowH - 2, r.accent);
                     int textX = padX + stripW + stripGap;
                     int textY = rowY + 2;
                     int valW = fr.getWidth(r.value);
                     ctx.drawText(fr, Text.literal(r.value), w - padX - valW, textY, VALUE_COLOR, true);
-                    ctx.drawText(fr, Text.literal(r.label), textX, textY,
-                            (r.accent & 0x00FFFFFF) | 0xFF000000, true);
+                    ctx.drawText(fr, Text.literal(r.label), textX, textY, GlassTheme.textDim(), true);
                     rowY += rowH;
                 }
             }
@@ -406,16 +409,15 @@ public final class StatsHud extends HudElement {
         if (sections.contains("blocks") && MiningBlocksState.isLive()) {
             List<MiningRow> br = blockRows();
             if (!br.isEmpty()) {
-                ctx.drawText(fr, Text.literal(blocksHeader()), padX + stripW + stripGap, rowY + 2, SUBHEADER, true);
+                ctx.drawText(fr, Text.literal(blocksHeader()), padX + stripW + stripGap, rowY + 2, GlassTheme.textMuted(), true);
                 rowY += rowH;
                 for (MiningRow r : br) {
-                    ctx.fill(padX, rowY, padX + stripW, rowY + rowH - 2, r.accent);
+                    GlassRender.accentStrip(ctx, padX, rowY, rowH - 2, r.accent);
                     int textX = padX + stripW + stripGap;
                     int textY = rowY + 2;
                     int valW = fr.getWidth(r.value);
                     ctx.drawText(fr, Text.literal(r.value), w - padX - valW, textY, VALUE_COLOR, true);
-                    ctx.drawText(fr, Text.literal(r.label), textX, textY,
-                            (r.accent & 0x00FFFFFF) | 0xFF000000, true);
+                    ctx.drawText(fr, Text.literal(r.label), textX, textY, GlassTheme.textDim(), true);
                     rowY += rowH;
                 }
             }
@@ -435,9 +437,9 @@ public final class StatsHud extends HudElement {
                 int textY = rowY + 2;
                 String val = String.valueOf(r.value);
                 int valW = fr.getWidth(val);
-                ctx.fill(padX, rowY, padX + stripW, rowY + rowH - 2, accent);
+                GlassRender.accentStrip(ctx, padX, rowY, rowH - 2, accent);
                 ctx.drawText(fr, Text.literal(val), w - padX - valW, textY, VALUE_COLOR, true);
-                ctx.drawText(fr, Text.literal(r.label), textX, textY, 0xFFE6E8EE, true);
+                ctx.drawText(fr, Text.literal(r.label), textX, textY, GlassTheme.textDim(), true);
                 rowY += rowH;
             }
         }
@@ -446,12 +448,12 @@ public final class StatsHud extends HudElement {
     /** Draw one "label … value" row with a coloured left strip; returns the next rowY. */
     private int drawValueRow(DrawContext ctx, TextRenderer fr, String label, String value, int accent,
                              int padX, int stripW, int stripGap, int rowH, int rowY, int w) {
-        ctx.fill(padX, rowY, padX + stripW, rowY + rowH - 2, accent);
+        GlassRender.accentStrip(ctx, padX, rowY, rowH - 2, accent);
         int textX = padX + stripW + stripGap;
         int textY = rowY + 2;
         int valW = fr.getWidth(value);
         ctx.drawText(fr, Text.literal(value), w - padX - valW, textY, VALUE_COLOR, true);
-        ctx.drawText(fr, Text.literal(label), textX, textY, (accent & 0x00FFFFFF) | 0xFF000000, true);
+        ctx.drawText(fr, Text.literal(label), textX, textY, GlassTheme.textDim(), true);
         return rowY + rowH;
     }
 
@@ -484,7 +486,6 @@ public final class StatsHud extends HudElement {
         return out;
     }
 
-    /** "Session (running) · 12m 30s" / "Session (paused) · 12m 30s". */
     /**
      * Mining-sim header. Says PAUSED loudly, because a paused session records nothing
      * and the single worst outcome here is mining for ten minutes without noticing.
@@ -492,7 +493,7 @@ public final class StatsHud extends HudElement {
     private String simHeader() {
         MiningSimPayload s = MiningSimState.latest();
         if (s == null) return "Mining sim";
-        return (s.paused() ? "Mining sim (PAUSED) · " : "Mining sim · ") + formatDuration(s.elapsedMs());
+        return (s.paused() ? "Mining sim (PAUSED): " : "Mining sim: ") + formatDuration(s.elapsedMs());
     }
 
     /** Live sim totals with their per-hour rates — the same trio the chat summary led with. */
@@ -513,9 +514,10 @@ public final class StatsHud extends HudElement {
         out.add(new MiningRow(label, val, accent));
     }
 
+    /** "Session (running): 12m 30s" / "Session (paused): 12m 30s". */
     private String sessionHeader() {
         String state = MiningSessionState.isRunning() ? "running" : "paused";
-        return "Session (" + state + ") · " + formatDuration(MiningSessionState.elapsedMs());
+        return "Session (" + state + "): " + formatDuration(MiningSessionState.elapsedMs());
     }
 
     /**
@@ -547,7 +549,7 @@ public final class StatsHud extends HudElement {
         if (showLive && liveRate > 0) {
             // Distinguish the live rolling figure from the session average with a
             // trailing marker so the two /h numbers don't read as one.
-            val.append("  ").append(p).append(formatCompact(liveRate)).append("/h·live");
+            val.append("  ").append(p).append(formatCompact(liveRate)).append("/h live");
         }
         out.add(new MiningRow(label, val.toString(), accent));
     }
@@ -743,7 +745,7 @@ public final class StatsHud extends HudElement {
     }
 
     private static String prettyWorld(String raw) {
-        if (raw == null || raw.isEmpty()) return "—";
+        if (raw == null || raw.isEmpty()) return "Unknown";
         String[] parts = raw.split("[_\\s-]+");
         StringBuilder out = new StringBuilder();
         for (String p : parts) {

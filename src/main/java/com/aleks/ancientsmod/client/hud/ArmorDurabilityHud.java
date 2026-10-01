@@ -1,6 +1,8 @@
 package com.aleks.ancientsmod.client.hud;
 
 import com.aleks.ancientsmod.client.FeatureToggles;
+import com.aleks.ancientsmod.client.glass.GlassRender;
+import com.aleks.ancientsmod.client.glass.GlassTheme;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
@@ -48,9 +50,9 @@ public final class ArmorDurabilityHud extends HudElement {
 
     private static final int MIN_WIDTH = 140;
 
-    private static final int OK_COLOR   = 0xFF8AE08A;
-    private static final int WARN_COLOR = 0xFFFFC857;
-    private static final int LOW_COLOR  = 0xFFFF6E6E;
+    private static final int OK_COLOR   = GlassTheme.OK;
+    private static final int WARN_COLOR = GlassTheme.VALUE;
+    private static final int LOW_COLOR  = GlassTheme.WARN;
 
     private ArmorDurabilityHud() {}
 
@@ -128,14 +130,14 @@ public final class ArmorDurabilityHud extends HudElement {
         int rowH = HudStyle.rowH(id());
 
         for (Row r : rows) {
-            ctx.fill(padX, rowY, padX + stripW, rowY + rowH - 2, r.accent);
+            GlassRender.accentStrip(ctx, padX, rowY, rowH - 2, r.accent);
 
             int textX = padX + stripW + stripGap;
             int textY = rowY + 2;
 
             int rightW = fr.getWidth(r.rightText);
             ctx.drawText(fr, Text.literal(r.rightText), w - padX - rightW, textY, r.accent, true);
-            ctx.drawText(fr, Text.literal(r.label), textX, textY, HudStyle.TIME_COLOR, true);
+            ctx.drawText(fr, Text.literal(r.label), textX, textY, GlassTheme.textDim(), true);
 
             rowY += rowH;
         }

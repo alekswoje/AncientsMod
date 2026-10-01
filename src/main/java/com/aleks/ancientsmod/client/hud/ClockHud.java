@@ -1,6 +1,8 @@
 package com.aleks.ancientsmod.client.hud;
 
 import com.aleks.ancientsmod.client.FeatureToggles;
+import com.aleks.ancientsmod.client.glass.GlassRender;
+import com.aleks.ancientsmod.client.glass.GlassTheme;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
@@ -13,7 +15,7 @@ import java.time.format.TextStyle;
 import java.util.Locale;
 
 /**
- * Moveable Clock HUD — the player's own wall-clock time, read from the OS
+ * Moveable Clock HUD: the player's own wall-clock time, read from the OS
  * timezone. Handy for anyone who plays fullscreen and can't see the system
  * clock, and for lining up a real-world time against an event countdown.
  *
@@ -38,8 +40,6 @@ public final class ClockHud extends HudElement {
     public static final String KEY_SHOW_DATE = "clock_show_date";
 
     private static final int MIN_WIDTH  = 62;
-    private static final int TIME_COLOR = 0xFFE6E8EE;
-    private static final int DATE_COLOR = 0xFFBFC4CC;
 
     private ClockHud() {}
 
@@ -96,12 +96,12 @@ public final class ClockHud extends HudElement {
         int rowH = HudStyle.rowH(id());
         int textX = padX + stripW + stripGap;
 
-        ctx.fill(padX, rowY, padX + stripW, rowY + rowH - 2, TIME_COLOR);
-        ctx.drawText(fr, Text.literal(formatTime()), textX, rowY + 2, TIME_COLOR, true);
+        GlassRender.accentStrip(ctx, padX, rowY, rowH - 2, GlassTheme.BRONZE);
+        ctx.drawText(fr, Text.literal(formatTime()), textX, rowY + 2, GlassTheme.VALUE, true);
         rowY += rowH;
 
         if (showDate()) {
-            ctx.drawText(fr, Text.literal(formatDate()), textX, rowY + 2, DATE_COLOR, true);
+            ctx.drawText(fr, Text.literal(formatDate()), textX, rowY + 2, HudStyle.TIME_COLOR, true);
         }
     }
 

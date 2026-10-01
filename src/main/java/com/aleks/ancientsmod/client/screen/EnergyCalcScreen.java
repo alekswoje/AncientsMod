@@ -16,6 +16,7 @@ import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.registry.Registries;
+import net.minecraft.text.OrderedText;
 import net.minecraft.text.Text;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
@@ -39,12 +40,20 @@ import java.util.Locale;
  * </ul>
  * The "To max" column joins the two: the server sends each tier's cumulative cost curve, so
  * subtracting the cumulative at the piece's current level gives what is actually left to pay.
+ *
+ * <h2>Layout</h2>
+ * One flat Hearth glass panel: ember title with the tab's description as muted meta, a bronze
+ * rule, the tab row, the active table (column labels, rule, transparent rows, a wrapped note),
+ * then a footer rule with Done on the right. Numbers are Flame, "maxed"/banked-enough are Moss.
  */
 public final class EnergyCalcScreen extends Screen {
 
     private static final int PADDING = 10;
     private static final int ROW_H = 16;
     private static final int PANEL_W = 460;
+    private static final int HEADER_H = 24;
+    private static final int TAB_H = 16;
+    private static final int FOOTER_H = 26;
 
     private final @Nullable Screen parent;
 
@@ -73,21 +82,28 @@ public final class EnergyCalcScreen extends Screen {
         // /configsplit reload between openings must not leave stale numbers up.
         NetworkHandler.sendEnergyReferenceRequest();
 
-        int tabW = 108;
-        int tabY = PADDING + 26;
-        int totalW = tabW * 3 + 8;
-        int tabX = (this.width - totalW) / 2;
+        // Tabs sit left-aligned under the header rule; the active one is the ember (selected) fill.
+        int tabW = Math.min(108, (panelW() - 2 * PADDING - 8) / 3);
+        int tabY = panelY() + HEADER_H + 6;
+        int tabX = panelX() + PADDING;
 
         addDrawableChild(tabButton(tabX, tabY, tabW, "Your Gear", Tab.YOUR_GEAR));
         addDrawableChild(tabButton(tabX + tabW + 4, tabY, tabW, "Gear Tiers", Tab.GEAR_TIERS));
         addDrawableChild(tabButton(tabX + (tabW + 4) * 2, tabY, tabW, "Pickaxe Prestige", Tab.PICKAXE_PRESTIGE));
 
-        addDrawableChild(new GlassButton(width / 2 - 50, height - PADDING - 24, 100, 20,
-                Text.literal("Done"), this::close).primary());
+        addDrawableChild(new GlassButton(panelX() + panelW() - PADDING - 52, panelY() + panelH() - 20, 52, 14,
+                Text.translatable("gui.done"), this::close).primary());
     }
 
+    // ── Panel geometry: one panel, full height, so tables loading late never move the buttons ──
+
+    private int panelW() { return Math.min(PANEL_W, this.width - 2 * PADDING); }
+    private int panelX() { return (this.width - panelW()) / 2; }
+    private int panelY() { return PADDING; }
+    private int panelH() { return this.height - 2 * PADDING; }
+
     private GlassButton tabButton(int x, int y, int w, String label, Tab target) {
-        GlassButton b = new GlassButton(x, y, w, 18, Text.literal(label), () -> {
+        GlassButton b = new GlassButton(x, y, w, TAB_H, Text.literal(label), () -> {
             this.tab = target;
             this.clearAndInit();
         });
@@ -103,10 +119,19 @@ public final class EnergyCalcScreen extends Screen {
     public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
         GlassRender.menuBackdrop(ctx, this.width, this.height);
 
-        ctx.drawCenteredTextWithShadow(textRenderer, Text.literal("Energy Calculator"),
-                this.width / 2, PADDING + 2, GlassTheme.ACCENT_SOFT);
-        ctx.drawCenteredTextWithShadow(textRenderer, Text.literal(subtitle()),
-                this.width / 2, PADDING + 14, GlassTheme.textDim());
+        int px = panelX(), py = panelY(), pw = panelW(), ph = panelH();
+        GlassRender.panel(ctx, px, py, pw, ph);
+
+        // Header: ember title, the tab's description as muted meta, bronze rule.
+        String title = "Energy Calculator";
+        ctx.drawText(textRenderer, Text.literal(title), px + PADDING, py + 10, GlassTheme.ACCENT, true);
+        int metaX = px + PADDING + textRenderer.getWidth(title) + 6;
+        ctx.drawText(textRenderer, Text.literal(trim(subtitle(), px + pw - PADDING - metaX)),
+                metaX, py + 10, GlassTheme.textMuted(), false);
+        GlassRender.rule(ctx, px + PADDING, px + pw - PADDING, py + HEADER_H);
+
+        // Footer rule; Done is a drawable child on the right.
+        GlassRender.rule(ctx, px + 1, px + pw - 1, py + ph - FOOTER_H);
 
         switch (tab) {
             case YOUR_GEAR -> renderYourGear(ctx);
@@ -130,39 +155,30 @@ public final class EnergyCalcScreen extends Screen {
     private void renderYourGear(DrawContext ctx) {
         List<Entry> entries = collect();
 
-        int panelW = Math.min(PANEL_W, this.width - 2 * PADDING);
-        int panelX = (this.width - panelW) / 2;
-        int panelH = 24 + ROW_H * Math.max(entries.size(), 1) + 30;
-        int panelY = bodyTop();
-
-        GlassRender.panel(ctx, panelX, panelY, panelW, panelH);
-
-        int left = panelX + PADDING;
-        int right = panelX + panelW - PADDING;
+        int left = panelX() + PADDING;
+        int right = panelX() + panelW() - PADDING;
         int colW = (right - left) / 5;
         int lvlRight = left + colW * 2;
         int nextRight = left + colW * 3;
         int bankedRight = left + colW * 4;
         int maxRight = right;
 
-        int y = panelY + 5;
-        ctx.drawText(textRenderer, Text.literal("Item"), left, y, GlassTheme.textDim(), false);
-        drawRight(ctx, "Lvl", lvlRight, y, GlassTheme.textDim());
-        drawRight(ctx, "Next level", nextRight, y, GlassTheme.textDim());
-        drawRight(ctx, "Banked", bankedRight, y, GlassTheme.textDim());
-        drawRight(ctx, "To max", maxRight, y, GlassTheme.textDim());
+        int y = bodyTop();
+        ctx.drawText(textRenderer, Text.literal("Item"), left, y, GlassTheme.textMuted(), false);
+        drawRight(ctx, "Lvl", lvlRight, y, GlassTheme.textMuted());
+        drawRight(ctx, "Next level", nextRight, y, GlassTheme.textMuted());
+        drawRight(ctx, "Banked", bankedRight, y, GlassTheme.textMuted());
+        drawRight(ctx, "To max", maxRight, y, GlassTheme.textMuted());
         y += textRenderer.fontHeight + 3;
-        ctx.fill(panelX + 4, y, panelX + panelW - 4, y + 1, GlassTheme.rim());
+        GlassRender.rule(ctx, left, right, y);
         y += 4;
 
         if (entries.isEmpty()) {
             ctx.drawText(textRenderer, Text.literal("No Ancient gear held or worn."),
-                    left, y + 3, GlassTheme.textDim(), false);
+                    left, y + 3, GlassTheme.textMuted(), false);
             y += ROW_H;
         } else {
-            int i = 0;
             for (Entry e : entries) {
-                if ((i & 1) == 1) ctx.fill(panelX + 4, y, panelX + panelW - 4, y + ROW_H, 0x0AFFFFFF);
                 int textY = y + (ROW_H - textRenderer.fontHeight) / 2;
 
                 AncientItemStats s = e.stats;
@@ -177,7 +193,7 @@ public final class EnergyCalcScreen extends Screen {
                 if (s.energyToNextLevel() >= 0) {
                     drawRight(ctx, compact(s.energyToNextLevel()), nextRight, textY, GlassTheme.VALUE);
                 } else {
-                    drawRight(ctx, "—", nextRight, textY, GlassTheme.textMuted());
+                    drawRight(ctx, "-", nextRight, textY, GlassTheme.textMuted());
                 }
 
                 long shortfall = s.energyShortfall();
@@ -187,21 +203,18 @@ public final class EnergyCalcScreen extends Screen {
                 drawToMax(ctx, e, maxRight, textY);
 
                 y += ROW_H;
-                i++;
             }
         }
 
-        y += 8;
-        ctx.fill(panelX + 4, y, panelX + panelW - 4, y + 1, GlassTheme.rim());
-        y += 5;
+        y += 6;
+        GlassRender.rule(ctx, left, right, y);
+        y += 6;
         if (EnergyReferenceState.hasData()) {
             int tax = EnergyReferenceState.get().energyTaxPercent();
-            ctx.drawText(textRenderer, Text.literal(
-                            "Energy tax " + tax + "% — mine " + pctDivisorNote(tax) + " to bank 1."),
-                    left, y, GlassTheme.textDim(), false);
+            drawWrapped(ctx, "Energy tax " + tax + "%: mine " + pctDivisorNote(tax) + " to bank 1.",
+                    left, y, right - left, GlassTheme.textDim());
         } else {
-            ctx.drawText(textRenderer, Text.literal("Waiting for the server's cost tables…"),
-                    left, y, GlassTheme.textMuted(), false);
+            drawWrapped(ctx, "Waiting for the server's cost tables…", left, y, right - left, GlassTheme.textMuted());
         }
     }
 
@@ -220,14 +233,14 @@ public final class EnergyCalcScreen extends Screen {
                 for (EnergyReferencePayload.PrestigeStep step : tier.ladder()) {
                     if (step.prestige() == s.prestige() + 1) {
                         drawRight(ctx, "P" + step.prestige() + " " + compact(step.energyCost()),
-                                rightX, textY, GlassTheme.ACCENT_SOFT);
+                                rightX, textY, GlassTheme.VALUE);
                         return;
                     }
                 }
                 drawRight(ctx, "max P", rightX, textY, GlassTheme.OK);
                 return;
             }
-            drawRight(ctx, "—", rightX, textY, GlassTheme.textMuted());
+            drawRight(ctx, "-", rightX, textY, GlassTheme.textMuted());
             return;
         }
 
@@ -253,7 +266,7 @@ public final class EnergyCalcScreen extends Screen {
             return;
         }
         // Server table not in yet, or this item's cap isn't the tier's.
-        drawRight(ctx, s.energyToMax() >= 0 ? compact(s.energyToMax()) : "—", rightX, textY,
+        drawRight(ctx, s.energyToMax() >= 0 ? compact(s.energyToMax()) : "-", rightX, textY,
                 s.energyToMax() >= 0 ? GlassTheme.VALUE : GlassTheme.textMuted());
     }
 
@@ -262,27 +275,20 @@ public final class EnergyCalcScreen extends Screen {
     private void renderGearTiers(DrawContext ctx) {
         List<EnergyReferencePayload.GearTier> tiers = EnergyReferenceState.get().gearTiers();
 
-        int panelW = Math.min(PANEL_W, this.width - 2 * PADDING);
-        int panelX = (this.width - panelW) / 2;
-        int panelH = 24 + ROW_H * Math.max(tiers.size(), 1) + 30;
-        int panelY = bodyTop();
-
-        GlassRender.panel(ctx, panelX, panelY, panelW, panelH);
-
-        int left = panelX + PADDING;
-        int right = panelX + panelW - PADDING;
+        int left = panelX() + PADDING;
+        int right = panelX() + panelW() - PADDING;
         int colW = (right - left) / 4;
         int maxLvlRight = left + colW * 2;
         int totalRight = left + colW * 3;
         int preTaxRight = right;
 
-        int y = panelY + 5;
-        ctx.drawText(textRenderer, Text.literal("Tier"), left, y, GlassTheme.textDim(), false);
-        drawRight(ctx, "Max lvl", maxLvlRight, y, GlassTheme.textDim());
-        drawRight(ctx, "Energy to max", totalRight, y, GlassTheme.textDim());
-        drawRight(ctx, "Mined (pre-tax)", preTaxRight, y, GlassTheme.textDim());
+        int y = bodyTop();
+        ctx.drawText(textRenderer, Text.literal("Tier"), left, y, GlassTheme.textMuted(), false);
+        drawRight(ctx, "Max lvl", maxLvlRight, y, GlassTheme.textMuted());
+        drawRight(ctx, "Energy to max", totalRight, y, GlassTheme.textMuted());
+        drawRight(ctx, "Mined (pre-tax)", preTaxRight, y, GlassTheme.textMuted());
         y += textRenderer.fontHeight + 3;
-        ctx.fill(panelX + 4, y, panelX + panelW - 4, y + 1, GlassTheme.rim());
+        GlassRender.rule(ctx, left, right, y);
         y += 4;
 
         if (tiers.isEmpty()) {
@@ -291,9 +297,7 @@ public final class EnergyCalcScreen extends Screen {
             y += ROW_H;
         } else {
             int tax = EnergyReferenceState.get().energyTaxPercent();
-            int i = 0;
             for (EnergyReferencePayload.GearTier t : tiers) {
-                if ((i & 1) == 1) ctx.fill(panelX + 4, y, panelX + panelW - 4, y + ROW_H, 0x0AFFFFFF);
                 int textY = y + (ROW_H - textRenderer.fontHeight) / 2;
 
                 ctx.drawText(textRenderer, Text.literal(t.label()), left, textY, GlassTheme.text(), false);
@@ -302,16 +306,14 @@ public final class EnergyCalcScreen extends Screen {
                 drawRight(ctx, compact(preTax(t.totalToMax(), tax)), preTaxRight, textY, GlassTheme.textDim());
 
                 y += ROW_H;
-                i++;
             }
         }
 
-        y += 8;
-        ctx.fill(panelX + 4, y, panelX + panelW - 4, y + 1, GlassTheme.rim());
-        y += 5;
-        ctx.drawText(textRenderer,
-                Text.literal("Per piece. Helmet, chestplate, leggings, boots, sword and axe of a tier all cost the same."),
-                left, y, GlassTheme.textDim(), false);
+        y += 6;
+        GlassRender.rule(ctx, left, right, y);
+        y += 6;
+        drawWrapped(ctx, "Per piece. Helmet, chestplate, leggings, boots, sword and axe of a tier all cost the same.",
+                left, y, right - left, GlassTheme.textDim());
     }
 
     // ── Tab 3: pickaxe prestige ─────────────────────────────────────────────
@@ -319,14 +321,12 @@ public final class EnergyCalcScreen extends Screen {
     private void renderPickaxePrestige(DrawContext ctx) {
         List<EnergyReferencePayload.PickTier> tiers = EnergyReferenceState.get().pickTiers();
 
-        int panelW = Math.min(PANEL_W, this.width - 2 * PADDING);
-        int panelX = (this.width - panelW) / 2;
+        int left = panelX() + PADDING;
+        int right = panelX() + panelW() - PADDING;
 
         if (tiers.isEmpty()) {
-            int panelY = bodyTop();
-            GlassRender.panel(ctx, panelX, panelY, panelW, 40);
             ctx.drawText(textRenderer, Text.literal("Waiting for the server's cost tables…"),
-                    panelX + PADDING, panelY + 14, GlassTheme.textMuted(), false);
+                    left, bodyTop(), GlassTheme.textMuted(), false);
             return;
         }
 
@@ -337,52 +337,45 @@ public final class EnergyCalcScreen extends Screen {
         int idx = Math.floorMod(pickTierIndex, tiers.size());
         EnergyReferencePayload.PickTier tier = tiers.get(idx);
 
-        int panelH = 24 + ROW_H * Math.max(tier.ladder().size(), 1) + 42;
-        int panelY = bodyTop();
-        GlassRender.panel(ctx, panelX, panelY, panelW, panelH);
-
-        int left = panelX + PADDING;
-        int right = panelX + panelW - PADDING;
         int colW = (right - left) / 4;
         int energyRight = left + colW * 2;
         int oreRight = right;
 
-        int y = panelY + 5;
+        int y = bodyTop();
+        // Candle: this label is clickable (cycles the tier).
         ctx.drawText(textRenderer, Text.literal(tier.label() + " pickaxe  ◂ ▸"),
                 left, y, GlassTheme.ACCENT_SOFT, false);
-        drawRight(ctx, "Energy", energyRight, y, GlassTheme.textDim());
-        drawRight(ctx, "Blocks required", oreRight, y, GlassTheme.textDim());
+        drawRight(ctx, "Energy", energyRight, y, GlassTheme.textMuted());
+        drawRight(ctx, "Blocks required", oreRight, y, GlassTheme.textMuted());
         y += textRenderer.fontHeight + 3;
-        ctx.fill(panelX + 4, y, panelX + panelW - 4, y + 1, GlassTheme.rim());
+        GlassRender.rule(ctx, left, right, y);
         y += 4;
 
-        int i = 0;
         for (EnergyReferencePayload.PrestigeStep step : tier.ladder()) {
-            if ((i & 1) == 1) ctx.fill(panelX + 4, y, panelX + panelW - 4, y + ROW_H, 0x0AFFFFFF);
             int textY = y + (ROW_H - textRenderer.fontHeight) / 2;
 
             ctx.drawText(textRenderer, Text.literal("P" + step.prestige()), left, textY,
                     GlassTheme.text(), false);
             drawRight(ctx, compact(step.energyCost()), energyRight, textY, GlassTheme.VALUE);
-            String ore = step.oreCount() <= 0 ? "—"
+            String ore = step.oreCount() <= 0 ? "-"
                     : compact(step.oreCount()) + " " + step.oreLabel();
             drawRight(ctx, ore, oreRight, textY, GlassTheme.text());
 
             y += ROW_H;
-            i++;
         }
 
-        y += 8;
-        ctx.fill(panelX + 4, y, panelX + panelW - 4, y + 1, GlassTheme.rim());
-        y += 5;
-        ctx.drawText(textRenderer, Text.literal("Full ladder: "
-                        + compact(tier.totalPrestigeEnergy()) + " energy across "
-                        + tier.ladder().size() + " steps."),
-                left, y, GlassTheme.text(), false);
-        y += 10;
-        ctx.drawText(textRenderer,
-                Text.literal("Click the tier name or press ←/→ to switch tier. Ore counts are weighted; premium ores count as more than one block."),
-                left, y, GlassTheme.textDim(), false);
+        y += 6;
+        GlassRender.rule(ctx, left, right, y);
+        y += 6;
+        ctx.drawText(textRenderer, Text.literal("Full ladder: "), left, y, GlassTheme.text(), false);
+        int lx = left + textRenderer.getWidth("Full ladder: ");
+        String total = compact(tier.totalPrestigeEnergy());
+        ctx.drawText(textRenderer, Text.literal(total), lx, y, GlassTheme.VALUE, false);
+        ctx.drawText(textRenderer, Text.literal(" energy across " + tier.ladder().size() + " steps."),
+                lx + textRenderer.getWidth(total), y, GlassTheme.text(), false);
+        y += 12;
+        drawWrapped(ctx, "Click the tier name or press ←/→ to switch tier. Ore counts are weighted; premium ores count as more than one block.",
+                left, y, right - left, GlassTheme.textDim());
     }
 
     /** Index of the tier matching the pickaxe in hand, so the tab opens on what you use. */
@@ -411,11 +404,11 @@ public final class EnergyCalcScreen extends Screen {
     public boolean mouseClicked(Click click, boolean doubleClick) {
         // Clicking the tier header cycles tiers — same affordance as the arrow keys.
         if (tab == Tab.PICKAXE_PRESTIGE) {
-            int panelW = Math.min(PANEL_W, this.width - 2 * PADDING);
-            int panelX = (this.width - panelW) / 2;
-            int headerY = bodyTop() + 5;
+            int pw = panelW();
+            int px = panelX();
+            int headerY = bodyTop();
             if (click.y() >= headerY - 2 && click.y() <= headerY + textRenderer.fontHeight + 2
-                    && click.x() >= panelX + PADDING && click.x() <= panelX + panelW - PADDING) {
+                    && click.x() >= px + PADDING && click.x() <= px + pw - PADDING) {
                 pickTierIndex += (click.button() == 1 ? -1 : 1);
                 pickTierPinned = true;
                 return true;
@@ -424,7 +417,8 @@ public final class EnergyCalcScreen extends Screen {
         return super.mouseClicked(click, doubleClick);
     }
 
-    private int bodyTop() { return PADDING + 26 + 18 + 8; }
+    /** Top of the active tab's table: below the header rule and the tab row. */
+    private int bodyTop() { return panelY() + HEADER_H + 6 + TAB_H + 10; }
 
     // ── Collection + helpers ────────────────────────────────────────────────
 
@@ -467,6 +461,14 @@ public final class EnergyCalcScreen extends Screen {
         return String.format(Locale.US, "%.2f", 1.0 / (1.0 - taxPercent / 100.0));
     }
 
+    /** Body note wrapped to the panel width (the long notes overflowed on one line). */
+    private void drawWrapped(DrawContext ctx, String text, int x, int y, int maxWidth, int color) {
+        for (OrderedText line : textRenderer.wrapLines(Text.literal(text), Math.max(20, maxWidth))) {
+            ctx.drawText(textRenderer, line, x, y, color, false);
+            y += textRenderer.fontHeight + 1;
+        }
+    }
+
     private void drawRight(DrawContext ctx, String text, int rightX, int y, int color) {
         ctx.drawText(textRenderer, Text.literal(text), rightX - textRenderer.getWidth(text), y, color, false);
     }
@@ -477,7 +479,7 @@ public final class EnergyCalcScreen extends Screen {
 
     /** 1_250_000 → "1.25M". Energy numbers get very large very fast. */
     private static String compact(long v) {
-        if (v < 0) return "—";
+        if (v < 0) return "-";
         if (v < 1_000L) return Long.toString(v);
         if (v < 1_000_000L) return String.format(Locale.US, "%.1fK", v / 1_000.0);
         if (v < 1_000_000_000L) return String.format(Locale.US, "%.2fM", v / 1_000_000.0);

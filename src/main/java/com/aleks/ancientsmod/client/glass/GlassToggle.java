@@ -11,9 +11,9 @@ import net.minecraft.text.Text;
 import java.util.function.Consumer;
 
 /**
- * Glass ON/OFF toggle row — replaces the vanilla {@code CyclingButtonWidget.onOffBuilder}
- * used by the settings screens. Draws a left-aligned label and a right-aligned iOS-style
- * switch on a frosted row plate; clicking anywhere on the row flips the value and fires
+ * Glass ON/OFF toggle row, replacing the vanilla {@code CyclingButtonWidget.onOffBuilder}
+ * used by the settings screens. Draws a left-aligned label and a right-aligned switch on a
+ * row that tints on hover; clicking anywhere on the row flips the value and fires
  * the change callback (which persists via FeatureToggles).
  */
 public class GlassToggle extends PressableWidget {
@@ -45,22 +45,17 @@ public class GlassToggle extends PressableWidget {
         TextRenderer fr = MinecraftClient.getInstance().textRenderer;
         int midV = y1 + (getHeight() - fr.fontHeight) / 2;
 
-        int sw = 32, sh = 16;
-        int tx2 = x2 - 10, tx1 = tx2 - sw;
+        int sw = 16, sh = 9;
+        int tx2 = x2 - 6, tx1 = tx2 - sw;
         int ty1 = y1 + (getHeight() - sh) / 2, ty2 = ty1 + sh;
 
-        Text state = Text.literal(value ? "ON" : "OFF");
-        int stateX = tx1 - 6 - fr.getWidth(state);
-
-        // Clip the label so it can never run under the ON/OFF text or the switch.
-        int labelMax = stateX - 8 - (x1 + 10);
+        // Clip the label so it can never run under the switch.
+        int labelMax = tx1 - 8 - (x1 + 6);
         String label = labelMax > 8 ? fr.trimToWidth(labelText, labelMax) : "";
-        ctx.drawText(fr, Text.literal(label), x1 + 10, midV,
-                this.active ? GlassTheme.text() : GlassTheme.textMuted(), false);
+        int color = !this.active ? GlassTheme.textMuted() : isHovered() ? GlassTheme.text() : GlassTheme.textDim();
+        ctx.drawText(fr, Text.literal(label), x1 + 6, midV, color, false);
 
         GlassRender.glassSwitch(ctx, tx1, ty1, tx2, ty2, value);
-        int sc = value ? GlassTheme.ACCENT_SOFT : GlassTheme.textMuted();
-        ctx.drawText(fr, state, stateX, midV, sc, false);
     }
 
     @Override

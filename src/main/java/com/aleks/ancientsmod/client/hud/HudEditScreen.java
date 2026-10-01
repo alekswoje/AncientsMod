@@ -1,8 +1,10 @@
 package com.aleks.ancientsmod.client.hud;
 
+import com.aleks.ancientsmod.client.FeatureToggles;
 import com.aleks.ancientsmod.client.glass.GlassButton;
 import com.aleks.ancientsmod.client.glass.GlassRender;
 import com.aleks.ancientsmod.client.glass.GlassTheme;
+import com.aleks.ancientsmod.client.glass.GlassToggle;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
@@ -23,9 +25,14 @@ import org.lwjgl.glfw.GLFW;
  *   <li>{@code Esc} / Done: save and close</li>
  * </ul>
  *
- * <p>The editor draws every registered widget — including hidden ones with a
- * placeholder — so the player can position a widget before it's relevant
+ * <p>The editor draws every registered widget, including hidden ones with a
+ * placeholder, so the player can position a widget before it's relevant
  * (e.g. position the Boosters panel even when no boosters are active).
+ *
+ * <p>Chrome is flat Hearth glass: a small header card at the top (ember title,
+ * muted hints) and a footer bar at the bottom (equal-spacing switch on the left,
+ * Reset All then Done on the right). Widget outlines are bronze at rest, candle
+ * on hover and ember when selected.
  *
  * <p>Snap targets while dragging: screen edges, screen center (vertical and
  * horizontal axes), and the edges/centers of other widgets. Within
@@ -34,10 +41,17 @@ import org.lwjgl.glfw.GLFW;
 public final class HudEditScreen extends Screen {
 
     private static final int SNAP_THRESHOLD_PX = 4;
-    private static final int LABEL_COLOR             = 0xFFE0E0E0;
 
     /** Half-size of the corner resize-handle (handle is 2*HANDLE_R + 1 px square). */
     private static final int HANDLE_R = 3;
+
+    private static final String HINT_MOVE = "Drag to move, drag the corner to resize";
+    private static final String HINT_KEYS = "Arrows nudge, + and - scale, R resets";
+    private static final String HINT_SETTINGS = "Right-click a widget to open its settings";
+
+    private static final int FOOTER_W = 300;
+    private static final int FOOTER_H = 26;
+    private static final int BTN_H = 16;
 
     private final Screen parent;
 
@@ -53,6 +67,9 @@ public final class HudEditScreen extends Screen {
     private int snapGuideX = -1;
     private int snapGuideY = -1;
 
+    // Footer bar geometry, recomputed in init().
+    private int footX, footY, footW;
+
     public HudEditScreen(Screen parent) {
         super(Text.literal("Edit HUD"));
         this.parent = parent;
@@ -60,47 +77,42 @@ public final class HudEditScreen extends Screen {
 
     @Override
     protected void init() {
-        int btnY = this.height - 28;
-        // Confirm/Done stays on the RIGHT (.primary()); Reset All on the LEFT.
-        addDrawableChild(new GlassButton(this.width / 2 + 4, btnY, 100, 20,
+        footW = Math.min(FOOTER_W, this.width - 16);
+        footX = (this.width - footW) / 2;
+        footY = this.height - FOOTER_H - 8;
+        int btnY = footY + (FOOTER_H - BTN_H) / 2;
+        int right = footX + footW - 6;
+
+        // Confirm/Done stays on the far RIGHT (.primary()); Reset All just left of it.
+        int doneW = 52, resetW = 64;
+        addDrawableChild(new GlassButton(right - doneW, btnY, doneW, BTN_H,
                 Text.literal("Done"), this::close).primary());
-        addDrawableChild(new GlassButton(this.width / 2 - 104, btnY, 100, 20,
+        addDrawableChild(new GlassButton(right - doneW - 6 - resetW, btnY, resetW, BTN_H,
                 Text.literal("Reset All"), () -> {
                     HudPositions.resetAll();
                     selected = null;
                 }));
 
-        // Equal-spacing-snap toggle. Sits one row above Done / Reset All so the
-        // toggle state is visible while dragging.
-        evenSnapBtn = addDrawableChild(new GlassButton(this.width / 2 - 104, btnY - 24, 208, 20,
-                Text.literal("Equal spacing: " + (com.aleks.ancientsmod.client.FeatureToggles.isEvenSpacingSnapEnabled() ? "ON" : "OFF")),
-                () -> {
-                    com.aleks.ancientsmod.client.FeatureToggles.setEvenSpacingSnap(
-                            !com.aleks.ancientsmod.client.FeatureToggles.isEvenSpacingSnapEnabled());
-                    evenSnapBtn.setMessage(Text.literal("Equal spacing: "
-                            + (com.aleks.ancientsmod.client.FeatureToggles.isEvenSpacingSnapEnabled() ? "ON" : "OFF")));
-                }));
+        // Equal-spacing-snap switch on the left of the footer, visible while dragging.
+        int toggleX = footX + 2;
+        int toggleW = right - doneW - 6 - resetW - 8 - toggleX;
+        addDrawableChild(new GlassToggle(toggleX, btnY, toggleW, BTN_H, "Equal spacing",
+                FeatureToggles.isEvenSpacingSnapEnabled(), FeatureToggles::setEvenSpacingSnap));
     }
-
-    private GlassButton evenSnapBtn;
 
     @Override
     public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
         // Subtle dim so the HUD widgets stand out without obscuring the world.
         ctx.fill(0, 0, this.width, this.height, 0x66000000);
+
+        // Header card + footer bar behind their text / widgets.
+        drawHeader(ctx);
+        GlassRender.hudPanel(ctx, footX, footY, footW, FOOTER_H, 100);
+
         super.render(ctx, mouseX, mouseY, delta);
 
         MinecraftClient mc = this.client;
         if (mc == null) return;
-
-        // Header text.
-        ctx.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, 8, GlassTheme.text());
-        ctx.drawCenteredTextWithShadow(this.textRenderer,
-                Text.literal("Drag to move · drag corner to resize · arrows: nudge · R: reset"),
-                this.width / 2, 20, GlassTheme.textMuted());
-        ctx.drawCenteredTextWithShadow(this.textRenderer,
-                Text.literal("Right-click a widget to open its settings"),
-                this.width / 2, 32, GlassTheme.ACCENT_SOFT);
 
         // Snap guides under the elements so a guide line draws across the whole screen.
         if (snapGuideX >= 0) {
@@ -125,38 +137,71 @@ public final class HudEditScreen extends Screen {
             if (el.isVisible()) {
                 HudRenderer.drawElement(ctx, mc, el, this.width, this.height, delta);
             } else {
-                // Placeholder fill + label so an empty widget still has a
+                // Placeholder plate + label so an empty widget still has a
                 // grabbable footprint in the editor.
-                GlassRender.slot(ctx, x, y, x + w, y + h);
+                GlassRender.hudPanel(ctx, x, y, w, h, 100);
                 String placeholder = el.editorPlaceholder() != null ? el.editorPlaceholder() : el.displayName();
-                int textW = this.textRenderer.getWidth(placeholder);
-                ctx.drawText(this.textRenderer, placeholder,
-                        x + (w - textW) / 2, y + (h - this.textRenderer.fontHeight) / 2,
-                        LABEL_COLOR, true);
+                String fit = this.textRenderer.trimToWidth(placeholder, Math.max(0, w - 4));
+                int textW = this.textRenderer.getWidth(fit);
+                ctx.drawText(this.textRenderer, fit,
+                        x + (w - textW) / 2, y + (h - this.textRenderer.fontHeight) / 2 + 1,
+                        GlassTheme.textMuted(), false);
             }
 
             int outlineColor = isSelected ? GlassTheme.ACCENT
-                    : hover ? GlassTheme.ACCENT_SOFT : GlassTheme.rimSoft();
+                    : hover ? GlassTheme.ACCENT_SOFT : GlassTheme.withAlpha(GlassTheme.BRONZE, 0x80);
             drawOutline(ctx, x, y, w, h, outlineColor);
 
             if (isSelected) {
-                String tag = String.format("%s  %dx%d  %.2fx", el.displayName(), x, y, scale);
-                int tagW = this.textRenderer.getWidth(tag);
-                int tagY = y - this.textRenderer.fontHeight - 3;
-                if (tagY < 0) tagY = y + h + 3;
-                GlassRender.roundedRect(ctx, x - 2, tagY - 1, x + tagW + 2, tagY + this.textRenderer.fontHeight + 1, 4, GlassTheme.panelTop());
-                GlassRender.roundedBorder(ctx, x - 2, tagY - 1, x + tagW + 2, tagY + this.textRenderer.fontHeight + 1, 4, GlassTheme.rimSoft());
-                ctx.drawText(this.textRenderer, tag, x, tagY, GlassTheme.ACCENT, false);
+                // Name in primary text, position and scale as values.
+                String name = el.displayName();
+                String pos = x + ", " + y;
+                String scl = String.format("%.2fx", scale);
+                int gap = 6;
+                int tagW = this.textRenderer.getWidth(name) + gap + this.textRenderer.getWidth(pos)
+                        + gap + this.textRenderer.getWidth(scl);
+                int tagY = y - this.textRenderer.fontHeight - 4;
+                if (tagY < 0) tagY = y + h + 4;
+                GlassRender.hudPanel(ctx, x - 3, tagY - 2, tagW + 6, this.textRenderer.fontHeight + 3, 100);
+                int tx = x;
+                ctx.drawText(this.textRenderer, name, tx, tagY, GlassTheme.text(), false);
+                tx += this.textRenderer.getWidth(name) + gap;
+                ctx.drawText(this.textRenderer, pos, tx, tagY, GlassTheme.VALUE, false);
+                tx += this.textRenderer.getWidth(pos) + gap;
+                ctx.drawText(this.textRenderer, scl, tx, tagY, GlassTheme.VALUE, false);
 
                 // Bottom-right resize handle.
                 int hx = x + w - 1;
                 int hy = y + h - 1;
                 boolean handleHover = mouseX >= hx - HANDLE_R && mouseX <= hx + HANDLE_R
                         && mouseY >= hy - HANDLE_R && mouseY <= hy + HANDLE_R;
-                int handleColor = (resizing == el || handleHover) ? 0xFFFFFFFF : GlassTheme.ACCENT;
-                GlassRender.roundedRect(ctx, hx - HANDLE_R, hy - HANDLE_R, hx + HANDLE_R + 1, hy + HANDLE_R + 1, 2, handleColor);
+                int handleColor = (resizing == el || handleHover) ? GlassTheme.ACCENT_SOFT : GlassTheme.ACCENT;
+                GlassRender.roundedRect(ctx, hx - HANDLE_R, hy - HANDLE_R, hx + HANDLE_R + 1, hy + HANDLE_R + 1, 1, handleColor);
             }
         }
+    }
+
+    /** Small header card at the top center: ember title, muted hints, candle settings tip. */
+    private void drawHeader(DrawContext ctx) {
+        int lineH = this.textRenderer.fontHeight + 2;
+        int w = Math.max(this.textRenderer.getWidth(HINT_MOVE),
+                Math.max(this.textRenderer.getWidth(HINT_KEYS), this.textRenderer.getWidth(HINT_SETTINGS))) + 20;
+        w = Math.min(w, this.width - 16);
+        int h = 8 + lineH + 6 + lineH * 3 + 4;
+        int x = (this.width - w) / 2;
+        int y = 6;
+        GlassRender.hudPanel(ctx, x, y, w, h, 100);
+
+        int tx = x + 10;
+        int maxW = w - 20;
+        ctx.drawText(this.textRenderer, this.title, tx, y + 8, GlassTheme.ACCENT, true);
+        GlassRender.rule(ctx, x + 1, x + w - 1, y + 8 + lineH + 1);
+        int ly = y + 8 + lineH + 6;
+        ctx.drawText(this.textRenderer, this.textRenderer.trimToWidth(HINT_MOVE, maxW), tx, ly, GlassTheme.textMuted(), false);
+        ly += lineH;
+        ctx.drawText(this.textRenderer, this.textRenderer.trimToWidth(HINT_KEYS, maxW), tx, ly, GlassTheme.textMuted(), false);
+        ly += lineH;
+        ctx.drawText(this.textRenderer, this.textRenderer.trimToWidth(HINT_SETTINGS, maxW), tx, ly, GlassTheme.ACCENT_SOFT, false);
     }
 
     private static void drawOutline(DrawContext ctx, int x, int y, int w, int h, int color) {
@@ -402,7 +447,7 @@ public final class HudEditScreen extends Screen {
         // positions for the dragged widget D where the gaps are even — either
         // D between A and B (midpoint) or D continuing the pattern A→B→D
         // (and the mirrored case D→A→B). Same goes for the vertical axis.
-        if (com.aleks.ancientsmod.client.FeatureToggles.isEvenSpacingSnapEnabled()) {
+        if (FeatureToggles.isEvenSpacingSnapEnabled()) {
             java.util.List<HudElement> all = HudRegistry.all();
             for (int i = 0; i < all.size(); i++) {
                 HudElement a = all.get(i);

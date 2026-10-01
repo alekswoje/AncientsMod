@@ -159,7 +159,7 @@ public final class SuggestClient {
                 passingThroughFallback = false;
             }
             client.player.sendMessage(
-                    Text.literal("§7[Suggest] Server didn't respond — sent the command directly."),
+                    Text.literal("§7[Suggest] Server didn't respond, so the command was sent directly."),
                     false);
         }
     }

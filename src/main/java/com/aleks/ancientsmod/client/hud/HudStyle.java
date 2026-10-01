@@ -29,14 +29,16 @@ public final class HudStyle {
 
     // ── Chrome colors ────────────────────────────────────────────────────────
     /** Base alpha is preserved at 100% opacity; the per-widget opacity setting scales it down. */
-    public static final int BG_TOP_BASE = 0xE6111319;
-    public static final int BG_BOT_BASE = 0xE61A1D26;
-    public static final int BORDER       = 0x55FFFFFF;
-    public static final int BORDER_INNER = 0x11FFFFFF;
-    public static final int HEADER_BG    = 0x22FFC857;
-    public static final int HEADER_RULE  = 0x44FFFFFF;
-    public static final int HEADER_TEXT  = 0xFFFFD68A;
-    public static final int TIME_COLOR   = 0xFFBFC4CC;
+    public static final int BG_TOP_BASE = 0xA61E140F;
+    public static final int BG_BOT_BASE = 0xA61E140F;
+    public static final int BORDER       = 0x40C98A4B;
+    public static final int BORDER_INNER = 0x00FFFFFF;
+    public static final int HEADER_BG    = 0x00000000;
+    public static final int HEADER_RULE  = 0x33C98A4B;
+    /** Ember header label. */
+    public static final int HEADER_TEXT  = GlassTheme.ACCENT;
+    /** Ash for timers and secondary values. */
+    public static final int TIME_COLOR   = 0xFFA8998A;
 
     // ── Layout constants (normal / compact) ──────────────────────────────────
     private static final int PADDING_X_NORMAL  = 6;
@@ -49,7 +51,7 @@ public final class HudStyle {
     private static final int ROW_H_COMPACT     = 10;
     private static final int COLUMN_GAP_NORMAL = 10;
     private static final int COLUMN_GAP_COMPACT = 6;
-    private static final int STRIP_W           = 2;
+    private static final int STRIP_W           = 1;
     private static final int STRIP_GAP_NORMAL  = 5;
     private static final int STRIP_GAP_COMPACT = 3;
 
@@ -109,17 +111,9 @@ public final class HudStyle {
         int op = bgOpacity(widgetId);
         int r = Math.min(GlassRender.RADIUS, Math.min(w, h) / 2);
 
-        // Frosted rounded panel. Faux-frost (no real backdrop blur): the always-on
-        // HUDs render every frame with the world live, so we keep the per-frame cost
-        // to plain fills and sell "glass" via translucency + gloss + a soft rim.
-        GlassRender.roundedRectGrad(ctx, 0, 0, w, h, r,
-                GlassTheme.scaleAlpha(GlassTheme.hudTop(), op),
-                GlassTheme.scaleAlpha(GlassTheme.hudBot(), op));
-        int glossH = Math.min(12, h / 3);
-        if (glossH > 0)
-            ctx.fillGradient(r, 1, w - r, 1 + glossH,
-                    GlassTheme.scaleAlpha(GlassTheme.gloss(), op), GlassTheme.withAlpha(0xFFFFFF, 0));
-        ctx.fill(r, 1, w - r, 2, GlassTheme.scaleAlpha(GlassTheme.glossLine(), op));
+        // Flat glass panel. No real backdrop blur: the always-on HUDs render every frame with
+        // the world live, so the per-frame cost stays at plain fills.
+        GlassRender.roundedRect(ctx, 0, 0, w, h, r, GlassTheme.scaleAlpha(GlassTheme.hudTop(), op));
 
         if (!isBorderHidden(widgetId)) {
             GlassRender.roundedBorder(ctx, 0, 0, w, h, r, GlassTheme.scaleAlpha(GlassTheme.rim(), op));
@@ -127,11 +121,9 @@ public final class HudStyle {
 
         if (!isHeaderHidden(widgetId)) {
             int hh = headerH(widgetId);
-            // Violet header wash, inset past the rounded top corners so it doesn't square them off.
-            ctx.fill(r, 1, w - r, hh, GlassTheme.withAlpha(GlassTheme.ACCENT, 0x33 * op / 100));
-            ctx.fill(r, hh, w - r, hh + 1, GlassTheme.scaleAlpha(HEADER_RULE, op));
+            ctx.fill(1, hh, w - 1, hh + 1, GlassTheme.scaleAlpha(GlassTheme.rule(), op));
             ctx.drawText(fr, Text.literal(headerLabel), padX(widgetId),
-                    (hh - fr.fontHeight) / 2 + 1, GlassTheme.ACCENT_SOFT, true);
+                    (hh - fr.fontHeight) / 2 + 1, HEADER_TEXT, true);
             return hh + padY(widgetId);
         }
         // No header: content starts at the top with regular vertical padding.

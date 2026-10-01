@@ -335,7 +335,7 @@ public final class PvClient {
                 passingThroughFallback = false;
             }
             client.player.sendMessage(
-                    Text.literal("§7[PV] Server didn't respond — sent the command directly."),
+                    Text.literal("§7[PV] Server didn't respond, so the command was sent directly."),
                     false);
         }
     }

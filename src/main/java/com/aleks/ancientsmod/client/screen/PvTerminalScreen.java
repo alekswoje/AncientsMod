@@ -131,26 +131,25 @@ public final class PvTerminalScreen extends ItemTerminalScreen {
     }
 
     @Override
-    protected Text titleText(String statsSuffix) {
-        String titleLabel = isPvSee() ? "§d" + pvSeeTargetName + "'s Vaults" : "§ePV Terminal";
-        return Text.literal(titleLabel + statsSuffix);
+    protected Text titleText() {
+        return Text.literal(isPvSee() ? pvSeeTargetName + "'s Vaults" : "PV Terminal");
     }
 
     @Override
     protected String viewOnlyBadge() {
         // You can browse/search your PVs anywhere, but taking/depositing is
         // safe-zone only.
-        return "§c⚠ View only · safe zone";
+        return "View only: safe zone";
     }
 
     @Override
     protected String blockedMessage() {
-        return "§cYou can only use your vault in a safe zone!";
+        return "You can only use your vault in a safe zone!";
     }
 
     @Override
     protected String emptyMessage() {
-        return "§7Your vaults are empty.";
+        return "Your vaults are empty.";
     }
 
     @Override
@@ -160,7 +159,7 @@ public final class PvTerminalScreen extends ItemTerminalScreen {
 
     @Override
     protected String depositHintViewOnly() {
-        return "§cView only — deposit in a safe zone";
+        return "§cView only: deposit in a safe zone";
     }
 
     /** "PV 1, 3, 5" — the distinct vaults this tile's stacks live in (capped). */

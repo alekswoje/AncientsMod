@@ -23,6 +23,10 @@
 
 ## UI & Screens
 
+- Every mod screen and HUD has a new look in the server's warm ember and bronze colours: flat glass panels, cleaner rows, smaller switches.
+- The F9 settings menu now has a category list on the left. The search box still finds a setting in any category, and the menu reopens on the category you last used.
+- Buttons that open another menu, like Edit HUD positions, now show as links with an arrow.
+
 ## Input & Keybinds
 
 ## Networking & Server Integration

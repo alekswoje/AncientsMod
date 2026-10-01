@@ -1,6 +1,8 @@
 package com.aleks.ancientsmod.client.hud;
 
 import com.aleks.ancientsmod.client.FeatureToggles;
+import com.aleks.ancientsmod.client.glass.GlassRender;
+import com.aleks.ancientsmod.client.glass.GlassTheme;
 import com.aleks.ancientsmod.net.payload.OutpostStatePayload;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
@@ -19,8 +21,8 @@ import java.util.Set;
  *
  * <p>Layout per row:
  * {@code [accent strip] OutpostName  GangName  HELD}
- * Status is "HELD" while secure; switches to a red "XX%" if the outpost is
- * being neutralized (percentDecreasing) so you can see it's under attack.
+ * Status is "HELD" (Moss) while secure; switches to a Cinder "XX%" if the outpost
+ * is being neutralized (percentDecreasing) so you can see it's under attack.
  */
 public final class OutpostHud extends HudElement {
 
@@ -29,11 +31,10 @@ public final class OutpostHud extends HudElement {
     private static final int MIN_WIDTH = 150;
 
     // Colors
-    private static final int COLOR_HELD    = 0xFF57E89C; // green  — own gang, secure
-    private static final int COLOR_DANGER  = 0xFFFF5C5C; // red    — own gang, being neutralized
-    private static final int COLOR_CAPPING = 0xFFFFD68A; // amber  — in cap, being capped
-    private static final int COLOR_NEUTRAL = 0xFF8B9BAD; // grey   — in cap, nobody here
-    private static final int COLOR_GANG    = 0xFFE6E8EE;
+    private static final int COLOR_HELD    = GlassTheme.OK;     // own gang, secure
+    private static final int COLOR_DANGER  = GlassTheme.WARN;   // own gang being neutralized, or enemy-held
+    private static final int COLOR_CAPPING = GlassTheme.VALUE;  // in cap, being capped
+    private static final int COLOR_NEUTRAL = GlassTheme.BRONZE; // in cap, nobody here (strip; text is muted)
 
     public static final String KEY_VISIBLE = "visible";
     private static final Set<String> ALL_IDS = Set.of("chain", "gold", "iron", "diamond", "netherite");
@@ -99,7 +100,7 @@ public final class OutpostHud extends HudElement {
 
         for (Row r : rows) {
             // accent strip
-            ctx.fill(padX, rowY, padX + stripW, rowY + rowH - 2, r.accent);
+            GlassRender.accentStrip(ctx, padX, rowY, rowH - 2, r.accent);
 
             int textX = padX + stripW + stripGap;
             int textY = rowY + 2;
@@ -113,11 +114,11 @@ public final class OutpostHud extends HudElement {
             if (!r.gangName.isEmpty()) {
                 int gangW  = fr.getWidth(r.gangName);
                 int gangX  = pctX - colGap - gangW;
-                ctx.drawText(fr, Text.literal(r.gangName), gangX, textY, COLOR_GANG, true);
+                ctx.drawText(fr, Text.literal(r.gangName), gangX, textY, GlassTheme.textMuted(), true);
             }
 
             // outpost name (left side)
-            ctx.drawText(fr, Text.literal(r.label), textX, textY, r.accent, true);
+            ctx.drawText(fr, Text.literal(r.label), textX, textY, GlassTheme.textDim(), true);
 
             rowY += rowH;
         }
@@ -158,7 +159,7 @@ public final class OutpostHud extends HudElement {
                     accent   = COLOR_CAPPING;
                 } else {
                     pctLabel = "0%";
-                    pctColor = COLOR_NEUTRAL;
+                    pctColor = GlassTheme.textMuted();
                     accent   = COLOR_NEUTRAL;
                 }
             }

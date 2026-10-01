@@ -3,15 +3,15 @@ package com.aleks.ancientsmod.client.glass;
 import com.aleks.ancientsmod.client.FeatureToggles;
 
 /**
- * Single source of truth for the season2 "frosted glass" GUI theme — the palette
- * + per-mode (dark / light) chrome colors every mod screen and HUD draws through.
+ * Single source of truth for the mod's GUI theme: the palette plus the per-mode (dark / light)
+ * chrome colors every mod screen and HUD draws through.
  *
- * <p>The accent identity mirrors the season2 server (ServerTheme): amethyst violet
- * primary, lilac accent, amber reserved for numbers/values, crimson for warnings,
- * and <em>vanilla</em> rarity codes wherever rarity is shown. The dark/light split
- * is driven by {@link FeatureToggles#isGlassLightThemeEnabled()} (dark by default,
- * toggleable in settings) so callers just ask for {@link #panelTop()} etc. and get
- * the right value for the active mode.
+ * <p>The palette is the server's map-4 "Hearth" set (see the drawn-gui skill's palette.md):
+ * Ember primary, Bronze frames and rules, Candle for clickable text, Flame for numbers, Bone body
+ * text, Ash secondary text, Moss for success, Cinder for warnings. Item rarity keeps the
+ * <em>vanilla</em> chat-code colors. The surface is flat translucent glass: no gloss, no
+ * gradients, 1px notched corners. The dark/light split is driven by
+ * {@link FeatureToggles#isGlassLightThemeEnabled()} (dark by default).
  *
  * <p>All colors are packed ARGB ({@code 0xAARRGGBB}). Drawing primitives live in
  * {@link GlassRender}; the custom widgets ({@link GlassButton}, {@link GlassToggle},
@@ -21,45 +21,54 @@ public final class GlassTheme {
 
     private GlassTheme() {}
 
-    // ── Server-identity accent (mode-independent) ────────────────────────────
-    /** Amethyst — primary brand / structure color (titles, active fills). */
-    public static final int ACCENT      = 0xFF7C3AED;
-    /** Lilac — accent / highlight (focus rings, section labels, switches on). */
-    public static final int ACCENT_SOFT = 0xFFA78BFA;
-    /** Amber — reserved for numbers / values ONLY (never a general accent). */
-    public static final int VALUE       = 0xFFF59E0B;
-    /** Crimson — errors / destructive / warnings. */
-    public static final int WARN        = 0xFFDC2626;
-    /** Success green (matches the existing OutpostHud "held" hue). */
-    public static final int OK          = 0xFF57E89C;
+    // ── Hearth palette (mode-independent) ────────────────────────────────────
+    /** Ember: primary brand color (selected items, switches on, primary buttons, titles). */
+    public static final int ACCENT      = 0xFFF2862B;
+    /** Candle: clickable text, focus rings, highlights. */
+    public static final int ACCENT_SOFT = 0xFFFFD27A;
+    /** Bronze: frames, rules, separators. */
+    public static final int BRONZE      = 0xFFC98A4B;
+    /** Flame: numbers and values only. */
+    public static final int VALUE       = 0xFFFFA552;
+    /** Cinder: errors, destructive actions, warnings. */
+    public static final int WARN        = 0xFFFF6B4F;
+    /** Moss: success, gains, "held". */
+    public static final int OK          = 0xFFB5D65E;
+    /** Dark ink: text drawn on an Ember fill (white on Ember fails contrast). */
+    public static final int INK         = 0xFF24130A;
 
-    /** True when the player has flipped the glass to its light variant. */
+    /** True when the player has flipped the glass to its light (parchment) variant. */
     public static boolean isLight() { return FeatureToggles.isGlassLightThemeEnabled(); }
 
     // ── Per-mode chrome ──────────────────────────────────────────────────────
-    // Menu panels sit over a real blurred backdrop, so they stay fairly
-    // translucent (the frost reads through). HUD panels float over the live
-    // world with no blur, so they're more opaque for legibility.
-    public static int panelTop()   { return isLight() ? 0xD6F5F3FC : 0xCC161226; }
-    public static int panelBot()   { return isLight() ? 0xD6E9E5F4 : 0xCC0D0A18; }
-    public static int hudTop()     { return isLight() ? 0xE8F2F0FA : 0xE6141020; }
-    public static int hudBot()     { return isLight() ? 0xE8E7E2F2 : 0xE61B1630; }
-    public static int rim()        { return isLight() ? 0x55FFFFFF : 0x4DFFFFFF; }
-    public static int rimSoft()    { return isLight() ? 0x33FFFFFF : 0x24FFFFFF; }
-    public static int gloss()      { return isLight() ? 0x80FFFFFF : 0x3DFFFFFF; }
-    public static int glossLine()  { return isLight() ? 0x99FFFFFF : 0x4DFFFFFF; }
-    public static int innerShadow(){ return isLight() ? 0x22000000 : 0x40000000; }
-    public static int text()       { return isLight() ? 0xFF231C3A : 0xFFEDEFF6; }
-    public static int textDim()    { return isLight() ? 0xFF5C5577 : 0xFFA6ABBA; }
-    public static int textMuted()  { return isLight() ? 0xFF8B86A0 : 0xFF6F7283; }
-    public static int slot()       { return isLight() ? 0x1A000000 : 0x33000000; }
-    public static int slotRim()    { return isLight() ? 0x40FFFFFF : 0x1FFFFFFF; }
-    public static int rowHover()   { return isLight() ? 0x22FFFFFF : 0x14FFFFFF; }
+    // Menu panels sit over a real blurred backdrop, so they stay translucent. HUD panels float
+    // over the live world with no blur, so they are a little more opaque for legibility.
+    // The surface is flat: panelTop == panelBot and gloss is fully transparent, so older call
+    // sites that still draw a gradient or gloss band render as a plain flat panel.
+    public static int panelTop()   { return isLight() ? 0xE6E6D3AE : 0xB81E140F; }
+    public static int panelBot()   { return panelTop(); }
+    public static int hudTop()     { return isLight() ? 0xE0E6D3AE : 0xA61E140F; }
+    public static int hudBot()     { return hudTop(); }
+    public static int rim()        { return isLight() ? 0x66845A32 : 0x40C98A4B; }
+    public static int rimSoft()    { return isLight() ? 0x40845A32 : 0x26EADFCB; }
+    public static int gloss()      { return 0x00FFFFFF; }
+    public static int glossLine()  { return 0x00FFFFFF; }
+    public static int innerShadow(){ return 0x00000000; }
+    public static int text()       { return isLight() ? 0xFF24130A : 0xFFFFF4E2; }
+    public static int textDim()    { return isLight() ? 0xFF4F3A2A : 0xFFEADFCB; }
+    public static int textMuted()  { return isLight() ? 0xFF7A6552 : 0xFFA8998A; }
+    public static int slot()       { return isLight() ? 0x1F24130A : 0x40000000; }
+    public static int slotRim()    { return isLight() ? 0x40845A32 : 0x26EADFCB; }
+    public static int rowHover()   { return isLight() ? 0x1F24130A : 0x14EADFCB; }
+    /** Hairline rule between groups (bronze, translucent). */
+    public static int rule()       { return isLight() ? 0x59845A32 : 0x33C98A4B; }
+    /** Fill behind the selected item in a list or sidebar. */
+    public static int selected()   { return withAlpha(ACCENT, isLight() ? 0x40 : 0x4D); }
     /** Full-screen tint drawn over the blurred backdrop behind a menu. */
-    public static int scrim()      { return isLight() ? 0x4DFFFFFF : 0x73080512; }
-    public static int sectionLabel() { return ACCENT_SOFT; }
+    public static int scrim()      { return isLight() ? 0x33E6D3AE : 0x40000000; }
+    public static int sectionLabel() { return ACCENT; }
     /** Translucent accent wash for header strips. */
-    public static int headerWash() { return withAlpha(ACCENT, 0x2E); }
+    public static int headerWash() { return withAlpha(ACCENT, 0x1F); }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
     public static int withAlpha(int color, int alpha) {

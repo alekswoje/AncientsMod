@@ -34,12 +34,18 @@ import java.util.List;
  * Clicking a colour swatch fills whichever gradient hex field has focus, and
  * otherwise inserts the colour into the name at the cursor. Focus is already
  * visible on screen, so there is no hidden "armed" state to get lost in.
+ *
+ * <h2>Look</h2>
+ * One flat glass panel: ember title on the left with the visible-character counter on the
+ * right, a bronze rule under the header, the live preview in a single recessed well, then
+ * plain labelled rows. The footer sits under a second rule with Cancel and Confirm on the
+ * right, Confirm last.
  */
 public final class NametagScreen extends Screen {
 
     private static final int PANEL_WIDTH = 452;
-    private static final int PANEL_HEIGHT = 322;
-    private static final int MARGIN = 14;
+    private static final int PANEL_HEIGHT = 326;
+    private static final int MARGIN = 10;
 
     private static final int SWATCH = 18;
     private static final int SWATCH_GAP = 2;
@@ -75,7 +81,7 @@ public final class NametagScreen extends Screen {
         // Name field. Capped at the packet's raw cap, not the visible cap: colour
         // codes are free against the server's limit, so the raw string is allowed
         // to be much longer than 32 characters.
-        nameField = new GlassTextField(this.textRenderer, cx, panelY + 150, cw, 20,
+        nameField = new GlassTextField(this.textRenderer, cx, panelY + 144, cw, 20,
                 Text.literal("Item name"));
         nameField.setMaxLength(Protocol.NAMETAG_MAX_INPUT_CHARS);
         nameField.setPlaceholder(Text.literal("Type a name, use &a or &#FF55AA for colour…"));
@@ -85,7 +91,7 @@ public final class NametagScreen extends Screen {
         this.setInitialFocus(nameField);
 
         // ── Format inserts + hex insert ──────────────────────────────────────
-        int fmtY = panelY + 222;
+        int fmtY = panelY + 218;
         int fmtW = 26;
         for (int i = 0; i < NametagFormat.FORMAT_CODES.length; i++) {
             final char code = NametagFormat.FORMAT_CODES[i];
@@ -103,8 +109,8 @@ public final class NametagScreen extends Screen {
                 Text.literal("Insert"), this::insertHex));
 
         // ── Gradient ─────────────────────────────────────────────────────────
-        int gradY = panelY + 258;
-        gradFrom = hexStop(cx + 30, gradY, "FF5555");
+        int gradY = panelY + 254;
+        gradFrom = hexStop(cx + 38, gradY, "FF5555");
         gradMid = hexStop(cx + 118, gradY, "");
         gradTo = hexStop(cx + 200, gradY, "55FFFF");
         this.addDrawableChild(gradFrom);
@@ -116,14 +122,15 @@ public final class NametagScreen extends Screen {
                 Text.literal("Strip"), this::stripColors));
 
         // ── Confirm / Cancel ─────────────────────────────────────────────────
-        int btnY = panelY + PANEL_HEIGHT - MARGIN - 20;
-        int btnW = (cw - 8) / 2;
+        int btnY = panelY + PANEL_HEIGHT - MARGIN - 18;
+        int btnW = 76;
+        int confirmX = cx + cw - btnW;
         // Confirm-right rule: Cancel on the LEFT, Confirm (.primary()) on the RIGHT.
-        this.addDrawableChild(new GlassButton(cx, btnY, btnW, 20, Text.literal("Cancel"), () -> {
+        this.addDrawableChild(new GlassButton(confirmX - 6 - btnW, btnY, btnW, 18, Text.literal("Cancel"), () -> {
             NametagClient.cancel();
             this.close();
         }));
-        confirmButton = new GlassButton(cx + btnW + 8, btnY, btnW, 20,
+        confirmButton = new GlassButton(confirmX, btnY, btnW, 18,
                 Text.literal("Confirm"), this::doSubmit).primary();
         this.addDrawableChild(confirmButton);
     }
@@ -197,7 +204,7 @@ public final class NametagScreen extends Screen {
         String result = NametagFormat.applyGradient(current, stops, activeFormats(current),
                 Protocol.NAMETAG_MAX_INPUT_CHARS);
         if (result == null) {
-            localError = "Gradient too long to encode — shorten the name or drop a format";
+            localError = "Gradient too long to encode. Shorten the name or drop a format";
             return;
         }
         localError = "";
@@ -242,7 +249,7 @@ public final class NametagScreen extends Screen {
         int panelX = (this.width - PANEL_WIDTH) / 2;
         int panelY = (this.height - PANEL_HEIGHT) / 2;
         int rowX = panelX + MARGIN;
-        int rowY = panelY + 198;
+        int rowY = panelY + 182;
         double mx = click.x();
         double my = click.y();
         if (my >= rowY && my < rowY + SWATCH) {
@@ -277,38 +284,37 @@ public final class NametagScreen extends Screen {
         GlassRender.menuBackdrop(ctx, this.width, this.height);
         GlassRender.panel(ctx, panelX, panelY, PANEL_WIDTH, PANEL_HEIGHT);
 
-        ctx.fill(panelX + GlassRender.RADIUS, panelY + GlassRender.RADIUS,
-                panelX + PANEL_WIDTH - GlassRender.RADIUS, panelY + 24,
-                GlassTheme.headerWash());
         ctx.drawText(this.textRenderer, Text.literal("Rename item"),
-                panelX + MARGIN, panelY + 8, GlassTheme.text(), false);
+                panelX + MARGIN, panelY + MARGIN, GlassTheme.ACCENT, true);
+        GlassRender.rule(ctx, panelX + 1, panelX + PANEL_WIDTH - 1, panelY + 25);
+        GlassRender.rule(ctx, panelX + 1, panelX + PANEL_WIDTH - 1, panelY + PANEL_HEIGHT - MARGIN - 24);
 
         drawCounter(ctx, panelX, panelY);
         drawPreview(ctx, panelX, panelY);
 
         int cx = panelX + MARGIN;
-        ctx.drawText(this.textRenderer, Text.literal("Name"), cx, panelY + 138, GlassTheme.textDim(), false);
-        ctx.drawText(this.textRenderer, Text.literal("Colours"), cx, panelY + 186, GlassTheme.textDim(), false);
-        ctx.drawText(this.textRenderer, Text.literal("Formats"), cx, panelY + 210, GlassTheme.textDim(), false);
-        ctx.drawText(this.textRenderer, Text.literal("Gradient"), cx, panelY + 246, GlassTheme.textDim(), false);
+        ctx.drawText(this.textRenderer, Text.literal("Name"), cx, panelY + 134, GlassTheme.textDim(), false);
+        ctx.drawText(this.textRenderer, Text.literal("Colours"), cx, panelY + 172, GlassTheme.textDim(), false);
+        ctx.drawText(this.textRenderer, Text.literal("Formats"), cx, panelY + 208, GlassTheme.textDim(), false);
+        ctx.drawText(this.textRenderer, Text.literal("Gradient"), cx, panelY + 244, GlassTheme.textDim(), false);
     }
 
-    /** "12 / 32" in the title bar, red once the server would reject it. */
+    /** "12 / 32" in the header, in flame, cinder once the server would reject it. */
     private void drawCounter(DrawContext ctx, int panelX, int panelY) {
         int visible = NametagFormat.visibleLength(nameField == null ? "" : nameField.getText());
         boolean over = visible > session.maxNameChars;
         String label = visible + " / " + session.maxNameChars;
         int w = this.textRenderer.getWidth(label);
         ctx.drawText(this.textRenderer, Text.literal(label),
-                panelX + PANEL_WIDTH - MARGIN - w, panelY + 8,
-                over ? GlassTheme.WARN : GlassTheme.textDim(), false);
+                panelX + PANEL_WIDTH - MARGIN - w, panelY + MARGIN,
+                over ? GlassTheme.WARN : GlassTheme.VALUE, false);
     }
 
     /** The real item, with the name line live and the item's own lore under it. */
     private void drawPreview(DrawContext ctx, int panelX, int panelY) {
         int cx = panelX + MARGIN;
         int top = panelY + 32;
-        int boxH = 100;
+        int boxH = 96;
         int cw = PANEL_WIDTH - 2 * MARGIN;
         GlassRender.slot(ctx, cx, top, cx + cw, top + boxH);
 
@@ -354,8 +360,8 @@ public final class NametagScreen extends Screen {
         int panelY = (this.height - PANEL_HEIGHT) / 2;
         int cx = panelX + MARGIN;
 
-        drawSwatches(ctx, cx, panelY + 198, mouseX, mouseY);
-        drawStopChips(ctx, cx, panelY + 258);
+        drawSwatches(ctx, cx, panelY + 182, mouseX, mouseY);
+        drawStopChips(ctx, cx, panelY + 254);
         drawCursorColor(ctx, panelX, panelY);
         drawStatus(ctx, panelX, panelY);
     }
@@ -374,7 +380,7 @@ public final class NametagScreen extends Screen {
     private void drawStopChips(DrawContext ctx, int cx, int y) {
         ctx.drawText(this.textRenderer, Text.literal("from"), cx, y + 5, GlassTheme.textMuted(), false);
         chip(ctx, cx + 106, y, gradMid.getText());
-        chip(ctx, cx + 24, y, gradFrom.getText());
+        chip(ctx, cx + 26, y, gradFrom.getText());
         ctx.drawText(this.textRenderer, Text.literal("to"), cx + 176, y + 5, GlassTheme.textMuted(), false);
         chip(ctx, cx + 188, y, gradTo.getText());
     }
@@ -394,7 +400,7 @@ public final class NametagScreen extends Screen {
         if (nameField == null) return;
         String token = NametagFormat.colorAtCaret(nameField.getText(), nameField.getCursor());
         int x = panelX + PANEL_WIDTH - MARGIN - 76;
-        int y = panelY + 222;
+        int y = panelY + 218;
         if (token.isEmpty()) {
             ctx.drawText(this.textRenderer, Text.literal("no colour"), x, y + 5,
                     GlassTheme.textMuted(), false);
@@ -414,7 +420,7 @@ public final class NametagScreen extends Screen {
 
     private void drawStatus(DrawContext ctx, int panelX, int panelY) {
         int cx = panelX + MARGIN;
-        int y = panelY + PANEL_HEIGHT - MARGIN - 34;
+        int y = panelY + PANEL_HEIGHT - MARGIN - 36;
 
         String err = !localError.isEmpty() ? localError : NametagClient.lastError();
         if (!err.isEmpty()) {
@@ -426,7 +432,7 @@ public final class NametagScreen extends Screen {
         if (NametagClient.currentState() == NametagClient.State.SUBMITTING) {
             hint = "Applying…";
         } else if (visible == 0) {
-            hint = "Type a name — colour codes don't count toward the limit";
+            hint = "Type a name. Colour codes don't count toward the limit";
         } else if (visible > session.maxNameChars) {
             hint = "Too long by " + (visible - session.maxNameChars) + " characters";
         } else {

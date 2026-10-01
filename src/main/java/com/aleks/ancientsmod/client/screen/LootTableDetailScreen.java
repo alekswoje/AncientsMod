@@ -1,5 +1,6 @@
 package com.aleks.ancientsmod.client.screen;
 
+import com.aleks.ancientsmod.client.glass.GlassButton;
 import com.aleks.ancientsmod.client.glass.GlassRender;
 import com.aleks.ancientsmod.client.glass.GlassTextField;
 import com.aleks.ancientsmod.client.glass.GlassTheme;
@@ -29,6 +30,10 @@ import java.util.Locale;
  * chance still visible — matching the server chest GUI.
  *
  * <p>ESC returns to {@link LootTablesScreen} (via {@link LootClient#openTableList()}).
+ *
+ * <p>Drawn in the flat Hearth glass: ember table name with a muted drop count, a meta line
+ * (rolls, luck), a bronze rule, transparent rows that tint on hover, chances in Flame (with the
+ * luck-adjusted figure in Moss), and a footer with the hint on the left and Back on the right.
  */
 public final class LootTableDetailScreen extends Screen {
 
@@ -38,8 +43,8 @@ public final class LootTableDetailScreen extends Screen {
     private static final int SEARCH_BAR_H = 26;
     private static final int ROW_H = 24;
     private static final int ROWS_VISIBLE = 10;
-    private static final int FOOTER_H = 16;
-    private static final int PADDING = 8;
+    private static final int FOOTER_H = 26;
+    private static final int PADDING = 10;
     private static final int SCROLLBAR_W = 6;
     private static final int SCROLLBAR_GAP = 4;
     private static final int ICON = 16;
@@ -88,7 +93,7 @@ public final class LootTableDetailScreen extends Screen {
                 panelX + PADDING, panelY + TITLE_BAR_H + SUBHEADER_H + 4, searchW, 18,
                 Text.literal("Search this table…"));
         this.searchField.setMaxLength(64);
-        this.searchField.setPlaceholder(Text.literal("§7Search this table…"));
+        this.searchField.setPlaceholder(Text.literal("Search this table…").withColor(GlassTheme.textMuted()));
         this.searchField.setText(searchQuery);
         this.searchField.setChangedListener(s -> {
             searchQuery = s == null ? "" : s;
@@ -96,6 +101,8 @@ public final class LootTableDetailScreen extends Screen {
             clampScroll();
         });
         this.addDrawableChild(this.searchField);
+        this.addDrawableChild(new GlassButton(panelX + PANEL_W - PADDING - 52,
+                panelY + panelHeight() - 20, 52, 14, Text.literal("Back"), LootClient::openTableList).primary());
         recompute();
     }
 
@@ -148,26 +155,24 @@ public final class LootTableDetailScreen extends Screen {
         GlassRender.menuBackdrop(ctx, this.width, this.height);
         GlassRender.panel(ctx, panelX, panelY, panelW, panelH);
 
-        // Violet title-bar wash, inset by the panel radius.
-        ctx.fill(panelX + GlassRender.RADIUS, panelY + GlassRender.RADIUS,
-                panelX + panelW - GlassRender.RADIUS, panelY + TITLE_BAR_H,
-                GlassTheme.withAlpha(GlassTheme.ACCENT, 0x2E));
-
-        String name = table != null ? table.name : tableId;
-        int dropCount = table != null ? table.entries.size() : 0;
-        ctx.drawText(this.textRenderer, Text.literal(name),
-                panelX + 10, panelY + 7, GlassTheme.text(), true);
+        // Header: ember table name, muted drop count beside it.
+        int hx = panelX + PADDING;
+        String countText = (table != null ? table.entries.size() : 0) + " drops";
+        int nameMax = panelW - 2 * PADDING - this.textRenderer.getWidth(countText) - 6;
+        String name = this.textRenderer.trimToWidth(table != null ? table.name : tableId, nameMax);
+        ctx.drawText(this.textRenderer, Text.literal(name), hx, panelY + 8, GlassTheme.ACCENT, true);
         int nameW = this.textRenderer.getWidth(name);
-        ctx.drawText(this.textRenderer, Text.literal("§8· §7" + dropCount + " drops"),
-                panelX + 10 + nameW + 5, panelY + 7, GlassTheme.textDim(), false);
+        ctx.drawText(this.textRenderer, Text.literal(countText),
+                hx + nameW + 6, panelY + 8, GlassTheme.textMuted(), false);
 
-        // Subheader: rolls + luck (§a green luck text → GlassTheme.OK).
+        // Meta line: rolls (value in Flame) then luck (Moss when it applies), rule underneath.
         String rolls = table != null ? table.rollsText() : "?";
         double luckPct = LootClient.luckPercent();
-        ctx.drawText(this.textRenderer,
-                Text.literal("§7Rolls/trigger: §f" + rolls),
-                panelX + 10, panelY + TITLE_BAR_H + 3, GlassTheme.textDim(), false);
-        int rollsW = this.textRenderer.getWidth("Rolls/trigger: " + rolls);
+        int my = panelY + TITLE_BAR_H;
+        ctx.drawText(this.textRenderer, Text.literal("Rolls/trigger:"), hx, my, GlassTheme.textMuted(), false);
+        int labelW = this.textRenderer.getWidth("Rolls/trigger: ");
+        ctx.drawText(this.textRenderer, Text.literal(rolls), hx + labelW, my, GlassTheme.VALUE, false);
+        int rollsW = labelW + this.textRenderer.getWidth(rolls);
         String luck;
         int luckColor;
         if (table != null && table.luck) {
@@ -179,18 +184,20 @@ public final class LootTableDetailScreen extends Screen {
             luck = "Luck does not affect this table";
             luckColor = GlassTheme.textMuted();
         }
-        ctx.drawText(this.textRenderer, Text.literal("§8· "),
-                panelX + 10 + rollsW + 4, panelY + TITLE_BAR_H + 3, GlassTheme.textMuted(), false);
-        ctx.drawText(this.textRenderer, Text.literal(luck),
-                panelX + 10 + rollsW + 4 + this.textRenderer.getWidth("· "),
-                panelY + TITLE_BAR_H + 3, luckColor, false);
+        int luckX = hx + rollsW + 12;
+        ctx.drawText(this.textRenderer,
+                Text.literal(this.textRenderer.trimToWidth(luck, panelX + panelW - PADDING - luckX)),
+                luckX, my, luckColor, false);
+        GlassRender.rule(ctx, hx, panelX + panelW - PADDING, panelY + TITLE_BAR_H + SUBHEADER_H - 1);
+
+        // Footer rule (hint + Back are drawn in render()).
+        GlassRender.rule(ctx, panelX + 1, panelX + panelW - 1, panelY + panelH - FOOTER_H);
     }
 
     @Override
     public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
         super.render(ctx, mouseX, mouseY, delta);
         hoverTooltip = null;
-        renderBackButton(ctx, mouseX, mouseY);
 
         int lx = listX();
         int ly = listY();
@@ -198,8 +205,8 @@ public final class LootTableDetailScreen extends Screen {
         int listH = ROWS_VISIBLE * ROW_H;
 
         if (table == null) {
-            ctx.drawText(this.textRenderer, Text.literal("§7This table is no longer available."),
-                    lx, ly + 8, GlassTheme.textDim(), false);
+            ctx.drawText(this.textRenderer, Text.literal("This table is no longer available."),
+                    lx + 4, ly + 6, GlassTheme.textMuted(), false);
             renderFooter(ctx);
             return;
         }
@@ -225,34 +232,42 @@ public final class LootTableDetailScreen extends Screen {
                     : (LootRarityVisual.has(e.rarity) ? LootRarityVisual.code(e.rarity) : "§f");
             String displayName = e.masked ? "???" : (e.name == null || e.name.isEmpty() ? "?" : e.name);
 
-            // Right-aligned chance — raw, plus "→ luck-adjusted" when the
-            // viewer has luck and this table is luck-affected (matches the
-            // server chest GUI's "With luck" line, inline here).
+            // Right-aligned chance: raw in Flame, plus "→ luck-adjusted" in Moss when the
+            // viewer has luck and this table is luck-affected (matches the server chest
+            // GUI's "With luck" line, inline here).
             double luckPct = LootClient.luckPercent();
             boolean showAdj = table.showsLuck(luckPct);
-            String chanceStr = showAdj
-                    ? "§6" + e.chanceText() + " §7→ §a"
-                            + LootSnapshotPayload.Entry.pctText(table.adjustedChancePct(e, luckPct))
-                    : "§6" + e.chanceText();
-            int chanceW = this.textRenderer.getWidth(chanceStr);
+            String rawChance = e.chanceText();
+            String arrow = " → ";
+            String adjChance = showAdj
+                    ? LootSnapshotPayload.Entry.pctText(table.adjustedChancePct(e, luckPct)) : "";
+            int chanceW = this.textRenderer.getWidth(rawChance)
+                    + (showAdj ? this.textRenderer.getWidth(arrow) + this.textRenderer.getWidth(adjChance) : 0);
 
             int nameX = lx + ICON + 6;
             int nameMaxW = lw - (nameX - lx) - chanceW - 8;
             String trimmedName = this.textRenderer.trimToWidth(nameCode + displayName, Math.max(20, nameMaxW));
             ctx.drawText(this.textRenderer, Text.literal(trimmedName), nameX, ry + 3, GlassTheme.text(), false);
 
-            ctx.drawText(this.textRenderer, Text.literal(chanceStr),
-                    lx + lw - chanceW - 2, ry + 3, GlassTheme.VALUE, false);
+            int cx = lx + lw - chanceW - 2;
+            ctx.drawText(this.textRenderer, Text.literal(rawChance), cx, ry + 3, GlassTheme.VALUE, false);
+            if (showAdj) {
+                cx += this.textRenderer.getWidth(rawChance);
+                ctx.drawText(this.textRenderer, Text.literal(arrow), cx, ry + 3, GlassTheme.textMuted(), false);
+                cx += this.textRenderer.getWidth(arrow);
+                ctx.drawText(this.textRenderer, Text.literal(adjChance), cx, ry + 3, GlassTheme.OK, false);
+            }
 
             // Second line: amount + rarity (or "Undiscovered").
+            // Uncoded text takes the muted base colour; the rarity word keeps its § code.
             String second;
             if (e.masked) {
-                second = "§8Undiscovered — be the first to drop this!";
+                second = "Undiscovered. Be the first to drop this!";
             } else {
-                StringBuilder sb = new StringBuilder("§8");
+                StringBuilder sb = new StringBuilder();
                 if (e.amountText != null && !e.amountText.isEmpty()) sb.append("x").append(e.amountText);
                 if (LootRarityVisual.has(e.rarity)) {
-                    if (sb.length() > 2) sb.append(" §8· ");
+                    if (sb.length() > 0) sb.append("  ");
                     sb.append(LootRarityVisual.code(e.rarity)).append(LootRarityVisual.name(e.rarity));
                 }
                 second = sb.toString();
@@ -265,9 +280,10 @@ public final class LootTableDetailScreen extends Screen {
         // Empty / no-match.
         if (filtered.isEmpty()) {
             String msg = searchQuery.trim().isEmpty()
-                    ? "§7This table has no drops."
-                    : "§7No drops match §f\"" + searchQuery + "\"";
-            ctx.drawText(this.textRenderer, Text.literal(msg), lx + 4, ly + listH / 2 - 4, GlassTheme.textDim(), false);
+                    ? "This table has no drops."
+                    : "No drops match \"" + searchQuery + "\"";
+            ctx.drawText(this.textRenderer, Text.literal(this.textRenderer.trimToWidth(msg, lw - 8)),
+                    lx + 4, ly + 6, GlassTheme.textMuted(), false);
         }
 
         // Scrollbar.
@@ -292,12 +308,6 @@ public final class LootTableDetailScreen extends Screen {
     @Override
     public boolean mouseClicked(Click click, boolean doubleClick) {
         if (click.button() == 0) {
-            int[] b = backButtonBounds();
-            if (click.x() >= b[0] && click.x() < b[0] + b[2]
-                    && click.y() >= b[1] && click.y() < b[1] + b[3]) {
-                LootClient.openTableList();
-                return true;
-            }
             if (overScrollbar(click.x(), click.y())) {
                 beginScrollDrag(click.y());
                 return true;
@@ -373,26 +383,11 @@ public final class LootTableDetailScreen extends Screen {
         clampScroll();
     }
 
-    private int[] backButtonBounds() {
-        int panelX = (this.width - PANEL_W) / 2;
-        int panelY = (this.height - panelHeight()) / 2;
-        int w = 48;
-        int h = 14;
-        return new int[]{ panelX + PANEL_W - w - 8, panelY + 4, w, h };
-    }
-
-    private void renderBackButton(DrawContext ctx, int mouseX, int mouseY) {
-        int[] b = backButtonBounds();
-        boolean hov = mouseX >= b[0] && mouseX < b[0] + b[2] && mouseY >= b[1] && mouseY < b[1] + b[3];
-        GlassRender.button(ctx, b[0], b[1], b[0] + b[2], b[1] + b[3], hov, true, false);
-        ctx.drawText(this.textRenderer, Text.literal("‹ Back"), b[0] + 6, b[1] + 3, GlassTheme.text(), false);
-    }
-
     private void renderFooter(DrawContext ctx) {
         int panelX = (this.width - PANEL_W) / 2;
         int panelY = (this.height - panelHeight()) / 2;
-        ctx.drawText(this.textRenderer, Text.literal("§8ESC → back to tables"),
-                panelX + 10, panelY + panelHeight() - 12, GlassTheme.textMuted(), false);
+        ctx.drawText(this.textRenderer, Text.literal("Esc returns to the table list"),
+                panelX + PADDING, panelY + panelHeight() - FOOTER_H + 9, GlassTheme.textMuted(), false);
     }
 
     private List<Text> buildTooltip(LootSnapshotPayload.Entry e, String displayName) {
@@ -413,7 +408,7 @@ public final class LootTableDetailScreen extends Screen {
             lines.add(Text.literal("§7Rarity: " + LootRarityVisual.code(e.rarity) + LootRarityVisual.name(e.rarity)));
         }
         if (e.masked) {
-            lines.add(Text.literal("§8Undiscovered — be the first to drop this!"));
+            lines.add(Text.literal("§8Undiscovered. Be the first to drop this!"));
         }
         return lines;
     }

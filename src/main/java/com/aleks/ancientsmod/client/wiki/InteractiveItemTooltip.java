@@ -2,6 +2,8 @@ package com.aleks.ancientsmod.client.wiki;
 
 import com.aleks.ancientsmod.client.FeatureToggles;
 import com.aleks.ancientsmod.client.ServerAllowlist;
+import com.aleks.ancientsmod.client.glass.GlassRender;
+import com.aleks.ancientsmod.client.glass.GlassTheme;
 import net.fabricmc.fabric.api.client.item.v1.ItemTooltipCallback;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenKeyboardEvents;
@@ -37,8 +39,8 @@ import java.util.Optional;
  * item and onto the tooltip itself — vanilla tooltips normally follow the mouse
  * and vanish the instant you leave the slot. Recognised terms (the "more" /
  * "less" multipliers, "Max HP", the Full Set Ability, the per-piece note) are
- * underlined; clicking one opens a compact wiki popup explaining it. Esc or a
- * click outside closes the popup.
+ * underlined in Candle; clicking one opens a compact wiki popup (flat Hearth glass,
+ * ember title over a bronze rule) explaining it. Esc or a click outside closes the popup.
  *
  * <h2>How the pin works</h2>
  * <ol>
@@ -225,8 +227,9 @@ public final class InteractiveItemTooltip {
             spanBoxes.add(new SpanBox(x1, lineY, x2, y2, link.entryId()));
 
             boolean hover = mouseX >= x1 && mouseX < x2 && mouseY >= lineY && mouseY < y2;
-            if (hover) ctx.fill(x1 - 1, lineY - 1, x2 + 1, y2, 0x33FFFFFF);
-            int underline = hover ? 0xFFFFFFFF : 0xFF7FB0FF;
+            if (hover) ctx.fill(x1 - 1, lineY - 1, x2 + 1, y2, GlassTheme.withAlpha(GlassTheme.ACCENT_SOFT, 0x33));
+            // Candle underline marks a clickable term (dimmer at rest, full on hover).
+            int underline = hover ? GlassTheme.ACCENT_SOFT : GlassTheme.withAlpha(GlassTheme.ACCENT_SOFT, 0xA0);
             ctx.fill(x1, lineY + LINE_H - 1, x2, lineY + LINE_H, underline);
         }
     }
@@ -267,21 +270,22 @@ public final class InteractiveItemTooltip {
         popupW = panelW;
         popupH = panelH;
 
-        ctx.fill(x, y, x + panelW, y + panelH, 0xF00E0814);
-        drawBorder(ctx, x, y, panelW, panelH, 0xFF7A57C8);
+        // Flat Hearth glass, near-opaque so the popup reads over busy inventory slots.
+        GlassRender.roundedRect(ctx, x, y, x + panelW, y + panelH, 1, GlassTheme.withAlpha(GlassTheme.panelTop(), 0xF0));
+        GlassRender.roundedBorder(ctx, x, y, x + panelW, y + panelH, 1, GlassTheme.withAlpha(GlassTheme.BRONZE, 0xA0));
 
         int tx = x + pad;
         int ty = y + pad;
-        ctx.drawText(tr, title, tx, ty, 0xFFE6D8FF, true);
-        ctx.fill(tx, ty + LINE_H + 1, x + panelW - pad, ty + LINE_H + 2, 0x40FFFFFF);
+        ctx.drawText(tr, title, tx, ty, GlassTheme.ACCENT, true);
+        GlassRender.rule(ctx, tx, x + panelW - pad, ty + LINE_H + 1);
 
         int by = ty + titleBlock;
         for (OrderedText ot : body) {
-            ctx.drawText(tr, ot, tx, by, 0xFFCFC9D6, false);
+            ctx.drawText(tr, ot, tx, by, GlassTheme.textDim(), false);
             by += LINE_H;
         }
         ctx.drawText(tr, Text.literal("[Esc] or click outside to close"),
-                tx, y + panelH - pad - LINE_H + 2, 0xFF6A6480, false);
+                tx, y + panelH - pad - LINE_H + 2, GlassTheme.textMuted(), false);
     }
 
     // ── Input ────────────────────────────────────────────────────────────────
@@ -385,13 +389,6 @@ public final class InteractiveItemTooltip {
         int w = 0;
         for (OrderedText line : lines) w = Math.max(w, tr.getWidth(line));
         return w;
-    }
-
-    private static void drawBorder(DrawContext ctx, int x, int y, int w, int h, int color) {
-        ctx.fill(x, y, x + w, y + 1, color);
-        ctx.fill(x, y + h - 1, x + w, y + h, color);
-        ctx.fill(x, y, x + 1, y + h, color);
-        ctx.fill(x + w - 1, y, x + w, y + h, color);
     }
 
     private static boolean isAltDown() {

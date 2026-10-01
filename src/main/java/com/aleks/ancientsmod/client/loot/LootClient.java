@@ -214,7 +214,7 @@ public final class LootClient {
                 passingThroughFallback = false;
             }
             client.player.sendMessage(
-                    Text.literal("§7[Loot] Server didn't respond — opened the server menu."), false);
+                    Text.literal("§7[Loot] Server didn't respond, so the server menu opened instead."), false);
         }
     }
 

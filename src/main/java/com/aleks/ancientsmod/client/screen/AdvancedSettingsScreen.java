@@ -19,14 +19,19 @@ public final class AdvancedSettingsScreen extends WidgetSettingsScreen {
 
     public AdvancedSettingsScreen(Screen parent) {
         super(parent,
-                Text.literal("AncientsMod — Advanced"),
-                Text.literal("On by default · most players leave these alone"));
+                Text.literal("Advanced"),
+                Text.literal("On by default. Most players leave these alone."));
     }
 
     @Override
     protected int buttonWidth() {
         // Match the main settings screen's width for a consistent feel.
-        return Math.min(320, this.width - 60);
+        return Math.min(260, this.width - 150);
+    }
+
+    @Override
+    protected boolean useSidebar() {
+        return true;
     }
 
     @Override
@@ -43,13 +48,13 @@ public final class AdvancedSettingsScreen extends WidgetSettingsScreen {
         addToggle("Block breakdown on pickaxes",
                 FeatureToggles::isPickaxeBlocksEnabled, FeatureToggles::setPickaxeBlocks);
 
-        addSection("Buffs Screen");
+        addSection("Buffs screen");
         addToggle("Mining speed line in /buffs",
                 FeatureToggles::isBuffsMiningSpeedEnabled, FeatureToggles::setBuffsMiningSpeed);
         addToggle("Daily bonus line in /buffs",
                 FeatureToggles::isBuffsDailyBonusEnabled, FeatureToggles::setBuffsDailyBonus);
 
-        addSection("Custom Screens");
+        addSection("Screens");
         addToggle("Bug-report UI on /bugreport",
                 FeatureToggles::isBugReportUiEnabled, FeatureToggles::setBugReportUi);
         addToggle("PV terminal view on /pv",

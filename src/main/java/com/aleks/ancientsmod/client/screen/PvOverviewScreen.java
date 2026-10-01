@@ -1,5 +1,6 @@
 package com.aleks.ancientsmod.client.screen;
 
+import com.aleks.ancientsmod.client.glass.GlassButton;
 import com.aleks.ancientsmod.client.glass.GlassRender;
 import com.aleks.ancientsmod.client.glass.GlassScrollbar;
 import com.aleks.ancientsmod.client.glass.GlassTextField;
@@ -34,6 +35,10 @@ import java.util.Map;
  * <p>Cards are arranged in a 4-wide grid with a vertical scroll viewport.
  * Hover state, drag-ghost rendering, drop-target highlights, and post-swap
  * flashes are all animated via per-tile state lerped each frame.
+ *
+ * <p>Flat Hearth glass: ember title with muted meta and a bronze rule under the
+ * header, cards that are transparent at rest with a soft tint on hover, and a
+ * footer with the control hint on the left and Done on the right.
  */
 public final class PvOverviewScreen extends Screen {
 
@@ -50,7 +55,7 @@ public final class PvOverviewScreen extends Screen {
     private static final int SEARCH_BAR_H = 26;
     private static final int FOOTER_H = 28;
 
-    private static final int PANEL_PADDING = 8;
+    private static final int PANEL_PADDING = 10;
     private static final int SCROLLBAR_W = 6;
     private static final int SCROLLBAR_GAP = 4;
 
@@ -125,7 +130,7 @@ public final class PvOverviewScreen extends Screen {
         this.searchField = new GlassTextField(this.textRenderer, searchX, searchY, searchW, 18,
                 Text.literal("Search items…"));
         this.searchField.setMaxLength(64);
-        this.searchField.setPlaceholder(Text.literal("§7Search items or material id…"));
+        this.searchField.setPlaceholder(Text.literal("Search items or material id…"));
         this.searchField.setText(searchQuery);
         this.searchField.setChangedListener(s -> {
             searchQuery = s == null ? "" : s;
@@ -133,6 +138,10 @@ public final class PvOverviewScreen extends Screen {
             scrollY = Math.max(0, Math.min(scrollY, maxScroll()));
         });
         this.addDrawableChild(this.searchField);
+
+        // Footer: Done on the right (closes, same as ESC).
+        this.addDrawableChild(new GlassButton(panelX + panelW - PANEL_PADDING - 52,
+                panelY + panelH - 20, 52, 14, Text.literal("Done"), this::close).primary());
 
         recomputeVisibleVaults();
     }
@@ -431,7 +440,7 @@ public final class PvOverviewScreen extends Screen {
         try {
             int limit = displayCount();
             if (limit == 0 && !normalizedQuery().isEmpty()) {
-                String msg = "§7No items match §f\"" + searchQuery + "\"";
+                String msg = "No items match \"" + searchQuery + "\"";
                 int msgW = this.textRenderer.getWidth(msg);
                 ctx.drawText(this.textRenderer, Text.literal(msg),
                         vpX + (vpW - msgW) / 2, vpY + vpH / 2 - 4, GlassTheme.textMuted(), false);
@@ -517,31 +526,49 @@ public final class PvOverviewScreen extends Screen {
 
         GlassRender.panel(ctx, panelX, panelY, panelW, panelH);
 
-        // Violet title-bar wash, inset by the panel corner radius.
-        ctx.fill(panelX + GlassRender.RADIUS, panelY + GlassRender.RADIUS,
-                panelX + panelW - GlassRender.RADIUS, panelY + TITLE_BAR_H,
-                GlassTheme.withAlpha(GlassTheme.ACCENT, 0x2E));
+        // Header: ember title, muted meta, bronze rule underneath.
+        int pad = PANEL_PADDING;
+        int ty = panelY + 9;
+        String title = "Personal Vaults";
+        ctx.drawText(this.textRenderer, Text.literal(title), panelX + pad, ty, GlassTheme.ACCENT, true);
+        int unlocked = 0;
+        if (bundle != null) {
+            for (PvBundlePayload.Vault v : bundle.vaults) if (v.isAccessible()) unlocked++;
+        }
+        ctx.drawText(this.textRenderer, Text.literal(unlocked + (unlocked == 1 ? " vault" : " vaults")),
+                panelX + pad + this.textRenderer.getWidth(title) + 8, ty, GlassTheme.textMuted(), false);
+        GlassRender.rule(ctx, panelX + pad, panelX + panelW - pad, panelY + TITLE_BAR_H - 2);
 
-        ctx.drawText(this.textRenderer, Text.literal("Personal Vaults"),
-                panelX + 10, panelY + 8, GlassTheme.text(), true);
-        String hint = "§7LMB §8open  §7RMB §8affinities  §7Drag §8swap  §7ESC §8close";
-        int hintW = this.textRenderer.getWidth(hint);
-        ctx.drawText(this.textRenderer, Text.literal(hint),
-                panelX + panelW - hintW - 10, panelY + 8, GlassTheme.textMuted(), false);
+        // Footer: bronze rule, control hint on the left (Done sits on the right).
+        int footY = panelY + panelH - FOOTER_H + 2;
+        GlassRender.rule(ctx, panelX + pad, panelX + panelW - pad, footY);
+        drawHint(ctx, panelX + pad, panelY + panelH - 17,
+                "LMB", "open", "RMB", "affinities", "Drag", "swap", "ESC", "close");
+    }
+
+    /** Footer hint as key/action pairs: key in body text, action muted. */
+    private void drawHint(DrawContext ctx, int x, int y, String... pairs) {
+        for (int i = 0; i + 1 < pairs.length; i += 2) {
+            ctx.drawText(this.textRenderer, Text.literal(pairs[i]), x, y, GlassTheme.textDim(), false);
+            x += this.textRenderer.getWidth(pairs[i]) + 4;
+            ctx.drawText(this.textRenderer, Text.literal(pairs[i + 1]), x, y, GlassTheme.textMuted(), false);
+            x += this.textRenderer.getWidth(pairs[i + 1]) + 12;
+        }
     }
 
     private void renderCard(DrawContext ctx, PvBundlePayload.Vault vault, int x, int y,
                             float hoverP, boolean isDragSource, boolean isDropTarget,
                             float flashP, int mouseX, int mouseY) {
-        // Background color lerp: base → hover bg via hoverP. Drag source dims
-        // toward a darker recessed glass. Glass endpoints fed into the same lerp.
-        int baseBg = vault.isAccessible() ? GlassTheme.slot() : GlassTheme.withAlpha(GlassTheme.WARN, 0x1A);
+        // Background: transparent at rest, soft row tint on hover (lerped via
+        // hoverP). Locked cards carry a faint cinder tint. The drag source sinks
+        // to a recessed slot fill.
         int hoverBg = GlassTheme.rowHover();
+        int baseBg = vault.isAccessible() ? GlassTheme.withAlpha(hoverBg, 0) : GlassTheme.withAlpha(GlassTheme.WARN, 0x1A);
         int bg = vault.isAccessible() ? lerpColor(baseBg, hoverBg, hoverP) : baseBg;
-        if (isDragSource) bg = GlassTheme.withAlpha(0xFF000000, 0x55);
+        if (isDragSource) bg = GlassTheme.slot();
 
-        // Border color: base → hover accent via hoverP. Drop target overrides to
-        // a pulsing lilac. Flash overlays a bright lilac that fades out.
+        // Border: soft rim to candle via hoverP. A drop target pulses between
+        // ember and candle; the post-swap flash fades from candle back out.
         int baseBorder = vault.isAccessible() ? GlassTheme.rimSoft() : GlassTheme.withAlpha(GlassTheme.WARN, 0x66);
         int hoverBorder = GlassTheme.ACCENT_SOFT;
         int border = vault.isAccessible() ? lerpColor(baseBorder, hoverBorder, hoverP) : baseBorder;
@@ -553,20 +580,20 @@ public final class PvOverviewScreen extends Screen {
             border = lerpColor(border, GlassTheme.ACCENT_SOFT, flashP);
         }
 
-        GlassRender.roundedRect(ctx, x, y, x + CARD_W, y + CARD_H, GlassRender.RADIUS, bg);
-        GlassRender.roundedBorder(ctx, x, y, x + CARD_W, y + CARD_H, GlassRender.RADIUS, border);
+        GlassRender.roundedRect(ctx, x, y, x + CARD_W, y + CARD_H, 1, bg);
+        GlassRender.roundedBorder(ctx, x, y, x + CARD_W, y + CARD_H, 1, border);
 
         if (!vault.isAccessible()) {
-            ctx.drawText(this.textRenderer, Text.literal("§cPV " + vault.vaultNumber),
-                    x + 6, y + 6, GlassTheme.WARN, false);
-            ctx.drawText(this.textRenderer, Text.literal("§8Locked"),
-                    x + 6, y + 18, GlassTheme.textMuted(), false);
-            ctx.drawText(this.textRenderer, Text.literal("§7Use a PV"),
-                    x + 6, y + 36, GlassTheme.textDim(), false);
-            ctx.drawText(this.textRenderer, Text.literal("§7Expansion to"),
-                    x + 6, y + 46, GlassTheme.textDim(), false);
-            ctx.drawText(this.textRenderer, Text.literal("§7unlock."),
-                    x + 6, y + 56, GlassTheme.textDim(), false);
+            ctx.drawText(this.textRenderer, Text.literal("PV " + vault.vaultNumber),
+                    x + 6, y + 5, GlassTheme.WARN, false);
+            ctx.drawText(this.textRenderer, Text.literal("Locked"),
+                    x + 6, y + 17, GlassTheme.textMuted(), false);
+            ctx.drawText(this.textRenderer, Text.literal("Use a PV"),
+                    x + 6, y + 35, GlassTheme.textDim(), false);
+            ctx.drawText(this.textRenderer, Text.literal("Expansion to"),
+                    x + 6, y + 45, GlassTheme.textDim(), false);
+            ctx.drawText(this.textRenderer, Text.literal("unlock."),
+                    x + 6, y + 55, GlassTheme.textDim(), false);
             return;
         }
 
@@ -579,10 +606,14 @@ public final class PvOverviewScreen extends Screen {
         int usedSlots = vault.slots.size();
         ctx.drawText(this.textRenderer, Text.literal("PV " + vault.vaultNumber),
                 x + 6, y + 5, GlassTheme.ACCENT_SOFT, false);
-        String counts = usedSlots + "§8/" + totalSlots;
-        int countsW = this.textRenderer.getWidth(counts);
-        ctx.drawText(this.textRenderer, Text.literal(counts),
-                x + CARD_W - countsW - 6, y + 5, GlassTheme.VALUE, false);
+        // "used/total": the used count in flame, the capacity muted.
+        String used = Integer.toString(usedSlots);
+        String cap = "/" + totalSlots;
+        int capW = this.textRenderer.getWidth(cap);
+        int usedW = this.textRenderer.getWidth(used);
+        int capX = x + CARD_W - capW - 6;
+        ctx.drawText(this.textRenderer, Text.literal(used), capX - usedW, y + 5, GlassTheme.VALUE, false);
+        ctx.drawText(this.textRenderer, Text.literal(cap), capX, y + 5, GlassTheme.textMuted(), false);
 
         int gridStartX = x + (CARD_W - GRID_COLS * SLOT_PX) / 2;
         int gridStartY = y + 18;
@@ -616,10 +647,10 @@ public final class PvOverviewScreen extends Screen {
 
             boolean dimNonMatch = filtering && !slotMatches(slot, q);
             if (dimNonMatch) {
-                // Heavy frosted overlay over the slot to read as "filtered out"
-                // while still showing the icon underneath.
-                GlassRender.roundedRect(ctx, sx - 1, sy - 1, sx + SLOT_PX - 1, sy + SLOT_PX - 1, 4,
-                        GlassTheme.withAlpha(0xFF000000, 0xC8));
+                // Heavy panel-colored overlay over the slot to read as "filtered
+                // out" while still showing the icon underneath.
+                GlassRender.roundedRect(ctx, sx - 1, sy - 1, sx + SLOT_PX - 1, sy + SLOT_PX - 1, 1,
+                        GlassTheme.withAlpha(GlassTheme.panelTop(), 0xC8));
             }
 
             if (!dimmed
@@ -636,17 +667,17 @@ public final class PvOverviewScreen extends Screen {
         }
 
         if (dimmed) {
-            // Dim the source tile while dragging — frosted scrim overlay.
-            GlassRender.roundedRect(ctx, x + 1, y + 1, x + CARD_W - 1, y + CARD_H - 1, GlassRender.RADIUS,
-                    GlassTheme.withAlpha(0xFF000000, 0x88));
+            // Dim the source tile while dragging: panel-colored scrim overlay.
+            GlassRender.roundedRect(ctx, x + 1, y + 1, x + CARD_W - 1, y + CARD_H - 1, 1,
+                    GlassTheme.withAlpha(GlassTheme.panelTop(), 0x88));
         }
     }
 
     private void renderGhostCard(DrawContext ctx, PvBundlePayload.Vault vault, int x, int y) {
-        // Translucent frosted panel + accent border.
-        GlassRender.roundedRect(ctx, x, y, x + CARD_W, y + CARD_H, GlassRender.RADIUS,
-                GlassTheme.withAlpha(GlassTheme.panelBot(), 0xC0));
-        GlassRender.roundedBorder(ctx, x, y, x + CARD_W, y + CARD_H, GlassRender.RADIUS, GlassTheme.ACCENT_SOFT);
+        // Translucent panel plate + candle border.
+        GlassRender.roundedRect(ctx, x, y, x + CARD_W, y + CARD_H, 1,
+                GlassTheme.withAlpha(GlassTheme.panelTop(), 0xE0));
+        GlassRender.roundedBorder(ctx, x, y, x + CARD_W, y + CARD_H, 1, GlassTheme.ACCENT_SOFT);
 
         renderCardBody(ctx, vault, x, y, -1, -1, false);
     }

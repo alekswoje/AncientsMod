@@ -1,5 +1,6 @@
 package com.aleks.ancientsmod.client.screen;
 
+import com.aleks.ancientsmod.client.glass.GlassButton;
 import com.aleks.ancientsmod.client.glass.GlassRender;
 import com.aleks.ancientsmod.client.glass.GlassTextField;
 import com.aleks.ancientsmod.client.glass.GlassTheme;
@@ -32,6 +33,10 @@ import java.util.Locale;
  *       row shows the item, the table it drops from, and the chance, so the same
  *       item across several tables reads as multiple rows. Click → that table.</li>
  * </ul>
+ *
+ * <p>Drawn in the flat Hearth glass: ember title with a muted table count, a bronze rule under
+ * the header, category headings as ember labels trailed by a hairline, transparent rows that
+ * tint on hover, and a footer with the hint on the left and Done on the right.
  */
 public final class LootTablesScreen extends Screen {
 
@@ -40,8 +45,8 @@ public final class LootTablesScreen extends Screen {
     private static final int SEARCH_BAR_H = 26;
     private static final int ROW_H = 22;
     private static final int ROWS_VISIBLE = 12;
-    private static final int FOOTER_H = 16;
-    private static final int PADDING = 8;
+    private static final int FOOTER_H = 26;
+    private static final int PADDING = 10;
     private static final int SCROLLBAR_W = 6;
     private static final int SCROLLBAR_GAP = 4;
     private static final int ICON = 16;
@@ -91,7 +96,8 @@ public final class LootTablesScreen extends Screen {
                 panelX + PADDING, panelY + TITLE_BAR_H + 4, searchW, 18,
                 Text.literal("Search any item…"));
         this.searchField.setMaxLength(64);
-        this.searchField.setPlaceholder(Text.literal("§7Search any item across all tables…"));
+        this.searchField.setPlaceholder(Text.literal("Search any item across all tables…")
+                .withColor(GlassTheme.textMuted()));
         this.searchField.setText(searchQuery);
         this.searchField.setChangedListener(s -> {
             searchQuery = s == null ? "" : s;
@@ -99,6 +105,8 @@ public final class LootTablesScreen extends Screen {
             clampScroll();
         });
         this.addDrawableChild(this.searchField);
+        this.addDrawableChild(new GlassButton(panelX + PANEL_W - PADDING - 52,
+                panelY + panelHeight() - 20, 52, 14, Text.translatable("gui.done"), this::close).primary());
         recompute();
         scrollOffset = savedScroll;
         clampScroll();
@@ -203,12 +211,6 @@ public final class LootTablesScreen extends Screen {
     @Override
     public boolean mouseClicked(Click click, boolean doubleClick) {
         if (click.button() == 0) {
-            int[] c = closeButtonBounds();
-            if (click.x() >= c[0] && click.x() < c[0] + c[2]
-                    && click.y() >= c[1] && click.y() < c[1] + c[3]) {
-                this.close();
-                return true;
-            }
             if (overScrollbar(click.x(), click.y())) {
                 beginScrollDrag(click.y());
                 return true;
@@ -259,24 +261,23 @@ public final class LootTablesScreen extends Screen {
 
         GlassRender.panel(ctx, panelX, panelY, panelW, panelH);
 
-        // Violet title-bar wash, inset by the corner radius.
-        ctx.fill(panelX + GlassRender.RADIUS, panelY + GlassRender.RADIUS,
-                panelX + panelW - GlassRender.RADIUS, panelY + TITLE_BAR_H,
-                GlassTheme.withAlpha(GlassTheme.ACCENT, 0x2E));
-
+        // Header: ember title, muted count beside it, bronze rule underneath.
         int tableCount = snapshot != null ? snapshot.tables.size() : 0;
         ctx.drawText(this.textRenderer, Text.literal("Loot Tables"),
-                panelX + 10, panelY + 7, GlassTheme.text(), true);
+                panelX + PADDING, panelY + 8, GlassTheme.ACCENT, true);
         int titleW = this.textRenderer.getWidth("Loot Tables");
-        ctx.drawText(this.textRenderer, Text.literal("· " + tableCount + " tables"),
-                panelX + 10 + titleW + 5, panelY + 7, GlassTheme.textDim(), true);
+        ctx.drawText(this.textRenderer, Text.literal(tableCount == 1 ? "1 table" : tableCount + " tables"),
+                panelX + PADDING + titleW + 6, panelY + 8, GlassTheme.textMuted(), false);
+        GlassRender.rule(ctx, panelX + PADDING, panelX + panelW - PADDING, panelY + TITLE_BAR_H);
+
+        // Footer rule (hint + Done are drawn in render()).
+        GlassRender.rule(ctx, panelX + 1, panelX + panelW - 1, panelY + panelH - FOOTER_H);
     }
 
     @Override
     public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
         super.render(ctx, mouseX, mouseY, delta);
         hoverTooltip = null;
-        renderCloseButton(ctx, mouseX, mouseY);
 
         int lx = listX();
         int ly = listY();
@@ -298,9 +299,10 @@ public final class LootTablesScreen extends Screen {
 
         if (rowCount() == 0) {
             String msg = searchMode
-                    ? "§7Nothing matches §f\"" + searchQuery + "\""
-                    : "§7No loot tables available.";
-            ctx.drawText(this.textRenderer, Text.literal(msg), lx + 4, ly + 4, GlassTheme.textDim(), false);
+                    ? "Nothing matches \"" + searchQuery + "\""
+                    : "No loot tables available.";
+            ctx.drawText(this.textRenderer, Text.literal(this.textRenderer.trimToWidth(msg, lw - 8)),
+                    lx + 4, ly + 6, GlassTheme.textMuted(), false);
         }
 
         // Scrollbar.
@@ -317,9 +319,9 @@ public final class LootTablesScreen extends Screen {
         // Footer hint.
         int panelX = (this.width - PANEL_W) / 2;
         int panelY = (this.height - panelHeight()) / 2;
-        String hint = searchMode ? "Click a result → open its table" : "Click a table to view its drops";
+        String hint = searchMode ? "Click a result to open its table" : "Click a table to view its drops";
         ctx.drawText(this.textRenderer, Text.literal(hint),
-                panelX + 10, panelY + panelHeight() - 12, GlassTheme.textMuted(), false);
+                panelX + PADDING, panelY + panelHeight() - FOOTER_H + 9, GlassTheme.textMuted(), false);
 
         if (hoverTooltip != null) {
             ctx.drawTooltip(this.textRenderer, hoverTooltip, mouseX, mouseY);
@@ -328,10 +330,7 @@ public final class LootTablesScreen extends Screen {
 
     private void renderBrowseRow(DrawContext ctx, Object row, int lx, int ry, int lw, int mouseX, int mouseY) {
         if (row instanceof String header) {
-            GlassRender.roundedRect(ctx, lx, ry, lx + lw, ry + ROW_H - 2, 6,
-                    GlassTheme.withAlpha(GlassTheme.ACCENT, 0x22));
-            ctx.drawText(this.textRenderer, Text.literal("§l" + header),
-                    lx + 6, ry + 6, GlassTheme.ACCENT_SOFT, false);
+            renderSectionHeader(ctx, header, lx, ry, lw);
             return;
         }
         LootSnapshotPayload.Table t = (LootSnapshotPayload.Table) row;
@@ -364,14 +363,22 @@ public final class LootTablesScreen extends Screen {
         if (hovered) hoverTooltip = buildTableTooltip(t);
     }
 
+    /** Category / search-section heading: ember label with a bronze hairline to the row's end. */
+    private void renderSectionHeader(DrawContext ctx, String label, int lx, int ry, int lw) {
+        int ty = ry + ROW_H - this.textRenderer.fontHeight - 4;
+        ctx.drawText(this.textRenderer, Text.literal(label), lx + 2, ty, GlassTheme.ACCENT, false);
+        int ruleX = lx + 2 + this.textRenderer.getWidth(label) + 6;
+        if (ruleX < lx + lw) GlassRender.rule(ctx, ruleX, lx + lw, ty + this.textRenderer.fontHeight / 2);
+    }
+
     /** Hover preview for a table row: name, section, roll count, and the top drops. */
     private List<Text> buildTableTooltip(LootSnapshotPayload.Table t) {
         List<Text> tip = new ArrayList<>();
-        tip.add(Text.literal("§b§l" + t.name));
+        tip.add(Text.literal(t.name).withColor(GlassTheme.ACCENT));
         if (t.categoryIndex >= 0 && t.categoryIndex < snapshot.categories.size()) {
             tip.add(Text.literal("§7Section: §f" + snapshot.categories.get(t.categoryIndex).label));
         }
-        tip.add(Text.literal("§7" + t.entries.size() + " drops §8· §7rolls/trigger " + t.rollsText()));
+        tip.add(Text.literal("§7" + t.entries.size() + " drops, rolls/trigger " + t.rollsText()));
         if (!t.entries.isEmpty()) {
             tip.add(Text.literal("§7Top drops:"));
             int n = Math.min(5, t.entries.size());
@@ -381,7 +388,8 @@ public final class LootTablesScreen extends Screen {
                         ? "§8???"
                         : (LootRarityVisual.has(e.rarity) ? LootRarityVisual.code(e.rarity) : "§f")
                           + (e.name == null ? "?" : e.name);
-                tip.add(Text.literal("  §6" + e.chanceText() + " §r" + nm));
+                tip.add(Text.literal("  ").append(Text.literal(e.chanceText()).withColor(GlassTheme.VALUE))
+                        .append(Text.literal(" " + nm)));
             }
             if (t.entries.size() > n) {
                 tip.add(Text.literal("  §8…and " + (t.entries.size() - n) + " more"));
@@ -403,9 +411,16 @@ public final class LootTablesScreen extends Screen {
         String nameCode = LootRarityVisual.has(e.rarity) ? LootRarityVisual.code(e.rarity) : "§f";
         String chance = e.chanceText();
         int chanceW = this.textRenderer.getWidth(chance);
-        String line = nameCode + (e.name == null ? "?" : e.name) + " §8in " + hit.table.name;
-        String trimmed = this.textRenderer.trimToWidth(line, Math.max(20, lw - (nameX - lx) - chanceW - 8));
-        ctx.drawText(this.textRenderer, Text.literal(trimmed), nameX, ry + 6, GlassTheme.text(), false);
+        // Item name in its rarity colour, then "in <table>" in muted text, trimmed together.
+        int avail = Math.max(20, lw - (nameX - lx) - chanceW - 8);
+        String itemName = this.textRenderer.trimToWidth(nameCode + (e.name == null ? "?" : e.name), avail);
+        ctx.drawText(this.textRenderer, Text.literal(itemName), nameX, ry + 6, GlassTheme.text(), false);
+        int inX = nameX + this.textRenderer.getWidth(itemName) + 4;
+        int inW = nameX + avail - inX;
+        if (inW > 12) {
+            String where = this.textRenderer.trimToWidth("in " + hit.table.name, inW);
+            ctx.drawText(this.textRenderer, Text.literal(where), inX, ry + 6, GlassTheme.textMuted(), false);
+        }
         ctx.drawText(this.textRenderer, Text.literal(chance), lx + lw - chanceW - 2, ry + 6, GlassTheme.VALUE, false);
 
         if (hovered) {
@@ -419,7 +434,7 @@ public final class LootTablesScreen extends Screen {
             if (LootRarityVisual.has(e.rarity)) {
                 tip.add(Text.literal("§7Rarity: " + LootRarityVisual.code(e.rarity) + LootRarityVisual.name(e.rarity)));
             }
-            tip.add(Text.literal("§8Click → open this table"));
+            tip.add(Text.literal("§8Click to open this table"));
             hoverTooltip = tip;
         }
     }
@@ -485,26 +500,6 @@ public final class LootTablesScreen extends Screen {
         if (frac > 1) frac = 1;
         scrollOffset = (int) Math.round(frac * maxOffset);
         clampScroll();
-    }
-
-    private int[] closeButtonBounds() {
-        int panelX = (this.width - PANEL_W) / 2;
-        int panelY = (this.height - panelHeight()) / 2;
-        int w = 16;
-        int h = 14;
-        return new int[]{ panelX + PANEL_W - w - 6, panelY + 4, w, h };
-    }
-
-    private void renderCloseButton(DrawContext ctx, int mouseX, int mouseY) {
-        int[] b = closeButtonBounds();
-        boolean hov = mouseX >= b[0] && mouseX < b[0] + b[2] && mouseY >= b[1] && mouseY < b[1] + b[3];
-        GlassRender.button(ctx, b[0], b[1], b[0] + b[2], b[1] + b[3], hov, true, false);
-        GlassRender.roundedBorder(ctx, b[0], b[1], b[0] + b[2], b[1] + b[3], 6,
-                GlassTheme.withAlpha(GlassTheme.WARN, hov ? 0xCC : 0x66));
-        int glyphW = this.textRenderer.getWidth("✕");
-        ctx.drawText(this.textRenderer, Text.literal("✕"),
-                b[0] + (b[2] - glyphW) / 2, b[1] + (b[3] - this.textRenderer.fontHeight) / 2 + 1,
-                GlassTheme.WARN, false);
     }
 
     private static ItemStack resolveIcon(String key) {

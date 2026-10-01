@@ -20,6 +20,7 @@ public class GlassTextField extends TextFieldWidget {
     @Override
     public void renderWidget(DrawContext ctx, int mouseX, int mouseY, float delta) {
         GlassRender.field(ctx, getX(), getY(), getX() + getWidth(), getY() + getHeight(), isFocused());
+        setEditableColor(GlassTheme.text());
         // With the vanilla background suppressed, TextFieldWidget draws its text flush at the
         // top-left (getX(), getY()) instead of the inset + vertically-centered position it uses
         // when drawsBackground is on. Re-apply that offset so the text sits centered with a

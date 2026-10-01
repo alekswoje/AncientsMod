@@ -32,6 +32,10 @@ import java.util.Locale;
  * cell containers for the cell terminal), with a search bar, sort button,
  * scrollbar, and a manually-drawn player-inventory strip for deposits.
  *
+ * <p>Drawn in the flat Hearth glass style: one notched panel, an ember title
+ * with muted meta text and a bronze rule under the header, recessed slots, and
+ * a labelled bronze divider above the inventory strip. No header wash.
+ *
  * <p>Mechanically extracted from the original {@code PvTerminalScreen} so the
  * PV terminal and the cell-vault terminal share one copy of the complex
  * machinery: entry aggregation by item identity, optimistic amount overrides,
@@ -79,11 +83,11 @@ public abstract class ItemTerminalScreen extends Screen {
 
     private static final int TITLE_BAR_H = 24;
     private static final int SEARCH_BAR_H = 26;
-    private static final int INV_TOP_GAP = 14;
+    private static final int INV_TOP_GAP = 16;
     /** Bottom padding below the inventory (footer text removed). */
     private static final int FOOTER_H = 8;
 
-    private static final int PANEL_PADDING = 8;
+    private static final int PANEL_PADDING = 10;
     private static final int SCROLLBAR_W = 6;
     private static final int SCROLLBAR_GAP = 4;
 
@@ -91,6 +95,9 @@ public abstract class ItemTerminalScreen extends Screen {
     private static final int SORT_BTN_W = 46;
     private static final int SORT_BTN_H = 18;
     private static final int SORT_BTN_GAP = 4;
+
+    /** Hover wash over a grid tile or inventory slot (soft candle). */
+    private static final int HOVER_TINT = GlassTheme.withAlpha(GlassTheme.ACCENT_SOFT, 0x40);
 
 
     private final List<Entry> entries = new ArrayList<>();
@@ -206,7 +213,7 @@ public abstract class ItemTerminalScreen extends Screen {
         this.searchField = new GlassTextField(this.textRenderer, searchX, searchY, searchW, 18,
                 Text.literal("Search items…"));
         this.searchField.setMaxLength(64);
-        this.searchField.setPlaceholder(Text.literal("§7Search items or material id…"));
+        this.searchField.setPlaceholder(Text.literal("Search items or material id…"));
         this.searchField.setText(searchQuery);
         this.searchField.setChangedListener(s -> {
             searchQuery = s == null ? "" : s;
@@ -931,25 +938,38 @@ public abstract class ItemTerminalScreen extends Screen {
         GlassRender.menuBackdrop(ctx, this.width, this.height);
         GlassRender.panel(ctx, panelX, panelY, panelW, panelH);
 
-        // Violet title-bar wash (inset by the panel radius so it sits inside the rim).
-        int r = GlassRender.RADIUS;
-        ctx.fill(panelX + r, panelY + r, panelX + panelW - r, panelY + TITLE_BAR_H,
-                GlassTheme.withAlpha(GlassTheme.ACCENT, 0x2E));
+        // Header: ember title, muted meta beside it, bronze rule underneath.
+        int pad = PANEL_PADDING;
+        int ty = panelY + 9;
+        int rightEdge = panelX + panelW - pad;
+        String warn = canModify() ? null : viewOnlyBadge();
+        int warnW = warn == null ? 0 : this.textRenderer.getWidth(warn);
+        // Persistent view-only indicator on the right; browsing/searching always
+        // works, taking/depositing is gated.
+        if (warn != null) {
+            ctx.drawText(this.textRenderer, Text.literal(warn),
+                    rightEdge - warnW, ty, GlassTheme.WARN, false);
+        }
+        int titleMax = rightEdge - (panelX + pad) - (warn == null ? 0 : warnW + 10);
+        Text title = titleText();
+        int titleW = this.textRenderer.getWidth(title);
+        ctx.drawText(this.textRenderer, title, panelX + pad, ty, GlassTheme.ACCENT, true);
+
         int totalOccupied = occupiedSlots();
         int totalCapacity = capacitySlots();
         int pct = totalCapacity > 0 ? (totalOccupied * 100 / totalCapacity) : 0;
-        String pctColor = pct >= 90 ? "§c" : pct >= 75 ? "§e" : "§7";
-        ctx.drawText(this.textRenderer,
-                titleText(" §8· §7" + entries.size() + " items §8· " + pctColor + pct + "%"),
-                panelX + 10, panelY + 8, 0xFFFFFFFF, true);
-        if (!canModify()) {
-            // Persistent view-only indicator — browsing/searching always works,
-            // taking/depositing is gated.
-            String warn = viewOnlyBadge();
-            int warnW = this.textRenderer.getWidth(warn);
-            ctx.drawText(this.textRenderer, Text.literal(warn),
-                    panelX + panelW - warnW - 10, panelY + 8, GlassTheme.WARN, false);
+        int mx = panelX + pad + titleW + 8;
+        String items = entries.size() + (entries.size() == 1 ? " item, " : " items, ");
+        String full = pct + "% full";
+        int metaW = this.textRenderer.getWidth(items) + this.textRenderer.getWidth(full);
+        // Meta is dropped rather than overlapping the view-only badge.
+        if (mx + metaW <= panelX + pad + titleMax) {
+            ctx.drawText(this.textRenderer, Text.literal(items), mx, ty, GlassTheme.textMuted(), false);
+            int fx = mx + this.textRenderer.getWidth(items);
+            int pctColor = pct >= 90 ? GlassTheme.WARN : pct >= 75 ? GlassTheme.VALUE : GlassTheme.textMuted();
+            ctx.drawText(this.textRenderer, Text.literal(full), fx, ty, pctColor, false);
         }
+        GlassRender.rule(ctx, panelX + pad, rightEdge, panelY + TITLE_BAR_H - 2);
     }
 
     @Override
@@ -979,7 +999,7 @@ public abstract class ItemTerminalScreen extends Screen {
         int gridW = gridContentWidth();
         int gridH = gridContentHeight();
 
-        // Grid background — frosted glass slots.
+        // Grid background: recessed glass slots.
         for (int r = 0; r < GRID_ROWS; r++) {
             for (int c = 0; c < GRID_COLS; c++) {
                 int sx = gx + c * SLOT_PX;
@@ -1025,7 +1045,7 @@ public abstract class ItemTerminalScreen extends Screen {
 
             // Hover highlight + tooltip (item name + bundled lore + aggregate info)
             if (mouseX >= sx && mouseX < sx + SLOT_PX && mouseY >= sy && mouseY < sy + SLOT_PX) {
-                ctx.fill(sx + 1, sy + 1, sx + SLOT_PX - 1, sy + SLOT_PX - 1, 0x66FFFFFF);
+                ctx.fill(sx + 1, sy + 1, sx + SLOT_PX - 1, sy + SLOT_PX - 1, HOVER_TINT);
                 hoverTooltip = buildItemTooltip(e, stack);
             }
         }
@@ -1034,7 +1054,7 @@ public abstract class ItemTerminalScreen extends Screen {
         if (entries.isEmpty()) {
             String msg = normalizedQuery().isEmpty()
                     ? emptyMessage()
-                    : "§7No items match §f\"" + searchQuery + "\"";
+                    : "No items match \"" + searchQuery + "\"";
             int msgW = this.textRenderer.getWidth(msg);
             ctx.drawText(this.textRenderer, Text.literal(msg),
                     gx + (gridW - msgW) / 2, gy + gridH / 2 - 4, GlassTheme.textMuted(), false);
@@ -1055,11 +1075,12 @@ public abstract class ItemTerminalScreen extends Screen {
             int msgW = this.textRenderer.getWidth(msg);
             int bx = gx + (gridW - msgW) / 2;
             int by = gy + gridH / 2 - 4;
-            GlassRender.roundedRect(ctx, bx - 6, by - 5, bx + msgW + 6, by + 13, 5,
-                    GlassTheme.withAlpha(GlassTheme.WARN, 0xC0));
-            GlassRender.roundedBorder(ctx, bx - 6, by - 5, bx + msgW + 6, by + 13, 5,
-                    GlassTheme.withAlpha(GlassTheme.WARN, 0xFF));
-            ctx.drawText(this.textRenderer, Text.literal(msg), bx, by, GlassTheme.text(), true);
+            // Opaque panel-colored plate with a cinder rim so the notice reads
+            // over the item icons; cinder text (never white on a red fill).
+            GlassRender.roundedRect(ctx, bx - 6, by - 5, bx + msgW + 6, by + 13, 1,
+                    GlassTheme.withAlpha(GlassTheme.panelTop(), 0xF2));
+            GlassRender.roundedBorder(ctx, bx - 6, by - 5, bx + msgW + 6, by + 13, 1, GlassTheme.WARN);
+            ctx.drawText(this.textRenderer, Text.literal(msg), bx, by, GlassTheme.WARN, false);
         }
 
         // Sort-mode button (search row, right side).
@@ -1088,7 +1109,8 @@ public abstract class ItemTerminalScreen extends Screen {
 
     /** Build a vanilla-style multi-line tooltip from a terminal tile: bundled
      *  display-name as the title, then each lore line, then an aggregate footer
-     *  (total + stack breakdown + which sources it spans). */
+     *  (total + stack breakdown + which sources it spans). Tooltip lines keep
+     *  vanilla chat colours because they render in the vanilla tooltip box. */
     private List<Text> buildItemTooltip(Entry e, ItemStack stack) {
         List<Text> lines = new ArrayList<>();
         String name = (e.rep.displayName != null && !e.rep.displayName.isEmpty())
@@ -1127,8 +1149,13 @@ public abstract class ItemTerminalScreen extends Screen {
         int iy = invY();
         int panelX = (this.width - panelWidth()) / 2;
 
-        ctx.drawText(this.textRenderer, Text.literal("Your inventory:"),
-                panelX + 10, iy - 9, GlassTheme.textMuted(), false);
+        // Labelled bronze divider between the terminal grid and the inventory.
+        String label = "Your inventory";
+        int ly = iy - 11;
+        ctx.drawText(this.textRenderer, Text.literal(label),
+                panelX + PANEL_PADDING, ly, GlassTheme.textMuted(), false);
+        GlassRender.rule(ctx, panelX + PANEL_PADDING + this.textRenderer.getWidth(label) + 6,
+                panelX + panelWidth() - PANEL_PADDING, ly + this.textRenderer.fontHeight / 2);
 
         // Main inventory rows (slots 9..35) — top to bottom.
         for (int row = 0; row < INV_MAIN_ROWS; row++) {
@@ -1162,7 +1189,7 @@ public abstract class ItemTerminalScreen extends Screen {
 
         if (mouseX >= sx && mouseX < sx + INV_SLOT_PX
                 && mouseY >= sy && mouseY < sy + INV_SLOT_PX) {
-            ctx.fill(sx + 1, sy + 1, sx + INV_SLOT_PX - 1, sy + INV_SLOT_PX - 1, 0x44FFFFFF);
+            ctx.fill(sx + 1, sy + 1, sx + INV_SLOT_PX - 1, sy + INV_SLOT_PX - 1, HOVER_TINT);
             if (stack != null && !stack.isEmpty()) {
                 // Vanilla item tooltip (name + lore + enchants + durability),
                 // plus a hint about the shift-click deposit shortcut.
@@ -1231,17 +1258,17 @@ public abstract class ItemTerminalScreen extends Screen {
     /** Total slot capacity across all accessible groups (title-bar % fill). */
     protected abstract int capacitySlots();
 
-    /** The title-bar text. {@code statsSuffix} is the pre-built
-     *  " · N items · pct%" tail (legacy § coded) to append. */
-    protected abstract Text titleText(String statsSuffix);
+    /** The title-bar text, drawn in ember unless the Text carries its own
+     *  colour. The base draws the "N items, pct% full" meta next to it. */
+    protected abstract Text titleText();
 
-    /** Persistent top-right view-only badge (legacy § coded). */
+    /** Persistent top-right view-only badge (plain text, drawn in cinder). */
     protected abstract String viewOnlyBadge();
 
-    /** Flash notice after a blocked take/put attempt (legacy § coded). */
+    /** Flash notice after a blocked take/put attempt (plain text, drawn in cinder). */
     protected abstract String blockedMessage();
 
-    /** Centered grid message when there are no entries and no query. */
+    /** Centered grid message when there are no entries and no query (plain, muted). */
     protected abstract String emptyMessage();
 
     /** Inventory-slot tooltip hint while deposits are allowed. */

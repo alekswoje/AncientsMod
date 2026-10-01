@@ -2,6 +2,7 @@ package com.aleks.ancientsmod.client.chat;
 
 import com.aleks.ancientsmod.client.FeatureToggles;
 import com.aleks.ancientsmod.client.ServerAllowlist;
+import com.aleks.ancientsmod.client.glass.GlassTheme;
 import com.aleks.ancientsmod.mixin.client.ChatHudAccessor;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.DrawnTextConsumer;
@@ -24,8 +25,8 @@ import java.util.List;
  * click event carrying {@code <name>: <message>}, but only for players running
  * this mod. Vanilla already performs the copy on click, so all this class does
  * is make it <i>visible</i>: the message under the cursor gets a soft
- * highlight, an accent bar down its left edge, and a copy icon in the chat
- * box's right padding strip. Nothing is drawn on lines the server did not mark
+ * warm highlight, a thin Ember bar down its left edge, and a Candle copy icon
+ * (Moss for a moment after a copy) in the chat box's right padding strip. Nothing is drawn on lines the server did not mark
  * (system broadcasts, other plugins' output).
  *
  * <h2>Geometry</h2>
@@ -46,10 +47,12 @@ public final class ChatCopyOverlay {
     /** Chat sits this many scaled pixels above the bottom of the window. */
     private static final int OFFSET_FROM_BOTTOM = 40;
 
-    private static final int HIGHLIGHT_COLOR = 0x1AFFFFFF;
-    private static final int ACCENT_COLOR = 0xCCA78BFA;
-    private static final int ICON_COLOR = 0xFFC9C9C9;
-    private static final int ICON_COPIED_COLOR = 0xFF7BE38A;
+    // Fixed dark-mode tones: this always draws over vanilla's black chat
+    // background, whatever the glass theme is set to.
+    private static final int HIGHLIGHT_COLOR = 0x1AEADFCB;
+    private static final int ACCENT_COLOR = GlassTheme.withAlpha(GlassTheme.ACCENT, 0xCC);
+    private static final int ICON_COLOR = GlassTheme.ACCENT_SOFT;
+    private static final int ICON_COPIED_COLOR = GlassTheme.OK;
     /** Painted behind the front sheet so it reads as overlapping the back one. */
     private static final int ICON_OCCLUDE_COLOR = 0xE0000000;
 

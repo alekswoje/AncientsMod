@@ -1,6 +1,7 @@
 package com.aleks.ancientsmod.client.hud;
 
 import com.aleks.ancientsmod.client.glass.GlassButton;
+import com.aleks.ancientsmod.client.glass.GlassLink;
 import com.aleks.ancientsmod.client.glass.GlassRender;
 import com.aleks.ancientsmod.client.glass.GlassSlider;
 import com.aleks.ancientsmod.client.glass.GlassTextField;
@@ -14,47 +15,64 @@ import net.minecraft.client.gui.widget.ClickableWidget;
 import net.minecraft.text.Text;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
 
 /**
- * Per-widget settings popup base. Long lists work because the row list:
+ * Settings screen base shared by the F9 menu, the advanced menu and every per-HUD popup.
+ *
+ * <p>Two layouts, one row API:
  * <ul>
- *   <li>Scrolls on the mouse wheel</li>
- *   <li>Filters live as you type in the search box</li>
- *   <li>Shows non-interactive section headers between groups</li>
+ *   <li><b>Sidebar</b> ({@link #useSidebar()} true): the sections become a category list on
+ *   the left and the right pane shows one category at a time. Typing in the search box shows
+ *   matching rows from every category, grouped under their section names.</li>
+ *   <li><b>Single pane</b> (default): one scrolling list with section headings, for the short
+ *   per-HUD popups.</li>
  * </ul>
  *
- * <p>Subclasses override {@link #addRows()} and call
- * {@link #addSection(String)}, {@link #addToggle}, {@link #addSlider} — the
- * scroll + filter machinery is handled here.
+ * <p>Subclasses override {@link #addRows()} and call {@link #addSection(String)},
+ * {@link #addToggle}, {@link #addAction} and {@link #addSlider}. Row widgets are rendered
+ * inside a scissor so a half-scrolled row never draws over the header or footer.
  */
 public abstract class WidgetSettingsScreen extends Screen {
 
     private static final int BUTTON_W = 240;
-    private static final int BUTTON_H = 20;
-    private static final int ROW_HEIGHT = 24;
-    private static final int HEADER_HEIGHT = 18;
-    private static final int VIEWPORT_TOP = 84;
-    private static final int VIEWPORT_BOTTOM_PAD = 36;
+    private static final int ROW_H = 18;
+    private static final int WIDGET_H = 16;
+    private static final int HEADER_ROW_H = 20;
+    private static final int SIDEBAR_W = 104;
+    private static final int CAT_H = 15;
+    private static final int PAD = 10;
+    private static final int FOOTER_H = 26;
+
+    /** Last category picked per screen class, so reopening F9 lands where the player left it. */
+    private static final Map<String, Integer> LAST_CATEGORY = new HashMap<>();
 
     private final Screen parent;
     private final Text subtitle;
 
     private final List<Row> rows = new ArrayList<>();
+    private final List<String> sections = new ArrayList<>();
     private final GlassScrollbar scrollbar = new GlassScrollbar();
     private GlassTextField searchField;
+    private GlassButton doneButton;
     private int scrollY;
     private int totalContentHeight;
+    private int category;
 
-    /** Bind to a HUD element — title and subtitle are derived from it. */
+    // Geometry, recomputed in init().
+    private int px, py, pw, ph;
+    private int paneX, paneW, viewTop, viewBottom;
+
+    /** Bind to a HUD element: title and subtitle are derived from it. */
     protected WidgetSettingsScreen(Screen parent, HudElement element) {
-        this(parent, Text.literal(element.displayName() + " Settings"),
-                Text.literal(element.displayName() + " — element id: " + element.id()));
+        this(parent, Text.literal(element.displayName()), Text.literal("HUD settings"));
     }
 
     /** Plain-title constructor for non-widget settings screens (e.g. the F9 menu). */
@@ -64,75 +82,109 @@ public abstract class WidgetSettingsScreen extends Screen {
         this.subtitle = subtitle;
     }
 
-    @Override
-    protected final void init() {
-        rows.clear();
-        scrollY = 0;
-
-        // Search box at top — narrower than the row area so the "x to clear" gap reads.
-        int rowW = buttonWidth();
-        searchField = new GlassTextField(this.textRenderer,
-                this.width / 2 - rowW / 2, VIEWPORT_TOP - 28,
-                rowW, BUTTON_H, Text.literal("Search settings"));
-        searchField.setPlaceholder(Text.literal("Search…"));
-        searchField.setChangedListener(s -> relayout());
-        addDrawableChild(searchField);
-
-        addRows();
-
-        // Done button anchored to the bottom (accent-filled glass).
-        addDrawableChild(new GlassButton(this.width / 2 - 50, this.height - 28, 100, BUTTON_H,
-                Text.translatable("gui.done"), this::close).primary());
-
-        relayout();
-    }
-
     /** Subclasses register their toggles / sliders / section headers here. */
     protected abstract void addRows();
 
     /**
-     * Width of each row / button (and the viewport box) in this screen. Defaults
-     * to {@link #BUTTON_W}; the full-mod settings screens override this wider so
-     * the long F9 list isn't a thin vertical strip. Per-HUD popups keep the
-     * default. Clamped against the screen width by callers' layout maths.
+     * Width of the row column. The sidebar layout adds the sidebar on top of this; the single
+     * pane uses it directly. Clamped against the screen width in {@link #init()}.
      */
     protected int buttonWidth() {
         return BUTTON_W;
     }
 
+    /** True to show sections as a category sidebar instead of one long list. */
+    protected boolean useSidebar() {
+        return false;
+    }
+
+    @Override
+    protected final void init() {
+        rows.clear();
+        sections.clear();
+        scrollY = 0;
+
+        boolean sidebar = useSidebar();
+        int rowW = buttonWidth();
+        pw = Math.min(this.width - 16, rowW + 2 * PAD + 6 + (sidebar ? SIDEBAR_W : 0));
+        ph = Math.min(this.height - 12, sidebar ? 300 : 280);
+        px = (this.width - pw) / 2;
+        py = (this.height - ph) / 2;
+
+        if (sidebar) {
+            paneX = px + SIDEBAR_W + PAD;
+            searchField = new GlassTextField(this.textRenderer, px + 8, py + 24, SIDEBAR_W - 16, 14,
+                    Text.literal("Search settings"));
+            viewTop = py + 28;
+        } else {
+            paneX = px + PAD;
+            searchField = new GlassTextField(this.textRenderer, paneX, py + 34, pw - 2 * PAD - 6, 14,
+                    Text.literal("Search settings"));
+            viewTop = py + 54;
+        }
+        paneW = px + pw - PAD - 6 - paneX;
+        viewBottom = py + ph - FOOTER_H - 2;
+
+        searchField.setPlaceholder(Text.literal("Search"));
+        searchField.setChangedListener(s -> { scrollY = 0; relayout(); });
+        addDrawableChild(searchField);
+
+        addRows();
+        if (sections.isEmpty()) sections.add("General");
+
+        category = Math.max(0, Math.min(sections.size() - 1, LAST_CATEGORY.getOrDefault(getClass().getName(), 0)));
+
+        doneButton = new GlassButton(px + pw - PAD - 52, py + ph - 20, 52, 14,
+                Text.translatable("gui.done"), this::close).primary();
+        addDrawableChild(doneButton);
+
+        relayout();
+    }
+
     // ── Public row-building API ─────────────────────────────────────────────
 
-    /** Add a non-interactive section header (visual divider with text). */
+    /** Start a new section. In the sidebar layout this is a category; otherwise a heading. */
     protected final void addSection(String label) {
-        rows.add(new HeaderRow(label));
+        sections.add(label);
+        rows.add(new HeaderRow(label, sections.size() - 1));
     }
 
     /** Labeled ON/OFF toggle wired to a getter/setter pair. */
     protected final void addToggle(String label, BooleanSupplier getter, Consumer<Boolean> setter) {
-        GlassToggle btn = new GlassToggle(0, 0, buttonWidth(), BUTTON_H, label, getter.getAsBoolean(), setter);
-        addDrawableChild(btn);
-        rows.add(new WidgetRow(label, btn));
+        GlassToggle btn = new GlassToggle(0, 0, paneW, WIDGET_H, label, getter.getAsBoolean(), setter);
+        addSelectableChild(btn);
+        rows.add(new WidgetRow(label, btn, currentSection()));
     }
 
-    /** Plain action button (e.g. "Edit HUD positions...") — sits in the same scrollable list as toggles. */
+    /** Action row (e.g. "Edit HUD positions"): candle label with a chevron, opens or runs something. */
     protected final void addAction(String label, Runnable action) {
-        GlassButton btn = new GlassButton(0, 0, buttonWidth(), BUTTON_H, Text.literal(label), action);
-        addDrawableChild(btn);
-        rows.add(new WidgetRow(label, btn));
+        GlassLink btn = new GlassLink(0, 0, paneW, WIDGET_H, Text.literal(stripEllipsis(label)), action);
+        addSelectableChild(btn);
+        rows.add(new WidgetRow(label, btn, currentSection()));
     }
 
     /** Integer slider (min..max) with a labeled message. */
     protected final void addSlider(String label, int min, int max, IntSupplier getter, IntConsumer setter) {
-        GlassSlider slider = new GlassSlider(0, 0, buttonWidth(), BUTTON_H, label, min, max, getter.getAsInt(), setter);
-        addDrawableChild(slider);
-        rows.add(new WidgetRow(label, slider));
+        GlassSlider slider = new GlassSlider(0, 0, paneW, WIDGET_H, label, min, max, getter.getAsInt(), setter);
+        addSelectableChild(slider);
+        rows.add(new WidgetRow(label, slider, currentSection()));
+    }
+
+    private int currentSection() {
+        if (sections.isEmpty()) {
+            sections.add("General");
+            rows.add(new HeaderRow("General", 0));
+        }
+        return sections.size() - 1;
+    }
+
+    private static String stripEllipsis(String s) {
+        String t = s.trim();
+        while (t.endsWith(".") || t.endsWith("…")) t = t.substring(0, t.length() - 1);
+        return t.trim();
     }
 
     // ── Layout + scroll + filter ────────────────────────────────────────────
-
-    private int viewportBottom() {
-        return this.height - VIEWPORT_BOTTOM_PAD;
-    }
 
     private String filterQuery() {
         if (searchField == null) return "";
@@ -140,104 +192,213 @@ public abstract class WidgetSettingsScreen extends Screen {
         return s == null ? "" : s.trim().toLowerCase(Locale.ROOT);
     }
 
-    private boolean rowMatches(Row r, String query) {
-        if (query.isEmpty()) return true;
-        // Section headers always show — they orient the user during a search.
-        if (r instanceof HeaderRow) return true;
-        return r.label().toLowerCase(Locale.ROOT).contains(query);
+    private boolean searching() {
+        return !filterQuery().isEmpty();
+    }
+
+    /** Whether a row is part of the current view (category or search results). */
+    private boolean rowShown(Row r) {
+        String q = filterQuery();
+        if (useSidebar() && q.isEmpty()) {
+            return !(r instanceof HeaderRow) && r.section() == category;
+        }
+        if (q.isEmpty()) return true;
+        if (r instanceof HeaderRow) return sectionHasMatch(r.section(), q);
+        return r.label().toLowerCase(Locale.ROOT).contains(q);
+    }
+
+    private boolean sectionHasMatch(int section, String q) {
+        for (Row r : rows) {
+            if (!(r instanceof HeaderRow) && r.section() == section && r.label().toLowerCase(Locale.ROOT).contains(q)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void relayout() {
-        String query = filterQuery();
-        int top = VIEWPORT_TOP;
-        int bottom = viewportBottom();
-        int centerX = this.width / 2;
-
-        // First pass: total content height (matching rows only).
         int contentHeight = 0;
-        for (Row r : rows) {
-            if (!rowMatches(r, query)) continue;
-            contentHeight += r.height();
-        }
+        for (Row r : rows) if (rowShown(r)) contentHeight += r.height();
         totalContentHeight = contentHeight;
 
-        // Clamp scroll so we can't scroll past the end / before the start.
-        int viewportH = bottom - top;
-        int maxScroll = Math.max(0, contentHeight - viewportH);
-        if (scrollY < 0) scrollY = 0;
-        if (scrollY > maxScroll) scrollY = maxScroll;
+        int maxScroll = Math.max(0, contentHeight - (viewBottom - viewTop));
+        scrollY = Math.max(0, Math.min(maxScroll, scrollY));
 
-        // Second pass: position each row and cull off-screen ones.
-        int rowW = buttonWidth();
-        int y = top - scrollY;
+        int y = viewTop - scrollY;
         for (Row r : rows) {
-            boolean visible = rowMatches(r, query);
-            if (!visible) {
+            if (!rowShown(r)) {
                 r.setOnScreen(false);
                 continue;
             }
-            int rowTop = y;
-            int rowBottom = y + r.height();
-            boolean onScreen = rowBottom > top && rowTop < bottom;
-            r.setOnScreen(onScreen);
-            r.setY(centerX, rowTop, rowW);
+            r.setOnScreen(y + r.height() > viewTop && y < viewBottom);
+            r.place(paneX, y, paneW);
             y += r.height();
         }
     }
 
+    private int countIn(int section) {
+        int n = 0;
+        for (Row r : rows) if (!(r instanceof HeaderRow) && r.section() == section) n++;
+        return n;
+    }
+
+    private int matchCount() {
+        int n = 0;
+        for (Row r : rows) if (!(r instanceof HeaderRow) && rowShown(r)) n++;
+        return n;
+    }
+
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizDelta, double vertDelta) {
-        // 1 wheel-tick ≈ 24 px (one row).
-        scrollY -= (int) Math.round(vertDelta * ROW_HEIGHT);
+        scrollY -= (int) Math.round(vertDelta * ROW_H * 2);
         relayout();
         return true;
     }
 
+    // ── Rendering ───────────────────────────────────────────────────────────
+
     @Override
     public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
-        int rowW = buttonWidth();
-        // Real blurred backdrop, then one frosted glass card behind the whole column.
         GlassRender.menuBackdrop(ctx, this.width, this.height);
-        GlassRender.panel(ctx, this.width / 2 - rowW / 2 - 12, 6, rowW + 24, this.height - 12);
+        GlassRender.panel(ctx, px, py, pw, ph);
 
-        super.render(ctx, mouseX, mouseY, delta);
+        boolean sidebar = useSidebar();
+        if (sidebar) renderSidebar(ctx, mouseX, mouseY);
+        renderPaneHeader(ctx, sidebar);
 
-        // Header titles.
-        ctx.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, 14, GlassTheme.text());
-        if (subtitle != null) {
-            ctx.drawCenteredTextWithShadow(this.textRenderer, subtitle, this.width / 2, 28, GlassTheme.textDim());
-        }
+        // Footer: rule, hint, Done (Done is a drawable child).
+        int footY = py + ph - FOOTER_H;
+        GlassRender.rule(ctx, sidebar ? px + SIDEBAR_W + 1 : px + 1, px + pw - 1, footY);
+        String hint = searching() && matchCount() == 0 ? "No settings match \"" + searchField.getText().trim() + "\""
+                : "Changes save instantly";
+        int hintMax = doneButton.getX() - 8 - paneX;
+        ctx.drawText(this.textRenderer, Text.literal(this.textRenderer.trimToWidth(hint, hintMax)),
+                paneX, footY + 9, GlassTheme.textMuted(), false);
 
-        // Section header text (non-widget rows) inside the viewport.
-        String query = filterQuery();
-        int top = VIEWPORT_TOP;
-        int bottom = viewportBottom();
-        int centerX = this.width / 2;
-        int y = top - scrollY;
-        ctx.enableScissor(0, top, this.width, bottom);
+        // Rows, clipped to the viewport.
+        ctx.enableScissor(paneX - 4, viewTop, px + pw - 2, viewBottom);
+        int y = viewTop - scrollY;
         for (Row r : rows) {
-            if (!rowMatches(r, query)) continue;
-            int rowTop = y;
-            int rowBottom = y + r.height();
-            if (rowBottom > top && rowTop < bottom && r instanceof HeaderRow h) {
-                GlassRender.sectionDivider(ctx, this.textRenderer, centerX, rowTop, r.height(), rowW, h.text);
+            if (!rowShown(r)) continue;
+            if (y + r.height() > viewTop && y < viewBottom) {
+                if (r instanceof HeaderRow h) {
+                    GlassRender.sectionDivider(ctx, this.textRenderer, paneX + paneW / 2, y, r.height(), paneW, h.text);
+                } else if (r instanceof WidgetRow w) {
+                    w.widget.render(ctx, mouseX, mouseY, delta);
+                }
             }
             y += r.height();
         }
         ctx.disableScissor();
 
-        // Draggable scrollbar on the right edge of the viewport (only when content overflows).
-        scrollbar.render(ctx, this.width / 2 + rowW / 2 + 6, top, bottom, totalContentHeight, scrollY);
+        scrollbar.render(ctx, px + pw - PAD + 2, viewTop, viewBottom, totalContentHeight, scrollY);
+
+        // Search field + Done.
+        super.render(ctx, mouseX, mouseY, delta);
     }
+
+    private void renderSidebar(DrawContext ctx, int mouseX, int mouseY) {
+        ctx.fill(px + 1, py + 1, px + SIDEBAR_W, py + ph - 1, GlassTheme.isLight() ? 0x1A24130A : 0x33000000);
+        GlassRender.vrule(ctx, px + SIDEBAR_W, py + 1, py + ph - 1);
+
+        String brand = this.textRenderer.trimToWidth(this.title.getString(), SIDEBAR_W - 18);
+        ctx.drawText(this.textRenderer, Text.literal(brand), px + 9, py + 10, GlassTheme.ACCENT, true);
+
+        boolean searching = searching();
+        int y = py + 48;
+        int maxY = py + ph - 8;
+        for (int i = 0; i < sections.size() && y + CAT_H <= maxY; i++) {
+            int x1 = px + 5, x2 = px + SIDEBAR_W - 5;
+            boolean active = !searching && i == category;
+            boolean hover = mouseX >= x1 && mouseX < x2 && mouseY >= y && mouseY < y + CAT_H - 1;
+            if (active) GlassRender.selected(ctx, x1, y, x2, y + CAT_H - 1);
+            else if (hover) GlassRender.row(ctx, x1, y, x2, y + CAT_H - 1, true);
+            int color = active ? GlassTheme.text() : hover ? GlassTheme.textDim() : GlassTheme.textMuted();
+            String name = this.textRenderer.trimToWidth(sections.get(i), x2 - x1 - 12);
+            ctx.drawText(this.textRenderer, Text.literal(name), x1 + 6, y + 3, color, active);
+            y += CAT_H;
+        }
+    }
+
+    private void renderPaneHeader(DrawContext ctx, boolean sidebar) {
+        String heading;
+        String meta;
+        if (searching()) {
+            heading = "Search";
+            int n = matchCount();
+            meta = n == 1 ? "1 result" : n + " results";
+        } else if (sidebar) {
+            heading = sections.get(category);
+            int n = countIn(category);
+            meta = n == 1 ? "1 setting" : n + " settings";
+        } else {
+            heading = this.title.getString();
+            meta = null;
+        }
+        int hx = paneX;
+        int hy = py + 10;
+        if (sidebar) {
+            String h = this.textRenderer.trimToWidth(heading, paneW - 60);
+            ctx.drawText(this.textRenderer, Text.literal(h), hx, hy, GlassTheme.text(), true);
+            if (meta != null) {
+                ctx.drawText(this.textRenderer, Text.literal(meta), hx + this.textRenderer.getWidth(h) + 6, hy,
+                        GlassTheme.textMuted(), false);
+            }
+            GlassRender.rule(ctx, paneX, paneX + paneW, py + 22);
+        } else {
+            ctx.drawText(this.textRenderer, Text.literal(this.textRenderer.trimToWidth(heading, paneW)), hx, hy,
+                    GlassTheme.ACCENT, true);
+            if (subtitle != null) {
+                ctx.drawText(this.textRenderer, Text.literal(this.textRenderer.trimToWidth(subtitle.getString(), paneW)),
+                        hx, hy + 12, GlassTheme.textMuted(), false);
+            }
+        }
+    }
+
+    // ── Input ───────────────────────────────────────────────────────────────
 
     @Override
     public boolean mouseClicked(Click click, boolean doubled) {
-        if (click.button() == 0 && scrollbar.mousePressed(click.x(), click.y())) {
-            scrollY = scrollbar.scrollFor(click.y(), totalContentHeight);
+        double mx = click.x(), my = click.y();
+        if (click.button() == 0 && scrollbar.mousePressed(mx, my)) {
+            scrollY = scrollbar.scrollFor(my, totalContentHeight);
             relayout();
             return true;
         }
+        if (click.button() == 0 && useSidebar() && mx >= px + 5 && mx < px + SIDEBAR_W - 5) {
+            int y = py + 48;
+            for (int i = 0; i < sections.size(); i++) {
+                if (my >= y && my < y + CAT_H - 1) {
+                    selectCategory(i);
+                    return true;
+                }
+                y += CAT_H;
+            }
+        }
+        // Rows that are scrolled half out of view must not take clicks outside the viewport.
+        if (my < viewTop || my >= viewBottom) {
+            List<ClickableWidget> parked = new ArrayList<>();
+            for (Row r : rows) {
+                if (r instanceof WidgetRow w && w.widget.active) {
+                    w.widget.active = false;
+                    parked.add(w.widget);
+                }
+            }
+            try {
+                return super.mouseClicked(click, doubled);
+            } finally {
+                for (ClickableWidget w : parked) w.active = true;
+            }
+        }
         return super.mouseClicked(click, doubled);
+    }
+
+    private void selectCategory(int i) {
+        category = i;
+        LAST_CATEGORY.put(getClass().getName(), i);
+        scrollY = 0;
+        if (searching()) searchField.setText("");
+        relayout();
     }
 
     @Override
@@ -268,35 +429,41 @@ public abstract class WidgetSettingsScreen extends Screen {
 
     private interface Row {
         String label();
+        int section();
         int height();
-        /** Reposition for display at this center-x and top-y, sized to {@code width}. */
-        void setY(int centerX, int topY, int width);
-        /** Allow the widget (if any) to be off-screen — hidden = doesn't render or take clicks. */
+        /** Position at this pane x / top y, sized to {@code width}. */
+        void place(int x, int topY, int width);
+        /** Hidden rows don't render or take clicks. */
         void setOnScreen(boolean on);
     }
 
     private static final class HeaderRow implements Row {
         final String text;
-        HeaderRow(String text) { this.text = text; }
+        final int section;
+        HeaderRow(String text, int section) { this.text = text; this.section = section; }
         @Override public String label() { return text; }
-        @Override public int height() { return HEADER_HEIGHT; }
-        @Override public void setY(int centerX, int topY, int width) {}
+        @Override public int section() { return section; }
+        @Override public int height() { return HEADER_ROW_H; }
+        @Override public void place(int x, int topY, int width) {}
         @Override public void setOnScreen(boolean on) {}
     }
 
     private static final class WidgetRow implements Row {
         final String label;
         final ClickableWidget widget;
-        WidgetRow(String label, ClickableWidget widget) {
+        final int section;
+        WidgetRow(String label, ClickableWidget widget, int section) {
             this.label = label;
             this.widget = widget;
+            this.section = section;
         }
         @Override public String label() { return label; }
-        @Override public int height() { return ROW_HEIGHT; }
-        @Override public void setY(int centerX, int topY, int width) {
+        @Override public int section() { return section; }
+        @Override public int height() { return ROW_H; }
+        @Override public void place(int x, int topY, int width) {
             widget.setWidth(width);
-            widget.setX(centerX - width / 2);
-            widget.setY(topY + 2);
+            widget.setX(x);
+            widget.setY(topY + 1);
         }
         @Override public void setOnScreen(boolean on) {
             widget.visible = on;
