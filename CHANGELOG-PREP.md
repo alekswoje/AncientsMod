@@ -12,6 +12,8 @@
 
 ## Rendering & Visuals
 
+- Fullbright is removed from the mod, along with its toggle in F9. Your own brightness setting now applies everywhere.
+
 ## UI & Screens
 
 ## Input & Keybinds

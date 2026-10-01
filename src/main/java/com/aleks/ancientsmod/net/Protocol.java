@@ -302,17 +302,10 @@ public final class Protocol {
     public static final byte PKT_MINING_STATS = 24;
 
     /**
-     * Fullbright blacklist for the mod's client-side fullbright feature. List
-     * of Bukkit world names where fullbright should NOT activate. Sent once
-     * after the handshake. Wire: type byte + varint count + repeating
-     * varint+UTF8 world name. Empty list = fullbright everywhere.
+     * Byte 25 was PKT_FULLBRIGHT_BLACKLIST. Fullbright was removed from the
+     * mod in 4.0.1; older servers may still send it and the default branch
+     * ignores it. Don't reuse 25.
      */
-    public static final byte PKT_FULLBRIGHT_BLACKLIST = 25;
-
-    /** Hard cap on worlds per blacklist packet (mirrors plugin). */
-    public static final int MAX_FULLBRIGHT_WORLDS = 32;
-    /** Hard cap on a single blacklisted world name length (mirrors plugin). */
-    public static final int MAX_FULLBRIGHT_WORLD_NAME_CHARS = 64;
 
     /**
      * S2C — per-player Tartarus Rift daily-time HUD state (mirrors plugin
@@ -748,7 +741,7 @@ public final class Protocol {
      * arrives. Wire per chunk:
      * {@code int version; varint chunkIndex; varint chunkCount; varint len; byte[len] body}.
      * Bounded by {@link #MAX_LOOT_CHUNK_BYTES} per packet, {@link #MAX_LOOT_SNAPSHOT_BYTES} total.
-     * NB: byte 25 is PKT_FULLBRIGHT_BLACKLIST on this season2 branch, so the loot
+     * NB: byte 25 was PKT_FULLBRIGHT_BLACKLIST on the season2 branch, so the loot
      * snapshot is renumbered 25 → 31 here to match the season2 plugin. Public
      * master uses 25.
      */
@@ -1552,8 +1545,6 @@ public final class Protocol {
      *  aren't dropped (a dropped bundle leaves the terminal grid looking like
      *  items vanished until reopen). Still bounded against a misbehaving server. */
     public static final int RATE_PV_BUNDLE_PER_SEC = 20;
-    /** Fullbright blacklist is one-shot per handshake — tight cap. */
-    public static final int RATE_FULLBRIGHT_BLACKLIST_PER_SEC = 2;
     /** Loot snapshot is on-demand but multi-chunk; allow a burst for the chunks
      *  of one snapshot to arrive back-to-back without tripping the limiter. */
     public static final int RATE_LOOT_CHUNK_PER_SEC = 80;

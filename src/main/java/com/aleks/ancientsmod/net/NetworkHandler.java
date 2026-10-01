@@ -2,7 +2,6 @@ package com.aleks.ancientsmod.net;
 
 import com.aleks.ancientsmod.AncientsMod;
 import com.aleks.ancientsmod.client.DuelState;
-import com.aleks.ancientsmod.client.Fullbright;
 import com.aleks.ancientsmod.client.GangRoster;
 import com.aleks.ancientsmod.client.RiftTexturePackManager;
 import com.aleks.ancientsmod.client.ServerAllowlist;
@@ -36,7 +35,6 @@ import com.aleks.ancientsmod.net.payload.NametagOpenPayload;
 import com.aleks.ancientsmod.net.payload.CooldownsPayload;
 import com.aleks.ancientsmod.net.payload.EventTimersPayload;
 import com.aleks.ancientsmod.net.payload.RiftBudgetPayload;
-import com.aleks.ancientsmod.net.payload.FullbrightBlacklistPayload;
 import com.aleks.ancientsmod.net.payload.MeteoriteHudPayload;
 import com.aleks.ancientsmod.net.payload.MiningStatsPayload;
 import com.aleks.ancientsmod.net.payload.PveStatsPayload;
@@ -209,12 +207,6 @@ public final class NetworkHandler {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.MINING_STATS)) return;
                     MiningStatsPayload p = MiningStatsPayload.decode(buf);
                     MiningStatsState.update(p);
-                }
-                case Protocol.PKT_FULLBRIGHT_BLACKLIST -> {
-                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.FULLBRIGHT_BLACKLIST)) return;
-                    FullbrightBlacklistPayload p = FullbrightBlacklistPayload.decode(buf);
-                    Fullbright.setBlacklist(p.worlds());
-                    Fullbright.logReceived(p.worlds());
                 }
                 case Protocol.PKT_MINING_BLOCKS -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.MINING_BLOCKS)) return;

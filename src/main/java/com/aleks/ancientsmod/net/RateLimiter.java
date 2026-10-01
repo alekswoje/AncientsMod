@@ -41,7 +41,6 @@ public final class RateLimiter {
         SUGGEST(Protocol.RATE_SUGGEST_PER_SEC),
         NAMETAG(Protocol.RATE_NAMETAG_PER_SEC),
         PV_BUNDLE(Protocol.RATE_PV_BUNDLE_PER_SEC),
-        FULLBRIGHT_BLACKLIST(Protocol.RATE_FULLBRIGHT_BLACKLIST_PER_SEC),
         LOOT_CHUNK(Protocol.RATE_LOOT_CHUNK_PER_SEC),
         LOOT_LUCK(Protocol.RATE_LOOT_LUCK_PER_SEC),
         PV_CHUNK(Protocol.RATE_PV_CHUNK_PER_SEC),

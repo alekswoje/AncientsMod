@@ -170,9 +170,6 @@ public final class FeatureToggles {
     /** Item lock — block Q-drop, Ctrl+Q drop-stack, inventory drag-out, and 1-9 hotbar swap on player-inv slots flagged via the lock keybind ({@link KeyBinds#TOGGLE_ITEM_LOCK}). Per-slot state lives in {@link ItemLocks} (separate file). When off, locks are ignored but not forgotten. */
     private static volatile boolean itemLock = true;
 
-    /** Client-side fullbright. Overrides the gamma slider so dark areas render fully lit. Disabled in worlds the server includes in the {@code ancientsmod.fullbright.blacklist-worlds} config (see {@link Fullbright}). Default on — server NV used to do this for everyone. */
-    private static volatile boolean fullbright = true;
-
     /** Draw a compact amount (e.g. "1m", "1.1k") in the top-right corner of currency item slots
      *  (currently Ancient Energy). Parsed from the synced display name — no server change needed. */
     private static volatile boolean currencyAmountOverlay = true;
@@ -267,7 +264,6 @@ public final class FeatureToggles {
             evenSpacingSnap = parseBool(props.getProperty("evenSpacingSnap"), evenSpacingSnap);
             autoRejoin = parseBool(props.getProperty("autoRejoin"), autoRejoin);
             itemLock = parseBool(props.getProperty("itemLock"), itemLock);
-            fullbright = parseBool(props.getProperty("fullbright"), fullbright);
             currencyAmountOverlay = parseBool(props.getProperty("currencyAmountOverlay"), currencyAmountOverlay);
             gearStatsOverlay = parseBool(props.getProperty("gearStatsOverlay"), gearStatsOverlay);
             boosterInfoOverlay = parseBool(props.getProperty("boosterInfoOverlay"), boosterInfoOverlay);
@@ -326,7 +322,6 @@ public final class FeatureToggles {
         props.setProperty("evenSpacingSnap", Boolean.toString(evenSpacingSnap));
         props.setProperty("autoRejoin", Boolean.toString(autoRejoin));
         props.setProperty("itemLock", Boolean.toString(itemLock));
-        props.setProperty("fullbright", Boolean.toString(fullbright));
         props.setProperty("currencyAmountOverlay", Boolean.toString(currencyAmountOverlay));
         props.setProperty("gearStatsOverlay", Boolean.toString(gearStatsOverlay));
         props.setProperty("boosterInfoOverlay", Boolean.toString(boosterInfoOverlay));
@@ -719,14 +714,6 @@ public final class FeatureToggles {
     public static void setItemLock(boolean value) {
         if (itemLock == value) return;
         itemLock = value;
-        save();
-    }
-
-    public static boolean isFullbrightEnabled() { return fullbright; }
-
-    public static void setFullbright(boolean value) {
-        if (fullbright == value) return;
-        fullbright = value;
         save();
     }
 

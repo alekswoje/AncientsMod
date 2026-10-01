@@ -102,8 +102,6 @@ public final class SettingsScreen extends WidgetSettingsScreen {
                 FeatureToggles::getZoomFovPercent, FeatureToggles::setZoomFovPercent);
 
         addSection("World");
-        addToggle("Fullbright",
-                FeatureToggles::isFullbrightEnabled, FeatureToggles::setFullbright);
         addToggle("Excavation artifact effects",
                 FeatureToggles::isExcavationEffectsEnabled, FeatureToggles::setExcavationEffects);
         addToggle("Mining rush pings",

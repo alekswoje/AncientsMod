@@ -233,7 +233,6 @@ public final class AncientsModClient implements ClientModInitializer {
             com.aleks.ancientsmod.client.buffs.BuffSnapshotState.clear();
             BugReportClient.reset();
             SuggestClient.reset();
-            com.aleks.ancientsmod.client.Fullbright.clear();
             com.aleks.ancientsmod.client.wiki.InteractiveItemTooltip.reset();
             com.aleks.ancientsmod.client.loot.LootClient.reset();
             com.aleks.ancientsmod.client.hud.JewelState.clear();
