@@ -21,3 +21,5 @@
 ## Updates & Installation
 
 ## Quality of Life
+
+- Peaceful PvP no longer fades gangmates or lets attacks pass through them in Sky Wars.

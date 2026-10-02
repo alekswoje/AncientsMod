@@ -17,9 +17,9 @@ import net.minecraft.registry.tag.ItemTags;
  * the attack raycast — so you can hit the enemy standing behind your gang
  * teammate instead of accidentally swinging at the teammate.
  *
- * <p>Disabled while the local player is in a duel ({@link DuelState}):
- * during a duel the teammate may BE the opponent, and we never want to
- * silently hide whatever the duel resolves to.
+ * <p>Disabled during duels ({@link DuelState}) and in Sky Wars round worlds:
+ * gang teammates may be opponents in these modes and must remain visible
+ * and targetable.
  *
  * <p>Off by default — opt-in via the settings screen.
  */
@@ -79,8 +79,12 @@ public final class PeacefulPvp {
         if (DuelState.isInDuel()) return false;
         if (GangRoster.isEmpty()) return false;
 
-        ClientPlayerEntity self = MinecraftClient.getInstance().player;
-        if (self == null) return false;
+        MinecraftClient mc = MinecraftClient.getInstance();
+        ClientPlayerEntity self = mc.player;
+        if (self == null || mc.world == null) return false;
+        // Matches PrisonsCore SkywarsWorldManager. Read the current world directly
+        // so entering/leaving a round takes effect without a cached-state delay.
+        if (mc.world.getRegistryKey().getValue().getPath().startsWith("sw_round_")) return false;
 
         ItemStack held = self.getMainHandStack();
         return held.isIn(ItemTags.SWORDS) || held.isIn(ItemTags.AXES);
