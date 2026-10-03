@@ -10,8 +10,6 @@
 
 ## HUDs
 
-- Added a movable mining competition HUD with the top five, your rank, block gaps, and time remaining.
-
 ## Rendering & Visuals
 
 ## UI & Screens
@@ -23,5 +21,3 @@
 ## Updates & Installation
 
 ## Quality of Life
-
-- Type `:skull:` for a Discord-style skull emoji in chat, with live conversion and Tab completion.
