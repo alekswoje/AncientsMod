@@ -196,6 +196,9 @@ public final class FeatureToggles {
      *  and keeps working either way. See {@link #CHAT_COPY_OFF_MIGRATION}. */
     private static volatile boolean chatCopy = false;
 
+    /** Copy saved screenshots as images to the system clipboard. Opt-in, on any server. */
+    private static volatile boolean screenshotClipboard = false;
+
     /** "Combine energy" button above the survival inventory, which runs {@code /combine}. */
     private static volatile boolean combineButton = true;
 
@@ -270,6 +273,7 @@ public final class FeatureToggles {
             dustPercentOverlay = parseBool(props.getProperty("dustPercentOverlay"), dustPercentOverlay);
             glassLightTheme = parseBool(props.getProperty("glassLightTheme"), glassLightTheme);
             chatCopy = parseBool(props.getProperty("chatCopy"), chatCopy);
+            screenshotClipboard = parseBool(props.getProperty("screenshotClipboard"), false);
             combineButton = parseBool(props.getProperty("combineButton"), combineButton);
         } catch (IOException e) {
             AncientsMod.LOGGER.warn("failed to load {}: {}", FILE_NAME, e.getMessage());
@@ -328,6 +332,7 @@ public final class FeatureToggles {
         props.setProperty("dustPercentOverlay", Boolean.toString(dustPercentOverlay));
         props.setProperty("glassLightTheme", Boolean.toString(glassLightTheme));
         props.setProperty("chatCopy", Boolean.toString(chatCopy));
+        props.setProperty("screenshotClipboard", Boolean.toString(screenshotClipboard));
         props.setProperty("combineButton", Boolean.toString(combineButton));
         props.setProperty(CHAT_COPY_OFF_MIGRATION, "true");
         try {
@@ -754,6 +759,14 @@ public final class FeatureToggles {
     public static void setGlassLightTheme(boolean value) {
         if (glassLightTheme == value) return;
         glassLightTheme = value;
+        save();
+    }
+
+    public static boolean isScreenshotClipboardEnabled() { return screenshotClipboard; }
+
+    public static void setScreenshotClipboard(boolean value) {
+        if (screenshotClipboard == value) return;
+        screenshotClipboard = value;
         save();
     }
 

@@ -22,7 +22,8 @@
     "client.LivingEntityRendererMixin",
     "client.MiningResumeMixin",
     "client.ParticleManagerMufflerMixin",
-    "client.SoundSystemMufflerMixin"
+    "client.SoundSystemMufflerMixin",
+    "client.ScreenshotRecorderMixin"
   ],
   "injectors": {
     "defaultRequire": 1

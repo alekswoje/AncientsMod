@@ -22,4 +22,5 @@
 
 ## Quality of Life
 
+- Added an optional Advanced setting to automatically copy screenshots to your clipboard as images. Off by default.
 - Peaceful PvP no longer fades gangmates or lets attacks pass through them in Sky Wars.

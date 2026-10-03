@@ -12,7 +12,7 @@ import net.minecraft.text.Text;
  * short. Same scrollable/searchable base + wide layout as the main screen;
  * closing returns to whatever opened it (the main settings screen).
  *
- * <p>Everything here is on by default. The toggles still work exactly as before
+ * <p>Most features here are on by default. Screenshot copying is opt-in. The toggles still work exactly as before
  * — they're just one click further away.
  */
 public final class AdvancedSettingsScreen extends WidgetSettingsScreen {
@@ -20,7 +20,7 @@ public final class AdvancedSettingsScreen extends WidgetSettingsScreen {
     public AdvancedSettingsScreen(Screen parent) {
         super(parent,
                 Text.literal("Advanced"),
-                Text.literal("On by default. Most players leave these alone."));
+                Text.literal("Extra controls for everyday play."));
     }
 
     @Override
@@ -65,6 +65,10 @@ public final class AdvancedSettingsScreen extends WidgetSettingsScreen {
                 FeatureToggles::isLootBrowserEnabled, FeatureToggles::setLootBrowser);
         addToggle("Energy calculator on /energycalc",
                 FeatureToggles::isEnergyCalcUiEnabled, FeatureToggles::setEnergyCalcUi);
+
+        addSection("Screenshots");
+        addToggle("Copy screenshots to clipboard",
+                FeatureToggles::isScreenshotClipboardEnabled, FeatureToggles::setScreenshotClipboard);
 
         addSection("Network");
         addToggle("Auto-rejoin after kick",
