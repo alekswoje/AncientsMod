@@ -23,7 +23,12 @@
     "client.MiningResumeMixin",
     "client.ParticleManagerMufflerMixin",
     "client.SoundSystemMufflerMixin",
-    "client.ScreenshotRecorderMixin"
+    "client.ScreenshotRecorderMixin",
+    "client.ChatScreenEmojiMixin",
+    "client.TextFieldSelectionAccessor",
+    "client.ChatEmojiSuggestorMixin",
+    "client.ChatHudEmojiMixin",
+    "client.EmojiFontMixin"
   ],
   "injectors": {
     "defaultRequire": 1

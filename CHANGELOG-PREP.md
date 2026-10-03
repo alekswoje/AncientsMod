@@ -23,3 +23,5 @@
 ## Updates & Installation
 
 ## Quality of Life
+
+- Type `:skull:` for a Discord-style skull emoji in chat, with live conversion and Tab completion.

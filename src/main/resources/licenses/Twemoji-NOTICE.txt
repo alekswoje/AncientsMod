@@ -1,0 +1,7 @@
+Skull emoji artwork: Twemoji
+Copyright Twitter, Inc. and other contributors.
+Source: https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f480.png
+Licensed under Creative Commons Attribution 4.0 International (CC BY 4.0).
+https://creativecommons.org/licenses/by/4.0/
+The original 72x72 PNG is bundled unchanged and scaled when displayed.
+The CC BY 4.0 license applies to this artwork; mod code remains MIT.
