@@ -10,11 +10,7 @@
 
 ## HUDs
 
-- The booster HUD now shows your Hunter XP booster with its own row and timer.
-
 ## Rendering & Visuals
-
-- The rift texture pack no longer switches off partway through a rift visit.
 
 ## UI & Screens
 
