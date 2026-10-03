@@ -14,6 +14,8 @@
 
 ## Rendering & Visuals
 
+- The rift texture pack no longer switches off partway through a rift visit.
+
 ## UI & Screens
 
 ## Input & Keybinds

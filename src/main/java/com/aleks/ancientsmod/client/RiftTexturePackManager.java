@@ -22,7 +22,7 @@ import java.util.concurrent.CompletableFuture;
  * amethyst_block) keep their natural look and pop visually by contrast.
  *
  * <p><b>Scope</b> is the rift world only. Activation is driven from the
- * world-change tick in {@link AncientsModClient}: enter {@code tartarus_rift} +
+ * world-change tick in {@link AncientsModClient}: enter a rift world (see {@link #isRiftWorld}) +
  * toggle on → pack enabled + {@link MinecraftClient#reloadResources()}. Leave
  * (or toggle off mid-rift) → pack disabled + reload. The reload is a 5-15 s
  * stutter; that's the accepted trade-off for keeping the recoloured ores
@@ -38,12 +38,16 @@ public final class RiftTexturePackManager {
 
     /** Server dimension key for the primary rift; matches PrisonsCore's {@code tartarus_rift} world. */
     public static final String RIFT_WORLD_NAME = "tartarus_rift";
-    /** Alt rift world — PrisonsCore swaps between primary and {@code _alt} every event for pre-gen. */
-    public static final String RIFT_WORLD_NAME_ALT = "tartarus_rift_alt";
-
-    /** True if {@code worldPath} is either rift world (primary or alt). */
+    /**
+     * True if {@code worldPath} is a rift world: {@code tartarus_rift} or any
+     * {@code tartarus_rift_*} world. Players mine in {@code tartarus_rift_plots} (personal plots,
+     * since 2026-10-03); {@code tartarus_rift_alt} is the old rotation world. Matching the prefix
+     * keeps a new rift world from silently dropping the pack, which is what the exact-name check
+     * did to the plots: the pack stayed on only for the preload's 30 s grace, then unloaded.
+     */
     public static boolean isRiftWorld(String worldPath) {
-        return RIFT_WORLD_NAME.equals(worldPath) || RIFT_WORLD_NAME_ALT.equals(worldPath);
+        return worldPath != null
+                && (RIFT_WORLD_NAME.equals(worldPath) || worldPath.startsWith(RIFT_WORLD_NAME + "_"));
     }
 
     private static volatile boolean registered = false;
