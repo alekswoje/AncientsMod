@@ -380,6 +380,11 @@ public final class NetworkHandler {
                     String reason = buf.readString(Protocol.CELLTERM_MAX_CLOSE_REASON_CHARS);
                     CellTermClient.onForceClose(reason);
                 }
+                case Protocol.PKT_MINING_COMP -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.MINING_COMP)) return;
+                    com.aleks.ancientsmod.client.hud.MiningCompState.update(
+                            com.aleks.ancientsmod.net.payload.MiningCompPayload.decode(buf));
+                }
                 case Protocol.PKT_OUTPOST_STATE -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.OUTPOST_STATE)) return;
                     OutpostStatePayload p = OutpostStatePayload.decode(buf);

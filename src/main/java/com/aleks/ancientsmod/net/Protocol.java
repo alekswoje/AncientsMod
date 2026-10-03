@@ -44,6 +44,11 @@ import net.minecraft.util.Identifier;
  * ignored silently so new packet types roll out without breaking old clients.
  */
 public final class Protocol {
+    /** S2C: int seconds, string tier (16), int rank (0=unranked), int blocks,
+     * unsigned byte count (0..5), then string name (16), int blocks per row.
+     * Zero seconds clears the HUD. Rankings use the server's reward ordering. */
+    public static final byte PKT_MINING_COMP = (byte) 160;
+
 
     /** Major protocol channel. Breaking changes bump this to v2, v3, etc.
      *  The namespace stays {@code prisonsmod} on purpose: it is the wire identifier the

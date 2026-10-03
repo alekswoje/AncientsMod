@@ -10,6 +10,8 @@
 
 ## HUDs
 
+- Added a movable mining competition HUD with the top five, your rank, block gaps, and time remaining.
+
 ## Rendering & Visuals
 
 ## UI & Screens
