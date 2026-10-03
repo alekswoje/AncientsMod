@@ -51,6 +51,9 @@ public final class SettingsScreen extends WidgetSettingsScreen {
         addSection("HUDs");
         addToggle("Booster HUD",
                 FeatureToggles::isBoosterHudEnabled, FeatureToggles::setBoosterHud);
+        addToggle("Mining Competition HUD",
+                com.aleks.ancientsmod.client.hud.MiningCompHud.INSTANCE::enabled,
+                value -> com.aleks.ancientsmod.client.hud.HudSettings.setBoolean("mining_comp", "enabled", value));
         addToggle("Events HUD",
                 FeatureToggles::isEventsHudEnabled, FeatureToggles::setEventsHud);
         addToggle("Cooldowns HUD",
