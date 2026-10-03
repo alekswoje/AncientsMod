@@ -9,6 +9,7 @@
 > **What counts as player-facing for the mod:** new HUDs/widgets, render tweaks the player sees, new keybinds, new screens, new client commands, changes to feature toggles, changes to peaceful-PvP / peaceful-mining behavior, tooltip changes, anything visible in the GUI editor or settings screen.
 
 ## HUDs
+n- The booster HUD now shows your Hunter XP booster with its own row and timer.
 
 ## Rendering & Visuals
 

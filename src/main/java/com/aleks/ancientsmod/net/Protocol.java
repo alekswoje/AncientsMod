@@ -120,6 +120,8 @@ public final class Protocol {
     public static final byte BOOSTER_KIND_ENERGY = 1;
     public static final byte BOOSTER_KIND_ORE    = 2;
     public static final byte BOOSTER_KIND_SHARD  = 3;
+    /** Hunter Point booster. Personal only, never part of a collapsed "All" row. */
+    public static final byte BOOSTER_KIND_HUNTER = 4;
 
     /** Hard cap on entries per booster snapshot (mirrors plugin). */
     public static final int MAX_BOOSTER_ENTRIES = 16;

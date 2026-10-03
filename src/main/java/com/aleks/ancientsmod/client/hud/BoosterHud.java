@@ -147,7 +147,13 @@ public final class BoosterHud extends HudElement {
 
         Map<Byte, List<BoosterUpdatePayload.Entry>> bySource = new HashMap<>();
         List<Byte> orderedSources = new ArrayList<>();
+        List<Row> standalone = new ArrayList<>();
         for (BoosterUpdatePayload.Entry e : entries) {
+            // Hunter has no global/comp variant, so it never belongs to an "All" row.
+            if (e.kind() == Protocol.BOOSTER_KIND_HUNTER) {
+                standalone.add(rowFromEntry(e));
+                continue;
+            }
             if (!bySource.containsKey(e.source())) orderedSources.add(e.source());
             bySource.computeIfAbsent(e.source(), k -> new ArrayList<>()).add(e);
         }
@@ -180,6 +186,7 @@ public final class BoosterHud extends HudElement {
                 for (BoosterUpdatePayload.Entry e : group) out.add(rowFromEntry(e));
             }
         }
+        out.addAll(standalone);
         return out;
     }
 
@@ -241,6 +248,7 @@ public final class BoosterHud extends HudElement {
         if (kind == Protocol.BOOSTER_KIND_ENERGY) return "Energy";
         if (kind == Protocol.BOOSTER_KIND_ORE)    return "Ore";
         if (kind == Protocol.BOOSTER_KIND_SHARD)  return "Shard";
+        if (kind == Protocol.BOOSTER_KIND_HUNTER) return "Hunter XP";
         return "?";
     }
 
@@ -252,6 +260,7 @@ public final class BoosterHud extends HudElement {
         if (e.kind() == Protocol.BOOSTER_KIND_ENERGY) return 0xFF8AC2FF;
         if (e.kind() == Protocol.BOOSTER_KIND_ORE)    return 0xFFE6B05A;
         if (e.kind() == Protocol.BOOSTER_KIND_SHARD)  return 0xFFE68AE0;
+        if (e.kind() == Protocol.BOOSTER_KIND_HUNTER) return 0xFFB57BFF;
         return GlassTheme.BRONZE;
     }
 
