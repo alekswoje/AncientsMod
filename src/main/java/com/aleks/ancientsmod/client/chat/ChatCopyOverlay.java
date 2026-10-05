@@ -14,20 +14,30 @@ import net.minecraft.network.message.ChatVisibility;
 import net.minecraft.text.ClickEvent;
 import net.minecraft.text.OrderedText;
 import net.minecraft.text.Style;
+import net.minecraft.text.Text;
 import net.minecraft.util.math.MathHelper;
 
 import java.util.List;
+import java.util.regex.Pattern;
 
 /**
- * Hover-to-copy affordance for chat, drawn on top of the open chat screen.
+ * Click-to-copy for chat, plus the hover affordance drawn on top of the open
+ * chat screen.
  *
- * <p>The server marks each player chat line with a {@code copy_to_clipboard}
- * click event carrying {@code <name>: <message>}, but only for players running
- * this mod. Vanilla already performs the copy on click, so all this class does
- * is make it <i>visible</i>: the message under the cursor gets a soft
- * warm highlight, a thin Ember bar down its left edge, and a Candle copy icon
- * (Moss for a moment after a copy) in the chat box's right padding strip. Nothing is drawn on lines the server did not mark
- * (system broadcasts, other plugins' output).
+ * <p>Two sources of copy, one gesture. The server marks each player chat line
+ * with a {@code copy_to_clipboard} click event carrying {@code <name>: <message>},
+ * but only for players running this mod, and vanilla performs that copy itself.
+ * Every other message (drop broadcasts, event announcements, system lines) has
+ * no such marker, so {@link #onMouseClick} copies those: a left click on a
+ * message, anywhere that has no click action of its own, puts the whole message
+ * (every wrapped row) on the clipboard as plain text. Anything clickable keeps
+ * its own action, so a player's name still starts a {@code /msg} and the
+ * {@code [brag]} / {@code [ah]} tokens still run their commands.
+ *
+ * <p>The copy is always on, on the Ancients server. The Settings toggle only
+ * controls the visual: the message under the cursor gets a soft warm
+ * highlight, a thin Ember bar down its left edge, and a Candle copy icon (Moss
+ * for a moment after a copy) in the chat box's right padding strip.
  *
  * <h2>Geometry</h2>
  * Mirrors {@code ChatHud#render}, because the chat is laid out in its own
@@ -63,12 +73,22 @@ public final class ChatCopyOverlay {
 
     private ChatCopyOverlay() {}
 
-    /** Where the hovered message sits on screen, in real (unscaled) pixels. */
-    private record Hovered(int xLeft, int xRight, int yTop, int yBottom, float scale) {}
+    /** Pack-font glyphs (badges, icons) render as boxes once pasted elsewhere. */
+    private static final Pattern PRIVATE_USE =
+            Pattern.compile("[\\uE000-\\uF8FF\\x{F0000}-\\x{10FFFD}]");
+    private static final Pattern LEGACY_CODE =
+            Pattern.compile("\u00a7[0-9a-fk-orx]", Pattern.CASE_INSENSITIVE);
+
+    /**
+     * Where the hovered message sits on screen, in real (unscaled) pixels, and
+     * which rows of {@code visibleMessages} it spans ({@code low} is its
+     * endOfEntry row).
+     */
+    private record Hovered(int xLeft, int xRight, int yTop, int yBottom, float scale, int low, int high) {}
 
     /** Draw the highlight + icon for the message under the cursor, if any. */
     public static void render(DrawContext ctx, int mouseX, int mouseY) {
-        if (!isEnabled()) return;
+        if (!ServerAllowlist.isAllowed() || !FeatureToggles.isChatCopyEnabled()) return;
         Hovered hovered = hoveredMessage(ctx.getScaledWindowHeight(), mouseX, mouseY);
         if (hovered == null) return;
 
@@ -87,15 +107,16 @@ public final class ChatCopyOverlay {
     }
 
     /**
-     * Called before the chat screen handles a click. Never swallows it, since
-     * vanilla's own {@code ChatScreen#mouseClicked} does the actual copying -
-     * it only arms the copied flash, and only when the click really landed on
-     * a copyable style. Using vanilla's own hit-test here, rather than the row
-     * geometry above, means an embedded {@code [brag]} / {@code [ah]} token,
-     * which keeps its own click action, cannot flash a false confirm.
+     * Called before the chat screen handles a click. Never swallows it.
+     *
+     * <p>Uses vanilla's own hit-test first. If the click landed on a style with
+     * a click event, vanilla runs it (a server copy, a name's {@code /msg}
+     * suggestion, a {@code [brag]} command) and this only arms the copied flash
+     * for a real copy. Otherwise the click is on plain message text or the
+     * empty end of a row, and this copies the message itself.
      */
     public static void onMouseClick(Click click) {
-        if (!isEnabled()) return;
+        if (!ServerAllowlist.isAllowed()) return;
         if (click.button() != 0) return;
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc.player == null) return;
@@ -108,9 +129,98 @@ public final class ChatCopyOverlay {
         mc.inGameHud.getChatHud().render(
                 handler, mc.getWindow().getScaledHeight(), mc.inGameHud.getTicks(), true);
         Style style = handler.getStyle();
-        if (style != null && style.getClickEvent() instanceof ClickEvent.CopyToClipboard) {
-            copiedFlashUntil = System.currentTimeMillis() + COPIED_FLASH_MS;
+        if (style != null && style.getClickEvent() != null) {
+            if (style.getClickEvent() instanceof ClickEvent.CopyToClipboard) {
+                copiedFlashUntil = System.currentTimeMillis() + COPIED_FLASH_MS;
+            }
+            return;
         }
+
+        Hovered hovered = hoveredMessage(mc.getWindow().getScaledHeight(), (int) click.x(), (int) click.y());
+        if (hovered == null) return;
+        String text = messageCopyText(mc.inGameHud.getChatHud(), hovered.low(), hovered.high());
+        if (text == null || text.isEmpty()) return;
+        mc.keyboard.setClipboard(text);
+        copiedFlashUntil = System.currentTimeMillis() + COPIED_FLASH_MS;
+    }
+
+    /**
+     * What a click on the message spanning visible rows {@code low..high}
+     * copies. A player chat line keeps the server's {@code <name>: <message>}
+     * payload, so a click on its empty row end copies the same thing as a
+     * click on its text. Anything else copies the message as plain text.
+     */
+    private static String messageCopyText(ChatHud hud, int low, int high) {
+        List<ChatHudLine.Visible> lines = ((ChatHudAccessor) hud).ancientsmod$visibleMessages();
+        for (int i = low; i <= high; i++) {
+            String marked = findCopyText(lines.get(i).content());
+            if (marked != null) return marked;
+        }
+
+        String raw = sourceMessageText(hud, lines, low, high);
+        if (raw == null) {
+            // Rows read top to bottom are high..low. Wrapping eats the space it
+            // broke at, so join with one and let clean() collapse any doubles.
+            StringBuilder sb = new StringBuilder();
+            for (int i = high; i >= low; i--) {
+                if (sb.length() > 0) sb.append(' ');
+                sb.append(plain(lines.get(i).content()));
+            }
+            raw = sb.toString();
+        }
+        return clean(raw);
+    }
+
+    /**
+     * The unwrapped text of the message whose endOfEntry row is {@code low},
+     * read from {@code ChatHud.messages} so newlines and the spaces wrapping
+     * removed survive. Returns null if the two lists do not line up (an empty
+     * message laid out to zero rows would shift the count), so the caller
+     * falls back to the rows themselves rather than copy the wrong message.
+     */
+    private static String sourceMessageText(ChatHud hud, List<ChatHudLine.Visible> lines, int low, int high) {
+        List<ChatHudLine> messages = ((ChatHudAccessor) hud).ancientsmod$messages();
+        int ordinal = -1;
+        for (int i = 0; i <= low; i++) {
+            if (lines.get(i).endOfEntry()) ordinal++;
+        }
+        if (ordinal < 0 || ordinal >= messages.size()) return null;
+
+        Text content = messages.get(ordinal).content();
+        StringBuilder rows = new StringBuilder();
+        for (int i = high; i >= low; i--) rows.append(plain(lines.get(i).content()));
+        // The rows were laid out from the emoji-expanded text and the stored
+        // message was not, so compare like with like.
+        String laidOut = EmojiChatText.expand(content).getString();
+        if (!stripWhitespace(laidOut).equals(stripWhitespace(rows.toString()))) return null;
+        return content.getString();
+    }
+
+    private static String plain(OrderedText text) {
+        StringBuilder sb = new StringBuilder();
+        text.accept((index, style, codePoint) -> {
+            sb.appendCodePoint(codePoint);
+            return true;
+        });
+        return sb.toString();
+    }
+
+    private static String stripWhitespace(String s) {
+        return s.replaceAll("\\s+", "");
+    }
+
+    /** Drop pack glyphs and stray colour codes, tidy spacing, keep line breaks. */
+    private static String clean(String raw) {
+        String s = PRIVATE_USE.matcher(raw).replaceAll("");
+        s = LEGACY_CODE.matcher(s).replaceAll("");
+        StringBuilder out = new StringBuilder();
+        for (String line : s.split("\\R")) {
+            String t = line.replaceAll("[ \\t\\u00a0]+", " ").trim();
+            if (t.isEmpty()) continue;
+            if (out.length() > 0) out.append('\n');
+            out.append(t);
+        }
+        return out.toString();
     }
 
     /** Clear transient state so a flash cannot survive into the next session. */
@@ -118,13 +228,9 @@ public final class ChatCopyOverlay {
         copiedFlashUntil = 0L;
     }
 
-    private static boolean isEnabled() {
-        return ServerAllowlist.isAllowed() && FeatureToggles.isChatCopyEnabled();
-    }
-
     /**
      * Resolve the cursor to a whole chat message and return its screen rect,
-     * or null when the cursor is not over a copyable one.
+     * or null when the cursor is not over one.
      */
     private static Hovered hoveredMessage(int windowHeight, int mouseX, int mouseY) {
         MinecraftClient mc = MinecraftClient.getInstance();
@@ -156,7 +262,6 @@ public final class ChatCopyOverlay {
 
         int index = row + scrolled;
         if (index < 0 || index >= lines.size()) return null;
-        if (findCopyText(lines.get(index).content()) == null) return null;
 
         // Walk out to the whole message: down to the endOfEntry row (its lowest
         // index, the bottom row on screen), then up over its wrapped rows.
@@ -172,7 +277,7 @@ public final class ChatCopyOverlay {
         int yTop = Math.round(scale * (baseline - rowHigh * lineH - lineH));
         int xLeft = 0;                                    // chatX -4, plus the +4 translate
         int xRight = Math.round(scale * (chatWidth + 12));
-        return new Hovered(xLeft, xRight, yTop, yBottom, scale);
+        return new Hovered(xLeft, xRight, yTop, yBottom, scale, low, high);
     }
 
     /**

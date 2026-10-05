@@ -23,3 +23,5 @@
 ## Updates & Installation
 
 ## Quality of Life
+
+- Click any server message in chat, like a drop broadcast, to copy it. Clickable parts keep their own action, so names and links work as before.

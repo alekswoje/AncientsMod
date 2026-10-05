@@ -152,10 +152,11 @@ public final class AncientsModClient implements ClientModInitializer {
         // Auto-rejoin overlay: attach a per-screen render callback whenever the
         // vanilla DisconnectedScreen is opened.
         ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> AutoRejoinManager.onScreenInit(screen));
-        // Hover-to-copy in chat. The chat lines themselves are drawn by the
+        // Click-to-copy in chat. The chat lines themselves are drawn by the
         // in-game HUD BEFORE the screen, so afterRender paints over them;
-        // allowMouseClick only arms the copied flash and always returns true,
-        // because the copy itself is vanilla's ChatScreen click handling.
+        // allowMouseClick copies messages that carry no click action of their
+        // own and always returns true, so vanilla still runs every click event
+        // (server copy, a name's /msg, [brag] links).
         ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> {
             if (!(screen instanceof net.minecraft.client.gui.screen.ChatScreen)) return;
             com.aleks.ancientsmod.client.chat.ChatCopyOverlay.reset();

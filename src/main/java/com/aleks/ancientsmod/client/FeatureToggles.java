@@ -186,14 +186,12 @@ public final class FeatureToggles {
     private static volatile boolean dustPercentOverlay = true;
 
     /** Highlight the chat message under the cursor and show a copy icon at the chat box
-     *  right edge, while the chat screen is open. Clicking the message copies
-     *  {@code <name>: <message>}. The server only marks its player chat lines as copyable
-     *  for clients running this mod, so nothing shows on other servers.
+     *  right edge, while the chat screen is open. Visual only: clicking a message copies it
+     *  on the Ancients server whether this is on or off (see ChatCopyOverlay).
      *
      *  <p>OFF by default since v3.0.5: with a copyable line under the cursor at all times,
      *  the highlight reads as an accidental select-all rather than an affordance. Players
-     *  who want it turn it on in Settings > Chat; the click-to-copy itself is vanilla's
-     *  and keeps working either way. See {@link #CHAT_COPY_OFF_MIGRATION}. */
+     *  who want it turn it on in Settings > Chat. See {@link #CHAT_COPY_OFF_MIGRATION}. */
     private static volatile boolean chatCopy = false;
 
     /** Copy saved screenshots as images to the system clipboard. Opt-in, on any server. */

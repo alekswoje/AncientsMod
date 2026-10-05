@@ -91,7 +91,7 @@ public final class SettingsScreen extends WidgetSettingsScreen {
                 FeatureToggles::isEnchantCollapseEnabled, FeatureToggles::setEnchantCollapse);
 
         addSection("Chat");
-        addToggle("Hover a message to copy it",
+        addToggle("Highlight the message you'd copy",
                 FeatureToggles::isChatCopyEnabled, FeatureToggles::setChatCopy);
 
         addSection("PvP");
