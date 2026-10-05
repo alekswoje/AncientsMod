@@ -1,7 +1,7 @@
 package com.aleks.ancientsmod.mixin.client;
 
 import com.aleks.ancientsmod.client.ServerAllowlist;
-import com.aleks.ancientsmod.client.chat.SkullEmoji;
+import com.aleks.ancientsmod.client.chat.ChatEmoji;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import net.minecraft.client.gui.screen.ChatInputSuggestor;
@@ -25,14 +25,15 @@ public abstract class ChatEmojiSuggestorMixin {
     @Shadow public abstract void show(boolean narrateFirstSuggestion);
 
     @Inject(method = "refresh", at = @At("TAIL"))
-    private void ancientsmod$suggestSkull(CallbackInfo ci) {
+    private void ancientsmod$suggestEmoji(CallbackInfo ci) {
         if (!ServerAllowlist.isAllowed() || !(owner instanceof ChatScreen) || completingSuggestions) return;
         String text = textField.getText();
         int cursor = textField.getCursor();
-        int start = SkullEmoji.completionStart(text, cursor);
+        int start = ChatEmoji.completionStart(text, cursor);
         if (start < 0) return;
-        pendingSuggestions = new SuggestionsBuilder(text.substring(0, cursor), start)
-                .suggest(SkullEmoji.ALIAS).buildFuture();
+        SuggestionsBuilder builder = new SuggestionsBuilder(text.substring(0, cursor), start);
+        ChatEmoji.completions(text.substring(start, cursor)).forEach(builder::suggest);
+        pendingSuggestions = builder.buildFuture();
         show(false);
     }
 }

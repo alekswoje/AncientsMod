@@ -12,9 +12,9 @@ class EmojiGlyphProviderTest {
         StubGlyph skull = new StubGlyph(10);
         GlyphProvider result = EmojiGlyphProvider.wrap(provider(normal), provider(skull));
         assertSame(normal, result.get('a'));
-        BakedGlyph rendered = result.get(SkullEmoji.CODE_POINT);
+        BakedGlyph rendered = result.get(0x1F480);
         assertEquals(10, rendered.getMetrics().getAdvance(true));
-        assertSame(rendered, result.get(SkullEmoji.CODE_POINT));
+        assertSame(rendered, result.get(0x1F480));
         rendered.create(1, 2, 0x7F12AB34, 0xFF010203,
                 Style.EMPTY.withBold(true).withItalic(true), 1, 1);
         assertEquals(0x7FFFFFFF, skull.color);

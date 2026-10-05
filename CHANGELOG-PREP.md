@@ -14,6 +14,8 @@
 
 ## UI & Screens
 
+- More chat emoji: :bunny:, :cry:, :joy:, :fire:, :eyes:, :thumbsup:, :pray:, :crown:, :100:, :clown:, :moyai:, :rage:, :thinking:, :sunglasses:, :wave:, :sweat_smile: and :pleading:. Type `:` and press Tab to pick one.
+
 ## Input & Keybinds
 
 ## Networking & Server Integration

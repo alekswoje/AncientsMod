@@ -1,7 +1,9 @@
-Skull emoji artwork: Twemoji
+Chat emoji artwork: Twemoji
 Copyright Twitter, Inc. and other contributors.
-Source: https://github.com/jdecked/twemoji/blob/v17.0.3/assets/72x72/1f480.png
+Source: https://github.com/jdecked/twemoji/tree/v17.0.3/assets/72x72
+(files 1f480, 1f430, 1f62d, 1f602, 1f525, 1f440, 1f44d, 1f64f, 1f451, 1f4af,
+1f921, 1f5ff, 1f621, 1f914, 1f60e, 1f44b, 1f605, 1f97a; renamed by shortcode)
 Licensed under Creative Commons Attribution 4.0 International (CC BY 4.0).
 https://creativecommons.org/licenses/by/4.0/
-The original 72x72 PNG is bundled unchanged and scaled when displayed.
+The original 72x72 PNGs are bundled unchanged and scaled when displayed.
 The CC BY 4.0 license applies to this artwork; mod code remains MIT.

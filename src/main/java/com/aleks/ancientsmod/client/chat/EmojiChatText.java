@@ -13,7 +13,7 @@ public final class EmojiChatText {
 
     public static Text expand(Text source) {
         String plain = source.getString();
-        if (!plain.contains(SkullEmoji.ALIAS)) return source;
+        if (!ChatEmoji.containsAlias(plain)) return source;
         List<Style> styles = new ArrayList<>(plain.length());
         source.visit((style, value) -> {
             for (int i = 0; i < value.length(); i++) styles.add(style);
@@ -22,13 +22,14 @@ public final class EmojiChatText {
         MutableText result = Text.empty();
         for (int i = 0; i < plain.length();) {
             Style style = styles.get(i);
-            if (plain.startsWith(SkullEmoji.ALIAS, i)) {
-                result.append(Text.literal(SkullEmoji.GLYPH).setStyle(style));
-                i += SkullEmoji.ALIAS.length();
+            ChatEmoji.Emoji emoji = ChatEmoji.aliasAt(plain, i);
+            if (emoji != null) {
+                result.append(Text.literal(emoji.glyph()).setStyle(style));
+                i += emoji.alias().length();
             } else {
                 int end = i + 1;
                 while (end < plain.length() && styles.get(end).equals(style)
-                        && !plain.startsWith(SkullEmoji.ALIAS, end)) end++;
+                        && ChatEmoji.aliasAt(plain, end) == null) end++;
                 result.append(Text.literal(plain.substring(i, end)).setStyle(style));
                 i = end;
             }

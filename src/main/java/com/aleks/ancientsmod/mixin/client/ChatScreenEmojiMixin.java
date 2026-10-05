@@ -1,7 +1,7 @@
 package com.aleks.ancientsmod.mixin.client;
 
 import com.aleks.ancientsmod.client.ServerAllowlist;
-import com.aleks.ancientsmod.client.chat.SkullEmoji;
+import com.aleks.ancientsmod.client.chat.ChatEmoji;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ChatScreen;
 import net.minecraft.client.gui.widget.TextFieldWidget;
@@ -22,16 +22,16 @@ public abstract class ChatScreenEmojiMixin {
     private void ancientsmod$expandEmoji(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
         if (!ServerAllowlist.isAllowed()) return;
         String text = chatField.getText();
-        if (text.startsWith("/") || !text.contains(SkullEmoji.ALIAS)) return;
-        int cursor = SkullEmoji.expandedIndex(text, chatField.getCursor());
-        int selection = SkullEmoji.expandedIndex(text, ((TextFieldSelectionAccessor) chatField).ancientsmod$selectionEnd());
-        chatField.setText(SkullEmoji.expand(text));
+        if (text.startsWith("/") || !ChatEmoji.containsAlias(text)) return;
+        int cursor = ChatEmoji.expandedIndex(text, chatField.getCursor());
+        int selection = ChatEmoji.expandedIndex(text, ((TextFieldSelectionAccessor) chatField).ancientsmod$selectionEnd());
+        chatField.setText(ChatEmoji.expand(text));
         chatField.setCursor(cursor, false);
         chatField.setSelectionEnd(selection);
     }
 
     @ModifyVariable(method = "sendMessage", at = @At("HEAD"), argsOnly = true)
     private String ancientsmod$readableWireText(String text) {
-        return ServerAllowlist.isAllowed() ? SkullEmoji.toWire(text) : text;
+        return ServerAllowlist.isAllowed() ? ChatEmoji.toWire(text) : text;
     }
 }

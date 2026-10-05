@@ -1,5 +1,22 @@
 {
   "providers": [
-    { "type": "bitmap", "file": "ancientsmod:emoji/skull.png", "ascent": 8, "height": 9, "chars": ["\ud83d\udc80"] }
+    { "type": "bitmap", "file": "ancientsmod:emoji/skull.png", "ascent": 8, "height": 9, "chars": ["\ud83d\udc80"] },
+    { "type": "bitmap", "file": "ancientsmod:emoji/bunny.png", "ascent": 8, "height": 9, "chars": ["\ud83d\udc30"] },
+    { "type": "bitmap", "file": "ancientsmod:emoji/cry.png", "ascent": 8, "height": 9, "chars": ["\ud83d\ude2d"] },
+    { "type": "bitmap", "file": "ancientsmod:emoji/joy.png", "ascent": 8, "height": 9, "chars": ["\ud83d\ude02"] },
+    { "type": "bitmap", "file": "ancientsmod:emoji/fire.png", "ascent": 8, "height": 9, "chars": ["\ud83d\udd25"] },
+    { "type": "bitmap", "file": "ancientsmod:emoji/eyes.png", "ascent": 8, "height": 9, "chars": ["\ud83d\udc40"] },
+    { "type": "bitmap", "file": "ancientsmod:emoji/thumbsup.png", "ascent": 8, "height": 9, "chars": ["\ud83d\udc4d"] },
+    { "type": "bitmap", "file": "ancientsmod:emoji/pray.png", "ascent": 8, "height": 9, "chars": ["\ud83d\ude4f"] },
+    { "type": "bitmap", "file": "ancientsmod:emoji/crown.png", "ascent": 8, "height": 9, "chars": ["\ud83d\udc51"] },
+    { "type": "bitmap", "file": "ancientsmod:emoji/100.png", "ascent": 8, "height": 9, "chars": ["\ud83d\udcaf"] },
+    { "type": "bitmap", "file": "ancientsmod:emoji/clown.png", "ascent": 8, "height": 9, "chars": ["\ud83e\udd21"] },
+    { "type": "bitmap", "file": "ancientsmod:emoji/moyai.png", "ascent": 8, "height": 9, "chars": ["\ud83d\uddff"] },
+    { "type": "bitmap", "file": "ancientsmod:emoji/rage.png", "ascent": 8, "height": 9, "chars": ["\ud83d\ude21"] },
+    { "type": "bitmap", "file": "ancientsmod:emoji/thinking.png", "ascent": 8, "height": 9, "chars": ["\ud83e\udd14"] },
+    { "type": "bitmap", "file": "ancientsmod:emoji/sunglasses.png", "ascent": 8, "height": 9, "chars": ["\ud83d\ude0e"] },
+    { "type": "bitmap", "file": "ancientsmod:emoji/wave.png", "ascent": 8, "height": 9, "chars": ["\ud83d\udc4b"] },
+    { "type": "bitmap", "file": "ancientsmod:emoji/sweat_smile.png", "ascent": 8, "height": 9, "chars": ["\ud83d\ude05"] },
+    { "type": "bitmap", "file": "ancientsmod:emoji/pleading.png", "ascent": 8, "height": 9, "chars": ["\ud83e\udd7a"] }
   ]
 }

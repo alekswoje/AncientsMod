@@ -26,8 +26,10 @@ Produces `build/libs/ancientsmod-<version>.jar` (Java 21, Gradle + Fabric Loom).
 
 MIT — see [LICENSE](LICENSE).
 
-### Skull emoji
+### Chat emoji
 
-On Ancients, type `:skull:` in chat to turn it into a skull as you type. Type `:`, `:s`, or `:sku` and press Tab to complete it. Updated mod clients render the image; other clients see `:skull:`. Commands are left unchanged.
+On Ancients, type a shortcode in chat and it turns into the emoji as you type. Type `:` plus the first letters and press Tab to complete it. Updated mod clients render the image; other clients see the shortcode. Commands are left unchanged.
 
-Skull artwork by [Twemoji](https://github.com/jdecked/twemoji), copyright Twitter, Inc. and other contributors, licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). The original PNG is bundled unchanged and scaled for display. Attribution and the full graphics license are included in the jar under `licenses/`.
+`:skull:` `:bunny:` `:cry:` `:joy:` `:fire:` `:eyes:` `:thumbsup:` `:pray:` `:crown:` `:100:` `:clown:` `:moyai:` `:rage:` `:thinking:` `:sunglasses:` `:wave:` `:sweat_smile:` `:pleading:`
+
+Emoji artwork by [Twemoji](https://github.com/jdecked/twemoji), copyright Twitter, Inc. and other contributors, licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). The original PNGs are bundled unchanged and scaled for display. Attribution and the full graphics license are included in the jar under `licenses/`.
