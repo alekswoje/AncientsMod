@@ -180,7 +180,27 @@ public final class LootClient {
     /** The list screen calls this on ESC so the server stops pushing refreshes. */
     public static void onScreenClosed() {
         state = State.IDLE;
+        clearPicks();
         NetworkHandler.sendLootClose();
+    }
+
+    // ── Level picker (Shades & Wraiths, Erebus Tear Crate) ──────────────────
+    private static int pickedShade, pickedTear;
+    private static long pickSendAtMs;
+    /** Clicks within this window are sent as one request, so +1 x5 is one rebuild, not five. */
+    private static final long PICK_DEBOUNCE_MS = 200L;
+
+    /** The detail screen picked {@code level} for {@code tableId}; the server rebuilds the catalog at it. */
+    public static void pickLevel(String tableId, int level) {
+        if ("tear_crate".equals(tableId)) pickedTear = level;
+        else pickedShade = level;
+        pickSendAtMs = System.currentTimeMillis() + PICK_DEBOUNCE_MS;
+    }
+
+    private static void clearPicks() {
+        pickedShade = 0;
+        pickedTear = 0;
+        pickSendAtMs = 0L;
     }
 
     /**
@@ -198,10 +218,15 @@ public final class LootClient {
         passingThroughFallback = false;
         latest = null;
         luckPercent = 0;
+        clearPicks();
         resetAssembly();
     }
 
     public static void tick() {
+        if (pickSendAtMs > 0 && System.currentTimeMillis() >= pickSendAtMs) {
+            pickSendAtMs = 0L;
+            NetworkHandler.sendLootRequest(pickedShade, pickedTear);
+        }
         if (state != State.REQUESTING) return;
         if (System.currentTimeMillis() - intentSentAtMs < INTENT_TIMEOUT_MS) return;
         state = State.IDLE;

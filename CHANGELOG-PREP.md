@@ -13,6 +13,7 @@
 ## Rendering & Visuals
 
 ## UI & Screens
+- The loot browser has a level picker on Shades & Wraiths and the Erebus Tear Crate, so you can see the drops at any level.
 
 ## Input & Keybinds
 

@@ -1094,6 +1094,34 @@ public final class NetworkHandler {
         }
     }
 
+    /**
+     * The loot browser's level picker: "send me the catalog again with Shades at
+     * {@code shadeLevel} and the tear crate at {@code tearLevel}" (0 = the server's default).
+     * Same packet as {@link #sendLootRequest()} with two varints after the type byte; servers
+     * from before the picker ignore the extra bytes.
+     */
+    public static void sendLootRequest(int shadeLevel, int tearLevel) {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream(8);
+            out.write(Protocol.PKT_LOOT_REQ);
+            writeLootVarInt(out, Math.max(0, shadeLevel));
+            writeLootVarInt(out, Math.max(0, tearLevel));
+            ClientPlayNetworking.send(new RawPayload(out.toByteArray()));
+        } catch (Throwable t) {
+            AncientsMod.LOGGER.debug("send loot level request failed", t);
+        }
+    }
+
+    private static void writeLootVarInt(java.io.ByteArrayOutputStream out, int value) {
+        while ((value & ~0x7F) != 0) {
+            out.write((value & 0x7F) | 0x80);
+            value >>>= 7;
+        }
+        out.write(value);
+    }
+
     /** "I closed the loot browser." Server stops pushing reload/discovery refreshes. */
     public static void sendLootClose() {
         if (!ServerAllowlist.isAllowed()) return;

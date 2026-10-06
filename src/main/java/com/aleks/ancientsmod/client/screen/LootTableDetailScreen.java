@@ -48,6 +48,8 @@ public final class LootTableDetailScreen extends Screen {
     private static final int SCROLLBAR_W = 6;
     private static final int SCROLLBAR_GAP = 4;
     private static final int ICON = 16;
+    /** Room for "Lv 103" between the -1 and +1 buttons. */
+    private static final int LEVEL_LABEL_W = 44;
 
     private LootSnapshotPayload snapshot;
     private final String tableId;
@@ -60,20 +62,44 @@ public final class LootTableDetailScreen extends Screen {
     private GlassTextField searchField;
     private String searchQuery = "";
     private List<Text> hoverTooltip = null;
+    /** This row's level picker, or null for an ordinary table. */
+    private LootSnapshotPayload.Level levelRange;
+    /** The level on show, moved at once on a click while the server rebuilds the catalog. */
+    private int shownLevel;
 
     public LootTableDetailScreen(LootSnapshotPayload snapshot, String tableId) {
         super(Text.literal("Loot: " + tableId));
         this.snapshot = snapshot;
         this.tableId = tableId;
         this.table = findTable(snapshot, tableId);
+        readLevel(snapshot);
     }
 
     public void onSnapshotUpdated(LootSnapshotPayload payload) {
         this.snapshot = payload;
         LootSnapshotPayload.Table t = findTable(payload, tableId);
         if (t != null) this.table = t;
+        readLevel(payload);
         recompute();
         clampScroll();
+    }
+
+    private void readLevel(LootSnapshotPayload payload) {
+        LootSnapshotPayload.Level level = payload == null || payload.levels == null ? null : payload.levels.get(tableId);
+        if (level == null) return;
+        levelRange = level;
+        shownLevel = level.level();
+    }
+
+    private void stepLevel(int delta) { setLevel(shownLevel + delta); }
+
+    private void setLevel(int level) {
+        if (levelRange == null) return;
+        int next = levelRange.clamp(level);
+        if (next == shownLevel) return;
+        shownLevel = next;
+        scrollOffset = 0;
+        LootClient.pickLevel(tableId, next);
     }
 
     private static LootSnapshotPayload.Table findTable(LootSnapshotPayload snap, String id) {
@@ -103,6 +129,18 @@ public final class LootTableDetailScreen extends Screen {
         this.addDrawableChild(this.searchField);
         this.addDrawableChild(new GlassButton(panelX + PANEL_W - PADDING - 52,
                 panelY + panelHeight() - 20, 52, 14, Text.literal("Back"), LootClient::openTableList).primary());
+        if (levelRange != null) {
+            // Polis loot menu's controls: -10 -1 [level] +1 +10, and a reset to the row's home level.
+            int by = panelY + panelHeight() - 20;
+            int bx = panelX + PADDING;
+            this.addDrawableChild(new GlassButton(bx, by, 24, 14, Text.literal("-10"), () -> stepLevel(-10)));
+            this.addDrawableChild(new GlassButton(bx + 26, by, 20, 14, Text.literal("-1"), () -> stepLevel(-1)));
+            this.addDrawableChild(new GlassButton(bx + 48 + LEVEL_LABEL_W, by, 20, 14, Text.literal("+1"), () -> stepLevel(1)));
+            this.addDrawableChild(new GlassButton(bx + 70 + LEVEL_LABEL_W, by, 24, 14, Text.literal("+10"), () -> stepLevel(10)));
+            String reset = "tear_crate".equals(tableId) ? "Now" : "Mine";
+            this.addDrawableChild(new GlassButton(bx + 98 + LEVEL_LABEL_W, by, 32, 14, Text.literal(reset),
+                    () -> setLevel(levelRange.home())));
+        }
         recompute();
     }
 
@@ -159,7 +197,9 @@ public final class LootTableDetailScreen extends Screen {
         int hx = panelX + PADDING;
         String countText = (table != null ? table.entries.size() : 0) + " drops";
         int nameMax = panelW - 2 * PADDING - this.textRenderer.getWidth(countText) - 6;
-        String name = this.textRenderer.trimToWidth(table != null ? table.name : tableId, nameMax);
+        String baseName = table != null ? table.name : tableId;
+        if (levelRange != null) baseName += " · Level " + shownLevel;
+        String name = this.textRenderer.trimToWidth(baseName, nameMax);
         ctx.drawText(this.textRenderer, Text.literal(name), hx, panelY + 8, GlassTheme.ACCENT, true);
         int nameW = this.textRenderer.getWidth(name);
         ctx.drawText(this.textRenderer, Text.literal(countText),
@@ -386,6 +426,13 @@ public final class LootTableDetailScreen extends Screen {
     private void renderFooter(DrawContext ctx) {
         int panelX = (this.width - PANEL_W) / 2;
         int panelY = (this.height - panelHeight()) / 2;
+        if (levelRange != null) {
+            String label = "Lv " + shownLevel;
+            int cx = panelX + PADDING + 47 + LEVEL_LABEL_W / 2;
+            ctx.drawText(this.textRenderer, Text.literal(label), cx - this.textRenderer.getWidth(label) / 2,
+                    panelY + panelHeight() - 17, GlassTheme.ACCENT, false);
+            return;
+        }
         ctx.drawText(this.textRenderer, Text.literal("Esc returns to the table list"),
                 panelX + PADDING, panelY + panelHeight() - FOOTER_H + 9, GlassTheme.textMuted(), false);
     }
