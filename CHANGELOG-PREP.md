@@ -14,8 +14,6 @@
 
 ## UI & Screens
 
-- More chat emoji: :bunny:, :cry:, :joy:, :fire:, :eyes:, :thumbsup:, :pray:, :crown:, :100:, :clown:, :moyai:, :rage:, :thinking:, :sunglasses:, :wave:, :sweat_smile: and :pleading:. Type `:` and press Tab to pick one.
-
 ## Input & Keybinds
 
 ## Networking & Server Integration
@@ -23,5 +21,3 @@
 ## Updates & Installation
 
 ## Quality of Life
-
-- Click any server message in chat, like a drop broadcast, to copy it. Clickable parts keep their own action, so names and links work as before.
