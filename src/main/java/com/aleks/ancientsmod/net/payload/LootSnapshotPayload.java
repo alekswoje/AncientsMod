@@ -21,18 +21,10 @@ public final class LootSnapshotPayload {
 
     public final List<Category> categories;
     public final List<Table> tables;
-    /** Rows whose drops depend on a level (Shades &amp; Wraiths, the Erebus Tear Crate), by table id. */
-    public final java.util.Map<String, Level> levels;
 
-    private LootSnapshotPayload(List<Category> categories, List<Table> tables, java.util.Map<String, Level> levels) {
+    private LootSnapshotPayload(List<Category> categories, List<Table> tables) {
         this.categories = categories;
         this.tables = tables;
-        this.levels = levels;
-    }
-
-    /** A level-banded row: the level shown, where its reset button goes, and the pickable range. */
-    public record Level(int level, int home, int min, int max) {
-        public int clamp(int value) { return Math.max(min, Math.min(max, value)); }
     }
 
     public static LootSnapshotPayload decode(byte[] body) {
@@ -109,20 +101,7 @@ public final class LootSnapshotPayload {
             tables.add(new Table(safeCatIdx, tableId, name, iconKey, rollsMin, rollsMax, luck,
                     totalWeight, totalMinClamp, entries));
         }
-        // Optional trailer (servers from 2026-10-06): which rows have a level picker. Older
-        // servers end the body after the tables.
-        java.util.Map<String, Level> levels = new java.util.HashMap<>();
-        if (buf.readableBytes() > 0) {
-            int count = buf.readVarInt();
-            if (count < 0 || count > tables.size()) throw new IllegalArgumentException("loot levels " + count);
-            for (int i = 0; i < count; i++) {
-                int index = buf.readVarInt();
-                int level = buf.readVarInt(), home = buf.readVarInt(), min = buf.readVarInt(), max = buf.readVarInt();
-                if (index < 0 || index >= tables.size() || min < 1 || max < min) continue;
-                levels.put(tables.get(index).tableId, new Level(level, home, min, max));
-            }
-        }
-        return new LootSnapshotPayload(categories, tables, levels);
+        return new LootSnapshotPayload(categories, tables);
     }
 
     private static String str(List<String> pool, int idx) {
