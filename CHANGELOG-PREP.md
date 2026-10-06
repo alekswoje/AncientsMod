@@ -13,6 +13,7 @@
 ## Rendering & Visuals
 
 ## UI & Screens
+- Clicking the Erebus Tear Crate or Shades & Wraiths in the loot browser opens the level menu, where you can see the drops at every level.
 
 ## Input & Keybinds
 

@@ -232,6 +232,19 @@ public final class LootTablesScreen extends Screen {
     }
 
     private void openDetail(String tableId) {
+        // Level-banded rows open the server's level-picker menu (the Polis loot menu), where
+        // every level's drops can be browsed: /loot tear and /loot shades.
+        String serverMenu = "tear_crate".equals(tableId) ? "loot tear"
+                : "shade".equals(tableId) || "wraith".equals(tableId) ? "loot shades" : null;
+        if (serverMenu != null) {
+            MinecraftClient mc = MinecraftClient.getInstance();
+            if (mc.getNetworkHandler() != null) {
+                LootClient.onScreenClosed();
+                mc.setScreen(null);
+                mc.getNetworkHandler().sendChatCommand(serverMenu);
+                return;
+            }
+        }
         savedScroll = scrollOffset;
         savedQuery = searchQuery;
         MinecraftClient.getInstance().setScreen(new LootTableDetailScreen(snapshot, tableId));
