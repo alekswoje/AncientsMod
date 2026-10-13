@@ -4,13 +4,9 @@ import com.aleks.ancientsmod.AncientsMod;
 import com.aleks.ancientsmod.net.Protocol;
 import com.aleks.ancientsmod.net.payload.ExpeditionMapPayload;
 import com.aleks.ancientsmod.net.payload.ExpeditionMarkersPayload;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.texture.NativeImage;
-import net.minecraft.client.texture.NativeImageBackedTexture;
-import net.minecraft.util.Identifier;
 
 /**
- * The Expedition minimap's data: the map picture as a GPU texture plus the live markers. Only the
+ * The Expedition minimap's data: the map picture (pixels) plus the live markers. Only the
  * server decides when it exists (it sends the picture on entering a run world and a clear on
  * leaving); a join or a disconnect drops it too, and a server that goes quiet for {@link #STALE_NS}
  * hides it.
@@ -19,10 +15,8 @@ import net.minecraft.util.Identifier;
 public final class ExpeditionMapState {
     /** Markers arrive every few seconds at worst; a longer silence means we are no longer in a run. */
     private static final long STALE_NS = 12_000_000_000L;
-    public static final Identifier TEXTURE = Identifier.of("ancientsmod", "dynamic/expedition_map");
 
     private static ExpeditionMapPayload layout;
-    private static boolean textureLive;
     private static ExpeditionMarkersPayload markers;
     private static long markersNs;
 
@@ -76,23 +70,9 @@ public final class ExpeditionMapState {
     }
 
     private static void setLayout(ExpeditionMapPayload next) {
-        releaseTexture();
         layout = next;
         markersNs = System.nanoTime();
-        MinecraftClient mc = MinecraftClient.getInstance();
-        if (mc == null) return;
-        NativeImage image = new NativeImage(NativeImage.Format.RGBA, next.width(), next.height(), false);
-        try {
-            int[] argb = next.argb();
-            for (int v = 0; v < next.height(); v++)
-                for (int u = 0; u < next.width(); u++) image.setColorArgb(u, v, argb[v * next.width() + u]);
-            mc.getTextureManager().registerTexture(TEXTURE, new NativeImageBackedTexture(() -> "ancientsmod expedition map", image));
-            textureLive = true;
-        } catch (Throwable t) {
-            image.close();
-            layout = null;
-            AncientsMod.LOGGER.warn("[ExpeditionMap] texture upload failed: {}", t.toString());
-        }
+        ExpeditionMinimapHud.INSTANCE.invalidate();
     }
 
     public static void onMarkers(ExpeditionMarkersPayload p) {
@@ -100,25 +80,18 @@ public final class ExpeditionMapState {
         markersNs = System.nanoTime();
     }
 
-    /** Drops the picture, the markers and any half-received picture. */
+    /** Drops the picture, the markers, any half-received picture and the HUD's texture. */
     public static void clear() {
-        releaseTexture();
         layout = null;
         markers = null;
         resetAssembly();
-    }
-
-    private static void releaseTexture() {
-        if (!textureLive) return;
-        textureLive = false;
-        MinecraftClient mc = MinecraftClient.getInstance();
-        if (mc != null) mc.getTextureManager().destroyTexture(TEXTURE);
+        ExpeditionMinimapHud.INSTANCE.release();
     }
 
     /** The picture, or null outside an Expedition. A map the server stopped talking about is hidden
      *  (kept, so it comes back if the markers resume after a lag spike; a join or clear frees it). */
     public static ExpeditionMapPayload layout() {
-        return textureLive && System.nanoTime() - markersNs <= STALE_NS ? layout : null;
+        return layout != null && System.nanoTime() - markersNs <= STALE_NS ? layout : null;
     }
 
     public static ExpeditionMarkersPayload markers() { return markers; }
