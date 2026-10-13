@@ -385,6 +385,29 @@ public final class NetworkHandler {
                     com.aleks.ancientsmod.client.hud.MiningCompState.update(
                             com.aleks.ancientsmod.net.payload.MiningCompPayload.decode(buf));
                 }
+                case Protocol.PKT_EXPEDITION_MAP_CHUNK -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.EXPEDITION_MAP_CHUNK)) return;
+                    int version = buf.readInt();
+                    int chunkIndex = buf.readVarInt();
+                    int chunkCount = buf.readVarInt();
+                    int len = buf.readVarInt();
+                    if (chunkCount < 1 || chunkCount > Protocol.EXPEDITION_MAP_MAX_CHUNKS) return;
+                    if (chunkIndex < 0 || chunkIndex >= chunkCount) return;
+                    if (len < 0 || len > Protocol.MAX_EXPEDITION_MAP_CHUNK_BYTES) return;
+                    if (buf.readableBytes() < len) return;
+                    byte[] chunk = new byte[len];
+                    buf.readBytes(chunk);
+                    com.aleks.ancientsmod.client.hud.ExpeditionMapState.onChunk(version, chunkIndex, chunkCount, chunk);
+                }
+                case Protocol.PKT_EXPEDITION_MARKERS -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.EXPEDITION_MARKERS)) return;
+                    com.aleks.ancientsmod.client.hud.ExpeditionMapState.onMarkers(
+                            com.aleks.ancientsmod.net.payload.ExpeditionMarkersPayload.decode(buf));
+                }
+                case Protocol.PKT_EXPEDITION_MAP_CLEAR -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.EXPEDITION_MARKERS)) return;
+                    com.aleks.ancientsmod.client.hud.ExpeditionMapState.clear();
+                }
                 case Protocol.PKT_OUTPOST_STATE -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.OUTPOST_STATE)) return;
                     OutpostStatePayload p = OutpostStatePayload.decode(buf);

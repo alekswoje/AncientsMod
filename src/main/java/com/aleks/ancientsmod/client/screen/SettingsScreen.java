@@ -66,6 +66,8 @@ public final class SettingsScreen extends WidgetSettingsScreen {
                 FeatureToggles::isArmorDurabilityHudEnabled, FeatureToggles::setArmorDurabilityHud);
         addToggle("Clock HUD",
                 FeatureToggles::isClockHudEnabled, FeatureToggles::setClockHud);
+        addToggle("Expedition minimap",
+                FeatureToggles::isExpeditionMinimapEnabled, FeatureToggles::setExpeditionMinimap);
         addToggle("Saturation on hunger bar",
                 FeatureToggles::isSaturationOverlayEnabled, FeatureToggles::setSaturationOverlay);
         addToggle("Meteorite count on block",

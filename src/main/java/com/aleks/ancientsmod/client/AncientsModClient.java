@@ -89,6 +89,7 @@ public final class AncientsModClient implements ClientModInitializer {
         HudRegistry.register(StatsHud.INSTANCE);
         HudRegistry.register(OutpostHud.INSTANCE);
         HudRegistry.register(com.aleks.ancientsmod.client.hud.MiningCompHud.INSTANCE);
+        HudRegistry.register(com.aleks.ancientsmod.client.hud.ExpeditionMinimapHud.INSTANCE);
         HudRegistry.register(ArmorDurabilityHud.INSTANCE);
         HudRegistry.register(ClockHud.INSTANCE);
         HudRegistry.register(JewelHud.INSTANCE);
@@ -114,6 +115,7 @@ public final class AncientsModClient implements ClientModInitializer {
             // backend we actually landed on pushes its own state.
             com.aleks.ancientsmod.client.hud.JewelState.clear();
             com.aleks.ancientsmod.client.hud.MiningCompState.clear();
+            com.aleks.ancientsmod.client.hud.ExpeditionMapState.clear();
             com.aleks.ancientsmod.client.hud.JewelLoadoutState.clear();
             // Same reasoning as the jewel-state clear above: which rarity-word
             // vocabulary the last backend spoke says nothing about this one.
@@ -240,6 +242,7 @@ public final class AncientsModClient implements ClientModInitializer {
             com.aleks.ancientsmod.client.loot.LootClient.reset();
             com.aleks.ancientsmod.client.hud.JewelState.clear();
             com.aleks.ancientsmod.client.hud.MiningCompState.clear();
+            com.aleks.ancientsmod.client.hud.ExpeditionMapState.clear();
             com.aleks.ancientsmod.client.hud.JewelLoadoutState.clear();
             com.aleks.ancientsmod.client.loot.ServerVocabulary.reset();
             com.aleks.ancientsmod.client.cellterm.CellTermClient.reset();

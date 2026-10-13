@@ -90,6 +90,9 @@ public final class FeatureToggles {
     /** Show the draggable Clock HUD (your own local wall-clock time). Off by default — extra HUD clutter. */
     private static volatile boolean clockHud = false;
 
+    /** Show the Expedition minimap (whole-map overlay with packs and the boss) while inside an Expedition. On by default. */
+    private static volatile boolean expeditionMinimap = true;
+
     /** Show the jewel sockets as extra hotbar-style slots. On by default — it mirrors real gear state. */
     private static volatile boolean jewelHud = true;
 
@@ -244,6 +247,7 @@ public final class FeatureToggles {
             outpostHud = parseBool(props.getProperty("outpostHud"), outpostHud);
             armorDurabilityHud = parseBool(props.getProperty("armorDurabilityHud"), armorDurabilityHud);
             clockHud = parseBool(props.getProperty("clockHud"), clockHud);
+            expeditionMinimap = parseBool(props.getProperty("expeditionMinimap"), expeditionMinimap);
             jewelHud = parseBool(props.getProperty("jewelHud"), jewelHud);
             jewelSockets = parseBool(props.getProperty("jewelSockets"), jewelSockets);
             saturationOverlay = parseBool(props.getProperty("saturationOverlay"), saturationOverlay);
@@ -303,6 +307,7 @@ public final class FeatureToggles {
         props.setProperty("outpostHud", Boolean.toString(outpostHud));
         props.setProperty("armorDurabilityHud", Boolean.toString(armorDurabilityHud));
         props.setProperty("clockHud", Boolean.toString(clockHud));
+        props.setProperty("expeditionMinimap", Boolean.toString(expeditionMinimap));
         props.setProperty("jewelHud", Boolean.toString(jewelHud));
         props.setProperty("jewelSockets", Boolean.toString(jewelSockets));
         props.setProperty("saturationOverlay", Boolean.toString(saturationOverlay));
@@ -521,6 +526,14 @@ public final class FeatureToggles {
     public static void setClockHud(boolean value) {
         if (clockHud == value) return;
         clockHud = value;
+        save();
+    }
+
+    public static boolean isExpeditionMinimapEnabled() { return expeditionMinimap; }
+
+    public static void setExpeditionMinimap(boolean value) {
+        if (expeditionMinimap == value) return;
+        expeditionMinimap = value;
         save();
     }
 

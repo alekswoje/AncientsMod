@@ -10,6 +10,8 @@
 
 ## HUDs
 
+- New Expedition map in the top right shows the whole Expedition, the packs left to clear (yellow when a Rare is with them) and the boss arena. Press M to hide or show it.
+
 ## Rendering & Visuals
 
 ## UI & Screens

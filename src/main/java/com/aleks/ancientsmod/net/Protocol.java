@@ -49,6 +49,30 @@ public final class Protocol {
      * Zero seconds clears the HUD. Rankings use the server's reward ordering. */
     public static final byte PKT_MINING_COMP = (byte) 160;
 
+    /** S2C: one chunk of an Expedition map picture. {@code int version, varint index,
+     *  varint count, varint length, bytes}, same scheme as {@link #PKT_PV_BUNDLE_CHUNK}.
+     *  The reassembled body is decoded by {@code ExpeditionMapPayload}. Minor 10. */
+    public static final byte PKT_EXPEDITION_MAP_CHUNK = 64;
+    /** S2C: Expedition minimap markers. {@code byte bossState (0 none, 1 alive, 2 dead),
+     *  int bossX, int bossZ, varint count, then per pack int x, int z, varint alive, byte flags}. */
+    public static final byte PKT_EXPEDITION_MARKERS = 65;
+    /** S2C: drop the Expedition minimap. No body. */
+    public static final byte PKT_EXPEDITION_MAP_CLEAR = 66;
+    /** Bytes per {@link #PKT_EXPEDITION_MAP_CHUNK} body (server sends 24 KiB). */
+    public static final int MAX_EXPEDITION_MAP_CHUNK_BYTES = 32_768;
+    /** Most chunks one picture may span. */
+    public static final int EXPEDITION_MAP_MAX_CHUNKS = 16;
+    /** Largest reassembled picture body. */
+    public static final int MAX_EXPEDITION_MAP_TOTAL_BYTES = 262_144;
+    /** Largest picture side the client accepts. */
+    public static final int EXPEDITION_MAP_MAX_SIDE = 1024;
+    public static final int EXPEDITION_MAP_MAX_ID_CHARS = 32;
+    public static final int MAX_EXPEDITION_PACK_MARKERS = 128;
+    public static final int EXPEDITION_PACK_RARE = 1;
+    public static final int EXPEDITION_PACK_UNSPAWNED = 2;
+    public static final int RATE_EXPEDITION_MAP_CHUNK_PER_SEC = 32;
+    public static final int RATE_EXPEDITION_MARKERS_PER_SEC = 8;
+
 
     /** Major protocol channel. Breaking changes bump this to v2, v3, etc.
      *  The namespace stays {@code prisonsmod} on purpose: it is the wire identifier the
@@ -1071,8 +1095,12 @@ public final class Protocol {
      *  statCount} sits ahead of the lines on the wire, so a client sent more lines
      *  than it reads would desync every field after them, not just lose the tail.
      *  Must match the plugin's {@code PrisonsModChannel.JEWEL_STATS_PROTOCOL_MINOR}.
+     *  Minor 10 = client draws the Expedition minimap ({@link #PKT_EXPEDITION_MAP_CHUNK},
+     *  {@link #PKT_EXPEDITION_MARKERS}, {@link #PKT_EXPEDITION_MAP_CLEAR}). Below this the
+     *  server sends none of them. Must match the plugin's
+     *  {@code PrisonsModChannel.EXPEDITION_MAP_PROTOCOL_MINOR}.
      */
-    public static final int PROTOCOL_MINOR = 9;
+    public static final int PROTOCOL_MINOR = 10;
     /**
      * Client request: "I want to ping this world-space point for my gang."
      * Payload carries only coordinates + a hold-flag. Server authenticates the

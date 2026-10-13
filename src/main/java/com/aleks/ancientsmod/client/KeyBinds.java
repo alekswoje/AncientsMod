@@ -68,6 +68,14 @@ public final class KeyBinds {
             KeyBinding.Category.MISC
     );
 
+    /** Show or hide the Expedition minimap (the same switch as Settings → HUDs). Default M. */
+    public static final KeyBinding TOGGLE_EXPEDITION_MAP = new KeyBinding(
+            "key.ancientsmod.toggleExpeditionMap",
+            InputUtil.Type.KEYSYM,
+            GLFW.GLFW_KEY_M,
+            KeyBinding.Category.MISC
+    );
+
     /** Returns true if the given keyboard event matches the lock keybind's currently-bound key. Used by the screen mixin. */
     public static boolean matchesItemLockKey(KeyInput input) {
         return TOGGLE_ITEM_LOCK.matchesKey(input);
@@ -79,12 +87,19 @@ public final class KeyBinds {
         KeyBindingHelper.registerKeyBinding(OPEN_MUFFLER);
         KeyBindingHelper.registerKeyBinding(TOGGLE_ITEM_LOCK);
         KeyBindingHelper.registerKeyBinding(ZOOM);
+        KeyBindingHelper.registerKeyBinding(TOGGLE_EXPEDITION_MAP);
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (OPEN_SETTINGS.wasPressed()) {
                 if (client.currentScreen == null) {
                     client.setScreen(new SettingsScreen(null));
                 }
+            }
+            while (TOGGLE_EXPEDITION_MAP.wasPressed()) {
+                if (!ServerAllowlist.isAllowed() || client.player == null) continue;
+                boolean on = !FeatureToggles.isExpeditionMinimapEnabled();
+                FeatureToggles.setExpeditionMinimap(on);
+                client.player.sendMessage(net.minecraft.text.Text.literal("Expedition map " + (on ? "shown" : "hidden")), true);
             }
             while (OPEN_MUFFLER.wasPressed()) {
                 if (client.currentScreen == null) {
