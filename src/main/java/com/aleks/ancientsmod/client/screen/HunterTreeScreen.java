@@ -23,7 +23,9 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * The whole Hunter tree on one screen, PoE style: drag to move, scroll to zoom. Drawn with
+ * The whole Hunter tree on one screen, PoE style: drag to move, scroll to zoom. The server
+ * sends each node's round position (rings are circles: links along a ring draw as arcs, links
+ * outward as spokes). Drawn with
  * the server dialog's own art (dusk sky, bronze frame, node icons, gold links), exported by
  * {@code _draw_hunter_gui.py --mod-out}, so the two views look the same. The server stays the
  * authority: clicks go out as {@link NetworkHandler#sendHunterTreeAction} and the screen
@@ -38,8 +40,6 @@ public final class HunterTreeScreen extends Screen {
     private static final Identifier TITLE = tex("title");
     private static final Identifier STATS = tex("stats");
 
-    /** World pixels per layout cell: nodes are two cells apart, 26 px across and 16 px down, like the dialog. */
-    private static final int CELL_X = 13, CELL_Y = 8;
     private static final int ICON_W = 21, ICON_H = 17, KINDS = 23;
     private static final int COL_W = 104, COL_X = 12, PLAQUE_W = 80, PLAQUE_H = 13;
     private static final int P_TAB = 0, P_TAB_SEL = 1, P_RESPEC = 2, P_RESPEC_ARMED = 3, P_OPEN = 4;
@@ -174,7 +174,7 @@ public final class HunterTreeScreen extends Screen {
 
     private void drawLabels(DrawContext ctx, HunterTreeLayoutPayload l) {
         for (HunterTreeLayoutPayload.Label label : l.labels()) {
-            float wx = label.x() * CELL_X, wy = label.y() * CELL_Y;
+            float wx = label.px(), wy = label.py();
             ctx.getMatrices().pushMatrix();
             ctx.getMatrices().translate(wx, wy);
             ctx.getMatrices().scale(2f, 2f);
@@ -192,17 +192,40 @@ public final class HunterTreeScreen extends Screen {
             int st = ta && tb ? 0 : (ta || tb) && frontier ? 1 : 2;
             var na = l.nodes().get(a);
             var nb = l.nodes().get(b);
-            int ax = na.x() * CELL_X, ay = na.y() * CELL_Y, bx = nb.x() * CELL_X, by = nb.y() * CELL_Y;
-            if (ay == by) {
-                int x0 = Math.min(ax, bx), x1 = Math.max(ax, bx);
-                ctx.fill(x0, ay - 1, x1, ay + 2, EDGE_OUTER[st]);
-                ctx.fill(x0, ay, x1, ay + 1, EDGE_CORE[st]);
+            double ra = Math.hypot(na.px(), na.py()), rb = Math.hypot(nb.px(), nb.py());
+            if (Math.abs(ra - rb) < 0.5 && ra > 1) {
+                // Same ring: an arc around the start, the short way.
+                double angA = Math.atan2(na.py(), na.px()), angB = Math.atan2(nb.py(), nb.px());
+                double dt = angB - angA;
+                while (dt > Math.PI) dt -= 2 * Math.PI;
+                while (dt < -Math.PI) dt += 2 * Math.PI;
+                int steps = Math.max(1, (int) Math.ceil(Math.abs(dt) * ra / 6.0));
+                float px = na.px(), py = na.py();
+                for (int k = 1; k <= steps; k++) {
+                    double t = angA + dt * k / steps;
+                    float qx = (float) (ra * Math.cos(t)), qy = (float) (ra * Math.sin(t));
+                    segment(ctx, px, py, qx, qy, st);
+                    px = qx;
+                    py = qy;
+                }
             } else {
-                int y0 = Math.min(ay, by), y1 = Math.max(ay, by);
-                ctx.fill(ax - 1, y0, ax + 2, y1, EDGE_OUTER[st]);
-                ctx.fill(ax, y0, ax + 1, y1, EDGE_CORE[st]);
+                segment(ctx, na.px(), na.py(), nb.px(), nb.py(), st);
             }
         }
+    }
+
+    /** A 3 px link from one point to another: a dark or glowing rim around a 1 px core. */
+    private static void segment(DrawContext ctx, float x0, float y0, float x1, float y1, int st) {
+        float dx = x1 - x0, dy = y1 - y0;
+        float len = (float) Math.sqrt(dx * dx + dy * dy);
+        if (len < 0.01f) return;
+        ctx.getMatrices().pushMatrix();
+        ctx.getMatrices().translate(x0, y0);
+        ctx.getMatrices().rotate((float) Math.atan2(dy, dx));
+        int l = (int) Math.ceil(len) + 1;
+        ctx.fill(0, -1, l, 2, EDGE_OUTER[st]);
+        ctx.fill(0, 0, l, 1, EDGE_CORE[st]);
+        ctx.getMatrices().popMatrix();
     }
 
     private void drawNodes(DrawContext ctx, HunterTreeLayoutPayload l, HunterTreeStatePayload s, int hovered) {
@@ -210,16 +233,16 @@ public final class HunterTreeScreen extends Screen {
             var n = l.nodes().get(i);
             int icon = Math.max(0, Math.min(KINDS - 1, n.icon()));
             int st = nodeState(l, s, i);
-            int x = n.x() * CELL_X - ICON_W / 2, y = n.y() * CELL_Y - ICON_H / 2;
+            int cx = Math.round(n.px()), cy = Math.round(n.py());
+            int x = cx - ICON_W / 2, y = cy - ICON_H / 2;
             ctx.drawTexture(RenderPipelines.GUI_TEXTURED, NODES, x, y, st * ICON_W, icon * ICON_H,
                     ICON_W, ICON_H, ICON_W * 3, ICON_H * KINDS);
             if (i == hovered) {
                 int hw = halfW(icon) + 1, hh = halfH(icon) + 1;
-                int cx = n.x() * CELL_X, cy = n.y() * CELL_Y;
                 ctx.fill(cx - hw, cy - hh, cx + hw + 1, cy + hh + 1, 0x30FFF6C8);
             }
             if (i == armedRefund && armedRefundUntil > System.currentTimeMillis()) {
-                int cx = n.x() * CELL_X, cy = n.y() * CELL_Y, hw = halfW(icon) + 2;
+                int hw = halfW(icon) + 2;
                 ctx.fill(cx - hw, cy + halfH(icon) + 2, cx + hw + 1, cy + halfH(icon) + 3, 0xFFFF6A5A);
             }
         }
@@ -229,7 +252,7 @@ public final class HunterTreeScreen extends Screen {
         for (int i = 0; i < l.nodes().size(); i++) {
             var n = l.nodes().get(i);
             int icon = Math.max(0, Math.min(KINDS - 1, n.icon()));
-            if (Math.abs(wx - n.x() * CELL_X) <= halfW(icon) + 0.5f && Math.abs(wy - n.y() * CELL_Y) <= halfH(icon) + 0.5f) return i;
+            if (Math.abs(wx - Math.round(n.px())) <= halfW(icon) + 0.5f && Math.abs(wy - Math.round(n.py())) <= halfH(icon) + 0.5f) return i;
         }
         return -1;
     }
@@ -514,12 +537,12 @@ public final class HunterTreeScreen extends Screen {
     private void clampCamera() {
         HunterTreeLayoutPayload l = HunterTreeClient.layout();
         if (l == null) return;
-        int minX = 0, maxX = 0, minY = 0, maxY = 0;
+        float minX = 0, maxX = 0, minY = 0, maxY = 0;
         for (var n : l.nodes()) {
-            minX = Math.min(minX, n.x()); maxX = Math.max(maxX, n.x());
-            minY = Math.min(minY, n.y()); maxY = Math.max(maxY, n.y());
+            minX = Math.min(minX, n.px()); maxX = Math.max(maxX, n.px());
+            minY = Math.min(minY, n.py()); maxY = Math.max(maxY, n.py());
         }
-        camX = Math.max(minX * CELL_X, Math.min(maxX * CELL_X, camX));
-        camY = Math.max(minY * CELL_Y, Math.min(maxY * CELL_Y, camY));
+        camX = Math.max(minX, Math.min(maxX, camX));
+        camY = Math.max(minY, Math.min(maxY, camY));
     }
 }

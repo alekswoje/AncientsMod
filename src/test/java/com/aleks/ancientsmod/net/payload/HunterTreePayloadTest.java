@@ -10,11 +10,11 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class HunterTreePayloadTest {
 
-    /** hunter-tree-layout-v1.bin is the plugin's real Map 5 tree body (HunterTreeModBridgeTest writes it). */
+    /** hunter-tree-layout-v2.bin is the plugin's real Map 5 tree body (HunterTreeModBridgeTest writes it). */
     @Test
     void decodesThePluginsMap5Tree() throws Exception {
         byte[] body;
-        try (InputStream in = getClass().getClassLoader().getResourceAsStream("hunter-tree-layout-v1.bin")) {
+        try (InputStream in = getClass().getClassLoader().getResourceAsStream("hunter-tree-layout-v2.bin")) {
             assertNotNull(in);
             body = in.readAllBytes();
         }
@@ -29,6 +29,11 @@ class HunterTreePayloadTest {
         assertEquals(1, l.nodes().stream().filter(n -> n.kind() == 0).count());
         assertEquals(10, l.nodes().stream().filter(n -> n.kind() == 4).count());
         assertTrue(l.nodes().stream().allMatch(n -> n.icon() >= 0 && n.icon() < 23));
+        var start = l.nodes().stream().filter(n -> n.kind() == 0).findFirst().orElseThrow();
+        assertEquals(0f, start.px(), 1e-6);
+        assertEquals(0f, start.py(), 1e-6);
+        // round: every other node sits on a circle well clear of the start
+        assertTrue(l.nodes().stream().filter(n -> n.kind() != 0).allMatch(n -> Math.hypot(n.px(), n.py()) > 50));
     }
 
     /** Mirrors HunterTreeModBridge.stateBody. */
