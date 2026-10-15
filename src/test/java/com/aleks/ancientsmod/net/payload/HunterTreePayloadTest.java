@@ -20,10 +20,10 @@ class HunterTreePayloadTest {
         }
         HunterTreeLayoutPayload l = HunterTreeLayoutPayload.decode(body);
         assertEquals(3, l.rings());
-        assertEquals(511, l.nodes().size());
-        assertEquals(574, l.edgeA().length);
+        assertEquals(487, l.nodes().size());
+        assertEquals(534, l.edgeA().length);
         assertEquals(8, l.stats().size());
-        assertEquals(39, l.abilities().size());
+        assertEquals(44, l.abilities().size());
         assertEquals(0, l.labels().size());
         assertEquals(1, l.nodes().stream().filter(n -> n.kind() == 0).count());
         assertEquals(10, l.nodes().stream().filter(n -> n.kind() == 4).count());
@@ -31,10 +31,10 @@ class HunterTreePayloadTest {
         var start = l.nodes().stream().filter(n -> n.kind() == 0).findFirst().orElseThrow();
         assertEquals(0f, start.px(), 1e-6);
         assertEquals(0f, start.py(), 1e-6);
-        // 34 wheels of 8, each node on its wheel's circle
-        assertEquals(34 * 8, l.nodes().stream().filter(HunterTreeLayoutPayload.Node::wheel).count());
+        // ring wheels of 6, 8 and 10 nodes (forks are drawn straight), each node on its wheel's circle
+        assertEquals(216, l.nodes().stream().filter(HunterTreeLayoutPayload.Node::wheel).count());
         assertTrue(l.nodes().stream().filter(HunterTreeLayoutPayload.Node::wheel)
-                .allMatch(n -> Math.abs(Math.hypot(n.px() - n.cx(), n.py() - n.cy()) - 30) < 1));
+                .allMatch(n -> { double r = Math.hypot(n.px() - n.cx(), n.py() - n.cy()); return r > 20 && r < 40; }));
     }
 
     /** Mirrors HunterTreeModBridge.stateBody. */
