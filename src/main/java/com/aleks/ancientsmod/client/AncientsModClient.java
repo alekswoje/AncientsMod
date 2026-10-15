@@ -230,6 +230,7 @@ public final class AncientsModClient implements ClientModInitializer {
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             ServerAllowlist.onDisconnect();
             com.aleks.ancientsmod.client.hunter.HunterTreeClient.clear();
+            com.aleks.ancientsmod.client.mining.MiningTreeClient.clear();
             PowerballRenderer.reset();
             ExcavationRenderer.reset();
             GangPingManager.reset();

@@ -292,6 +292,8 @@ public final class HunterTreeScreen extends Screen {
             for (int i = 0; i < l.stats().size() && i < s.statValue().length; i++) {
                 if (ry > this.height - 34) break;
                 var stat = l.stats().get(i);
+                final int statIndex = i;
+                if ((i == 2 || i == 3) && l.nodes().stream().noneMatch(n -> n.stat() == statIndex)) continue;
                 float v = s.statValue()[i], cap = s.statCap()[i];
                 ctx.drawTexture(RenderPipelines.GUI_TEXTURED, STATS, COL_X + 2, ry, i * 9, 0, 9, 9, 9 * 8, 9);
                 int col = v <= 0 ? DIM : v >= cap - 1e-6f ? GOLD : CREAM;

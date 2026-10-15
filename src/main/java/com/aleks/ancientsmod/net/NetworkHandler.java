@@ -404,7 +404,25 @@ public final class NetworkHandler {
                     com.aleks.ancientsmod.client.hud.ExpeditionMapState.onMarkers(
                             com.aleks.ancientsmod.net.payload.ExpeditionMarkersPayload.decode(buf));
                 }
-                case Protocol.PKT_HUNTER_TREE_LAYOUT_CHUNK -> {
+                case Protocol.PKT_MINING_TREE_LAYOUT_CHUNK -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.HUNTER_TREE_CHUNK)) return;
+                    int version = buf.readInt();
+                    int chunkIndex = buf.readVarInt();
+                    int chunkCount = buf.readVarInt();
+                    int len = buf.readVarInt();
+                    if (chunkCount < 1 || chunkCount > Protocol.HUNTER_TREE_MAX_CHUNKS) return;
+                    if (chunkIndex < 0 || chunkIndex >= chunkCount) return;
+                    if (len < 0 || len > Protocol.MAX_HUNTER_TREE_CHUNK_BYTES) return;
+                    if (buf.readableBytes() < len) return;
+                    byte[] chunk = new byte[len];
+                    buf.readBytes(chunk);
+                    com.aleks.ancientsmod.client.mining.MiningTreeClient.onChunk(version, chunkIndex, chunkCount, chunk);
+                }
+                case Protocol.PKT_MINING_TREE_STATE -> {
+                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.HUNTER_TREE_STATE)) return;
+                    com.aleks.ancientsmod.client.mining.MiningTreeClient.onState(
+                            com.aleks.ancientsmod.net.payload.HunterTreeStatePayload.decode(buf));
+                }                case Protocol.PKT_HUNTER_TREE_LAYOUT_CHUNK -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.HUNTER_TREE_CHUNK)) return;
                     int version = buf.readInt();
                     int chunkIndex = buf.readVarInt();
@@ -646,6 +664,23 @@ public final class NetworkHandler {
             sendBuf(buf);
         } catch (Throwable t) {
             AncientsMod.LOGGER.debug("send hunter tree action failed", t);
+        }
+    }
+
+    public static void sendMiningTreeAction(int action, int arg) {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        var state = com.aleks.ancientsmod.client.mining.MiningTreeClient.state();
+        if (state == null) return;
+        try {
+            PacketByteBuf buf = new PacketByteBuf(Unpooled.buffer(8));
+            buf.writeByte(Protocol.PKT_MINING_TREE_ACTION);
+            buf.writeByte(action & 0xFF);
+            buf.writeVarInt(state.activePreset());
+            buf.writeVarInt(Math.max(0, arg));
+            sendBuf(buf);
+        } catch (Throwable t) {
+            AncientsMod.LOGGER.debug("send mining tree action failed", t);
         }
     }
 

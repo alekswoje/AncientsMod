@@ -80,6 +80,10 @@ public final class Protocol {
     /** S2C: the viewer's Hunter tree state ({@code HunterTreeStatePayload}); flag bit 0
      *  opens the tree screen. Minor 11. */
     public static final byte PKT_HUNTER_TREE_STATE = 68;
+    /** Map 5 mining/ascendancy, independent of Hunter; minor 12. */
+    public static final byte PKT_MINING_TREE_LAYOUT_CHUNK = 69;
+    public static final byte PKT_MINING_TREE_STATE = 70;
+    public static final byte PKT_MINING_TREE_ACTION = (byte) 154;
     public static final int MAX_HUNTER_TREE_CHUNK_BYTES = 32_768;
     public static final int HUNTER_TREE_MAX_CHUNKS = 16;
     public static final int MAX_HUNTER_TREE_TOTAL_BYTES = 262_144;
@@ -1125,7 +1129,7 @@ public final class Protocol {
      *  {@code /hunter} opens the server's dialog. Must match the plugin's
      *  {@code PrisonsModChannel.HUNTER_TREE_PROTOCOL_MINOR}.
      */
-    public static final int PROTOCOL_MINOR = 11;
+    public static final int PROTOCOL_MINOR = 12;
     /**
      * Client request: "I want to ping this world-space point for my gang."
      * Payload carries only coordinates + a hold-flag. Server authenticates the

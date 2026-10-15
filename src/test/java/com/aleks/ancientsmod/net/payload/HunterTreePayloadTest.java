@@ -23,7 +23,7 @@ class HunterTreePayloadTest {
         assertEquals(487, l.nodes().size());
         assertEquals(534, l.edgeA().length);
         assertEquals(8, l.stats().size());
-        assertEquals(44, l.abilities().size());
+        assertEquals(54, l.abilities().size());
         assertEquals(0, l.labels().size());
         assertEquals(1, l.nodes().stream().filter(n -> n.kind() == 0).count());
         assertEquals(10, l.nodes().stream().filter(n -> n.kind() == 4).count());
