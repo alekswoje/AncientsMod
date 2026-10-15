@@ -24,8 +24,8 @@ import java.util.Locale;
 
 /**
  * The whole Hunter tree on one screen, PoE style: drag to move, scroll to zoom. The server
- * sends each node's round position (rings are circles: links along a ring draw as arcs, links
- * outward as spokes). Drawn with
+ * sends where each node goes; links inside a wheel draw as arcs around it, the rest straight.
+ * No names are drawn on the tree (owner 2026-10-15). Drawn with
  * the server dialog's own art (dusk sky, bronze frame, node icons, gold links), exported by
  * {@code _draw_hunter_gui.py --mod-out}, so the two views look the same. The server stays the
  * authority: clicks go out as {@link NetworkHandler#sendHunterTreeAction} and the screen
@@ -156,7 +156,6 @@ public final class HunterTreeScreen extends Screen {
         ctx.getMatrices().scale(zoom, zoom);
         ctx.getMatrices().translate(-camX, -camY);
         try {
-            drawLabels(ctx, l);
             drawEdges(ctx, l, s);
             drawNodes(ctx, l, s, hovered);
         } finally {
@@ -172,18 +171,6 @@ public final class HunterTreeScreen extends Screen {
         if (tip != null && !tip.isEmpty()) ctx.drawTooltip(this.textRenderer, tip, mouseX, mouseY);
     }
 
-    private void drawLabels(DrawContext ctx, HunterTreeLayoutPayload l) {
-        for (HunterTreeLayoutPayload.Label label : l.labels()) {
-            float wx = label.px(), wy = label.py();
-            ctx.getMatrices().pushMatrix();
-            ctx.getMatrices().translate(wx, wy);
-            ctx.getMatrices().scale(2f, 2f);
-            int w = this.textRenderer.getWidth(label.name());
-            ctx.drawText(this.textRenderer, label.name(), -w / 2, -4, 0x40FFD06A, false);
-            ctx.getMatrices().popMatrix();
-        }
-    }
-
     private void drawEdges(DrawContext ctx, HunterTreeLayoutPayload l, HunterTreeStatePayload s) {
         boolean frontier = s.points() > 0 && !s.readOnly();
         for (int i = 0; i < l.edgeA().length; i++) {
@@ -192,10 +179,11 @@ public final class HunterTreeScreen extends Screen {
             int st = ta && tb ? 0 : (ta || tb) && frontier ? 1 : 2;
             var na = l.nodes().get(a);
             var nb = l.nodes().get(b);
-            double ra = Math.hypot(na.px(), na.py()), rb = Math.hypot(nb.px(), nb.py());
-            if (Math.abs(ra - rb) < 0.5 && ra > 1) {
-                // Same ring: an arc around the start, the short way.
-                double angA = Math.atan2(na.py(), na.px()), angB = Math.atan2(nb.py(), nb.px());
+            if (na.wheel() && nb.wheel() && Math.abs(na.cx() - nb.cx()) < 0.5 && Math.abs(na.cy() - nb.cy()) < 0.5) {
+                // Same wheel: an arc around its centre, the short way.
+                float cx = na.cx(), cy = na.cy();
+                double ra = Math.hypot(na.px() - cx, na.py() - cy);
+                double angA = Math.atan2(na.py() - cy, na.px() - cx), angB = Math.atan2(nb.py() - cy, nb.px() - cx);
                 double dt = angB - angA;
                 while (dt > Math.PI) dt -= 2 * Math.PI;
                 while (dt < -Math.PI) dt += 2 * Math.PI;
@@ -203,7 +191,7 @@ public final class HunterTreeScreen extends Screen {
                 float px = na.px(), py = na.py();
                 for (int k = 1; k <= steps; k++) {
                     double t = angA + dt * k / steps;
-                    float qx = (float) (ra * Math.cos(t)), qy = (float) (ra * Math.sin(t));
+                    float qx = (float) (cx + ra * Math.cos(t)), qy = (float) (cy + ra * Math.sin(t));
                     segment(ctx, px, py, qx, qy, st);
                     px = qx;
                     py = qy;

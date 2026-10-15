@@ -10,15 +10,17 @@ import java.util.List;
 /**
  * The Hunter tree definition the server sends on {@code /hunter} (reassembled from
  * {@link Protocol#PKT_HUNTER_TREE_LAYOUT_CHUNK}). {@code x, y} are the server's grid cells;
- * {@code px, py} are where this screen draws the node, in world pixels with the start at 0,0
- * (the server bends the grid into a round PoE-style disk). {@code icon} indexes the rows of
+ * {@code px, py} are where this screen draws the node, in world pixels with the start at 0,0;
+ * a node on a wheel also carries the wheel's centre, and a link between two nodes of one wheel
+ * is drawn as an arc around it. {@code icon} indexes the rows of
  * {@code textures/gui/hunter/nodes.png}.
  */
 public record HunterTreeLayoutPayload(int rings, List<Node> nodes, int[] edgeA, int[] edgeB,
                                       List<Stat> stats, List<Ability> abilities, List<Label> labels) {
 
     /** {@code kind}: 0 start, 1 small, 2 major, 3 notable, 4 keystone. */
-    public record Node(int x, int y, float px, float py, int kind, int icon, int stat, int ability) {}
+    public record Node(int x, int y, float px, float py, boolean wheel, float cx, float cy,
+                       int kind, int icon, int stat, int ability) {}
     public record Stat(String name, String description, int rgb, float small, float major) {}
     public record Ability(String name, boolean keystone, List<String> lines) {}
     public record Label(String name, float px, float py) {}
@@ -26,13 +28,16 @@ public record HunterTreeLayoutPayload(int rings, List<Node> nodes, int[] edgeA, 
     public static HunterTreeLayoutPayload decode(byte[] body) {
         PacketByteBuf buf = new PacketByteBuf(Unpooled.wrappedBuffer(body));
         int format = buf.readVarInt();
-        if (format != 2) throw new IllegalArgumentException("hunter tree format " + format);
+        if (format != 3) throw new IllegalArgumentException("hunter tree format " + format);
         int rings = buf.readVarInt();
         int n = bounded(buf.readVarInt(), Protocol.MAX_HUNTER_TREE_NODES);
         List<Node> nodes = new ArrayList<>(n);
         for (int i = 0; i < n; i++) {
-            nodes.add(new Node(buf.readShort(), buf.readShort(), buf.readFloat(), buf.readFloat(),
-                    buf.readByte(), buf.readByte(), buf.readByte(), buf.readByte()));
+            int x = buf.readShort(), y = buf.readShort();
+            float px = buf.readFloat(), py = buf.readFloat();
+            boolean wheel = buf.readBoolean();
+            float cx = wheel ? buf.readFloat() : 0f, cy = wheel ? buf.readFloat() : 0f;
+            nodes.add(new Node(x, y, px, py, wheel, cx, cy, buf.readByte(), buf.readByte(), buf.readByte(), buf.readByte()));
         }
         int e = bounded(buf.readVarInt(), Protocol.MAX_HUNTER_TREE_EDGES);
         int[] a = new int[e], b = new int[e];

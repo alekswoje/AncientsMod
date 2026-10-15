@@ -10,30 +10,31 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class HunterTreePayloadTest {
 
-    /** hunter-tree-layout-v2.bin is the plugin's real Map 5 tree body (HunterTreeModBridgeTest writes it). */
+    /** hunter-tree-layout-v3.bin is the plugin's real Map 5 tree body (HunterTreeModBridgeTest writes it). */
     @Test
     void decodesThePluginsMap5Tree() throws Exception {
         byte[] body;
-        try (InputStream in = getClass().getClassLoader().getResourceAsStream("hunter-tree-layout-v2.bin")) {
+        try (InputStream in = getClass().getClassLoader().getResourceAsStream("hunter-tree-layout-v3.bin")) {
             assertNotNull(in);
             body = in.readAllBytes();
         }
         HunterTreeLayoutPayload l = HunterTreeLayoutPayload.decode(body);
         assertEquals(3, l.rings());
-        assertEquals(517, l.nodes().size());
-        assertEquals(550, l.edgeA().length);
+        assertEquals(511, l.nodes().size());
+        assertEquals(574, l.edgeA().length);
         assertEquals(8, l.stats().size());
         assertEquals(39, l.abilities().size());
-        assertEquals(12, l.labels().size());
-        assertEquals("Predation", l.labels().get(0).name());
+        assertEquals(0, l.labels().size());
         assertEquals(1, l.nodes().stream().filter(n -> n.kind() == 0).count());
         assertEquals(10, l.nodes().stream().filter(n -> n.kind() == 4).count());
         assertTrue(l.nodes().stream().allMatch(n -> n.icon() >= 0 && n.icon() < 23));
         var start = l.nodes().stream().filter(n -> n.kind() == 0).findFirst().orElseThrow();
         assertEquals(0f, start.px(), 1e-6);
         assertEquals(0f, start.py(), 1e-6);
-        // round: every other node sits on a circle well clear of the start
-        assertTrue(l.nodes().stream().filter(n -> n.kind() != 0).allMatch(n -> Math.hypot(n.px(), n.py()) > 50));
+        // 34 wheels of 8, each node on its wheel's circle
+        assertEquals(34 * 8, l.nodes().stream().filter(HunterTreeLayoutPayload.Node::wheel).count());
+        assertTrue(l.nodes().stream().filter(HunterTreeLayoutPayload.Node::wheel)
+                .allMatch(n -> Math.abs(Math.hypot(n.px() - n.cx(), n.py() - n.cy()) - 30) < 1));
     }
 
     /** Mirrors HunterTreeModBridge.stateBody. */
