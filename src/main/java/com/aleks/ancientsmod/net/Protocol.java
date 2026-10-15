@@ -73,6 +73,23 @@ public final class Protocol {
     public static final int RATE_EXPEDITION_MAP_CHUNK_PER_SEC = 32;
     public static final int RATE_EXPEDITION_MARKERS_PER_SEC = 8;
 
+    /** S2C: one chunk of the Hunter tree definition. {@code int version, varint index,
+     *  varint count, varint length, bytes}, same scheme as {@link #PKT_EXPEDITION_MAP_CHUNK}.
+     *  The reassembled body is decoded by {@code HunterTreeLayoutPayload}. Minor 11. */
+    public static final byte PKT_HUNTER_TREE_LAYOUT_CHUNK = 67;
+    /** S2C: the viewer's Hunter tree state ({@code HunterTreeStatePayload}); flag bit 0
+     *  opens the tree screen. Minor 11. */
+    public static final byte PKT_HUNTER_TREE_STATE = 68;
+    public static final int MAX_HUNTER_TREE_CHUNK_BYTES = 32_768;
+    public static final int HUNTER_TREE_MAX_CHUNKS = 16;
+    public static final int MAX_HUNTER_TREE_TOTAL_BYTES = 262_144;
+    public static final int MAX_HUNTER_TREE_NODES = 4096;
+    public static final int MAX_HUNTER_TREE_EDGES = 8192;
+    public static final int MAX_HUNTER_TREE_NAMES = 256;
+    public static final int MAX_HUNTER_TREE_TEXT_CHARS = 256;
+    public static final int RATE_HUNTER_TREE_CHUNK_PER_SEC = 32;
+    public static final int RATE_HUNTER_TREE_STATE_PER_SEC = 20;
+
 
     /** Major protocol channel. Breaking changes bump this to v2, v3, etc.
      *  The namespace stays {@code prisonsmod} on purpose: it is the wire identifier the
@@ -700,6 +717,10 @@ public final class Protocol {
      * server forgot a run from a previous login the moment it ended.
      */
     public static final byte PKT_MININGSIM_SHARE_REQ = (byte) 152;
+    /** C2S: a Hunter tree screen action, {@code byte action, varint arg}: 0 take node (arg =
+     *  node index), 1 refund node, 2 respec, 3 switch preset (arg = preset), 4 screen closed.
+     *  The server re-checks everything and answers with {@link #PKT_HUNTER_TREE_STATE}. */
+    public static final byte PKT_HUNTER_TREE_ACTION = (byte) 153;
 
     public static final byte MININGSIM_SHARE_OK       = 0;
     /** The session recorded nothing, so there is nothing to look at. */
@@ -1099,8 +1120,12 @@ public final class Protocol {
      *  {@link #PKT_EXPEDITION_MARKERS}, {@link #PKT_EXPEDITION_MAP_CLEAR}). Below this the
      *  server sends none of them. Must match the plugin's
      *  {@code PrisonsModChannel.EXPEDITION_MAP_PROTOCOL_MINOR}.
+     *  Minor 11 = client draws the full-screen Hunter tree ({@link #PKT_HUNTER_TREE_LAYOUT_CHUNK},
+     *  {@link #PKT_HUNTER_TREE_STATE} S2C / {@link #PKT_HUNTER_TREE_ACTION} C2S). Below this
+     *  {@code /hunter} opens the server's dialog. Must match the plugin's
+     *  {@code PrisonsModChannel.HUNTER_TREE_PROTOCOL_MINOR}.
      */
-    public static final int PROTOCOL_MINOR = 10;
+    public static final int PROTOCOL_MINOR = 11;
     /**
      * Client request: "I want to ping this world-space point for my gang."
      * Payload carries only coordinates + a hold-flag. Server authenticates the
