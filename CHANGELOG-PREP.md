@@ -20,7 +20,7 @@
 
 ## Networking & Server Integration
 
-- `/bugreport` can now attach a screenshot of what you were looking at. The dialog shows a toggle, and the shot leaves out your HUD and chat.
+- `/bugreport` can now attach a screenshot of what you were looking at. The dialog shows a toggle, and the shot leaves out your HUD and chat. Bind **Report a Bug** in Controls to do it with one key.
 
 ## Updates & Installation
 

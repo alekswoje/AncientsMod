@@ -76,6 +76,15 @@ public final class KeyBinds {
             KeyBinding.Category.MISC
     );
 
+    /** Send /bugreport: the mod screenshots the world and the server opens the report
+     *  dialog with the screenshot toggle. Unbound by default. */
+    public static final KeyBinding REPORT_BUG = new KeyBinding(
+            "key.ancientsmod.reportBug",
+            InputUtil.Type.KEYSYM,
+            GLFW.GLFW_KEY_UNKNOWN,
+            KeyBinding.Category.MISC
+    );
+
     /** Returns true if the given keyboard event matches the lock keybind's currently-bound key. Used by the screen mixin. */
     public static boolean matchesItemLockKey(KeyInput input) {
         return TOGGLE_ITEM_LOCK.matchesKey(input);
@@ -88,6 +97,7 @@ public final class KeyBinds {
         KeyBindingHelper.registerKeyBinding(TOGGLE_ITEM_LOCK);
         KeyBindingHelper.registerKeyBinding(ZOOM);
         KeyBindingHelper.registerKeyBinding(TOGGLE_EXPEDITION_MAP);
+        KeyBindingHelper.registerKeyBinding(REPORT_BUG);
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (OPEN_SETTINGS.wasPressed()) {
@@ -100,6 +110,12 @@ public final class KeyBinds {
                 boolean on = !FeatureToggles.isExpeditionMinimapEnabled();
                 FeatureToggles.setExpeditionMinimap(on);
                 client.player.sendMessage(net.minecraft.text.Text.literal("Expedition map " + (on ? "shown" : "hidden")), true);
+            }
+            while (REPORT_BUG.wasPressed()) {
+                // Same path as typing it: BugReportShot arms on the outgoing command.
+                if (client.currentScreen == null && ServerAllowlist.isAllowed() && client.getNetworkHandler() != null) {
+                    client.getNetworkHandler().sendChatCommand("bugreport");
+                }
             }
             while (OPEN_MUFFLER.wasPressed()) {
                 if (client.currentScreen == null) {
