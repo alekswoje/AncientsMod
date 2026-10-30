@@ -73,6 +73,7 @@ public final class AncientsModClient implements ClientModInitializer {
         PickaxeBlocksTooltip.register();
         com.aleks.ancientsmod.client.wiki.InteractiveItemTooltip.register();
         GangPingInput.register();
+        com.aleks.ancientsmod.client.melee.MeleeHoldInput.register();
         GangPingRenderer.register();
         ClientCommands.register();
         BugReportClient.register();

@@ -721,6 +721,10 @@ public final class Protocol {
      *  node index), 1 refund node, 2 respec, 3 switch preset (arg = preset), 4 screen closed.
      *  The server re-checks everything and answers with {@link #PKT_HUNTER_TREE_STATE}. */
     public static final byte PKT_HUNTER_TREE_ACTION = (byte) 153;
+    /** C2S: the attack key is held ({@code 1}) or let go ({@code 0}) with a sword or axe out, for
+     *  map 5 hold-to-swing. Re-sent once a second while held (the server lets a hold lapse after
+     *  1.5 s without one). Servers that don't know it ignore it. */
+    public static final byte PKT_MELEE_HOLD = (byte) 155;
 
     public static final byte MININGSIM_SHARE_OK       = 0;
     /** The session recorded nothing, so there is nothing to look at. */

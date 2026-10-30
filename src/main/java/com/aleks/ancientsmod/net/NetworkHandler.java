@@ -649,6 +649,19 @@ public final class NetworkHandler {
         }
     }
 
+    /** Attack key held or let go with a sword or axe out (see {@link Protocol#PKT_MELEE_HOLD}). */
+    public static void sendMeleeHold(boolean held) {
+        if (!ServerAllowlist.isAllowed()) return;
+        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
+        try {
+            ClientPlayNetworking.send(new RawPayload(new byte[] {
+                    Protocol.PKT_MELEE_HOLD, (byte) (held ? 1 : 0)
+            }));
+        } catch (Throwable t) {
+            AncientsMod.LOGGER.debug("send melee hold failed", t);
+        }
+    }
+
     public static void sendJewelLoadoutSwitch(int page) {
         if (!ServerAllowlist.isAllowed()) return;
         if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
