@@ -6,8 +6,14 @@ import com.aleks.ancientsmod.net.Protocol;
 import com.aleks.ancientsmod.net.RawPayload;
 import io.netty.buffer.Unpooled;
 import net.fabricmc.fabric.api.client.message.v1.ClientSendMessageEvents;
+import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.Element;
+import net.minecraft.client.gui.ParentElement;
+import net.minecraft.client.gui.screen.dialog.DialogScreen;
+import net.minecraft.client.gui.widget.EditBoxWidget;
+import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.client.texture.NativeImage;
 import net.minecraft.client.util.ScreenshotRecorder;
 import net.minecraft.network.PacketByteBuf;
@@ -30,7 +36,8 @@ import java.util.concurrent.ThreadLocalRandom;
  * "attach screenshot" toggle), grabs the next frame of the world before the HUD,
  * chat and screens are drawn (see {@code GameRendererBugReportShotMixin}), and
  * streams it to the server as a JPEG. The server keeps or drops it depending on
- * the toggle; nothing is saved on disk here.
+ * the toggle; nothing is saved on disk here. The dialog that follows gets its
+ * text box focused, so the player can start typing straight away.
  */
 public final class BugReportShot {
     /** Long edge of the uploaded image. Enough to read terrain, small enough to send in a second. */
@@ -43,8 +50,13 @@ public final class BugReportShot {
         return thread;
     });
 
+    /** A dialog opening this soon after /bugreport is the report form. Its title is
+     *  drawn glyph art, so timing is the reliable way to recognise it. */
+    private static final long FOCUS_WINDOW_MS = 10_000L;
+
     /** Shot id waiting for the next world frame, or 0. Render thread only. */
     private static int pendingShotId;
+    private static long armedAtMs;
 
     public static void register() {
         ClientSendMessageEvents.ALLOW_COMMAND.register(command -> {
@@ -52,6 +64,24 @@ public final class BugReportShot {
             if (name.equalsIgnoreCase("bugreport")) arm();
             return true;
         });
+        ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
+            if (screen instanceof DialogScreen<?> dialog
+                    && System.currentTimeMillis() - armedAtMs < FOCUS_WINDOW_MS) {
+                focusFirstTextBox(dialog);
+            }
+        });
+    }
+
+    /** Focuses the first text input, walking down through the dialog's scroll container. */
+    private static boolean focusFirstTextBox(ParentElement parent) {
+        for (Element child : parent.children()) {
+            if (child instanceof EditBoxWidget || child instanceof TextFieldWidget
+                    || (child instanceof ParentElement nested && focusFirstTextBox(nested))) {
+                parent.setFocused(child);
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void arm() {
@@ -62,6 +92,7 @@ public final class BugReportShot {
         buf.writeInt(shotId);
         if (!send(buf)) return;
         pendingShotId = shotId;
+        armedAtMs = System.currentTimeMillis();
     }
 
     /** Called mid-frame once the world is drawn and before any GUI is. */
