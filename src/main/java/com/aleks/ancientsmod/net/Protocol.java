@@ -1205,6 +1205,21 @@ public final class Protocol {
     public static final byte PKT_BUGREPORT_CLOSE = (byte) 108;
 
     /**
+     * C2S: a screenshot for the /bugreport this client is about to send. Body {@code int shotId}.
+     * Goes out before the command so the server's dialog can offer to attach it.
+     */
+    public static final byte PKT_BUGREPORT_SHOT_BEGIN = (byte) 161;
+    /**
+     * C2S: one JPEG chunk. Body {@code int shotId, varint index, varint count, varint len, bytes};
+     * {@code count == 0} tells the server the capture failed.
+     */
+    public static final byte PKT_BUGREPORT_SHOT_CHUNK = (byte) 162;
+    /** Mirrors server-side PrisonsModChannel.BUGREPORT_SHOT_CHUNK_BYTES. */
+    public static final int BUGREPORT_SHOT_CHUNK_BYTES = 24_576;
+    /** Mirrors server-side PrisonsModChannel.MAX_BUGREPORT_SHOT_BYTES. */
+    public static final int MAX_BUGREPORT_SHOT_BYTES = 1_572_864;
+
+    /**
      * Player ran {@code /suggest}. The mod intercepts the command and sends this
      * (no payload — server identifies the player from the connection). Server
      * replies with {@link #PKT_SUGGEST_OPEN} on success or {@link #PKT_SUGGEST_ERROR}.

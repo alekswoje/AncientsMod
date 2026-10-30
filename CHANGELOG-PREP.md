@@ -20,6 +20,8 @@
 
 ## Networking & Server Integration
 
+- `/bugreport` can now attach a screenshot of what you were looking at. The dialog shows a toggle, and the shot leaves out your HUD and chat.
+
 ## Updates & Installation
 
 ## Quality of Life

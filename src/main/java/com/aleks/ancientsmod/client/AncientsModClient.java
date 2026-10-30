@@ -76,6 +76,7 @@ public final class AncientsModClient implements ClientModInitializer {
         GangPingRenderer.register();
         ClientCommands.register();
         BugReportClient.register();
+        com.aleks.ancientsmod.client.bugreport.BugReportShot.register();
         SuggestClient.register();
         PvClient.register();
         com.aleks.ancientsmod.client.loot.LootClient.register();

@@ -5,6 +5,7 @@
   "compatibilityLevel": "JAVA_21",
   "client": [
     "client.ChatHudAccessor",
+    "client.GameRendererBugReportShotMixin",
     "client.ClientPlayerItemLockMixin",
     "client.ClientWorldRedstoneUnlitMixin",
     "client.CustomModelDataFloatPropertyMixin",
