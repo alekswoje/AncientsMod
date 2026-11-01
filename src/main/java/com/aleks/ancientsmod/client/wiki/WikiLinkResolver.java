@@ -109,7 +109,9 @@ public final class WikiLinkResolver {
         int start = -1;
         for (int i = 0; i < lines.size(); i++) {
             String low = plain(lines.get(i)).toLowerCase(Locale.ROOT).trim();
-            if (low.startsWith("trim:") || low.contains("set bonus") || low.contains("full set ability")) {
+            // Gear lore (Map 5) heads the trim block with the bare "✦ Name ✦" display name.
+            boolean starHeader = low.length() > 2 && low.startsWith("✦") && low.endsWith("✦");
+            if (low.startsWith("trim:") || starHeader || low.contains("set bonus") || low.contains("full set ability")) {
                 start = i;
                 break;
             }

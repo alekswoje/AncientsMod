@@ -68,6 +68,14 @@ public final class TooltipCollapse {
         if (lines.size() < MIN_LINES_TO_COLLAPSE + 1) return;
 
         int start = 1; // skip the display-name line at index 0
+        // Gear lore (Map 5) opens with an Armour/implicit block closed by a "────" divider;
+        // the enchant list starts after it.
+        for (int i = 1; i < Math.min(lines.size(), 8); i++) {
+            if (isDivider(lines.get(i))) {
+                start = i + 1;
+                break;
+            }
+        }
         int end = start;
         while (end < lines.size() && !isBlank(lines.get(end))) {
             end++;
@@ -92,6 +100,12 @@ public final class TooltipCollapse {
                 .append(Text.literal(" (hold ").formatted(Formatting.DARK_GRAY))
                 .append(Text.literal("Shift").formatted(Formatting.WHITE))
                 .append(Text.literal(")").formatted(Formatting.DARK_GRAY));
+    }
+
+    private static boolean isDivider(Text line) {
+        if (line == null) return false;
+        String s = line.getString().trim();
+        return s.length() >= 4 && s.chars().allMatch(c -> c == '─');
     }
 
     private static boolean isBlank(Text line) {
