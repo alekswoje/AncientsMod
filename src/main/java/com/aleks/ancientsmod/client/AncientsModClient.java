@@ -72,6 +72,7 @@ public final class AncientsModClient implements ClientModInitializer {
         TooltipScroll.register();
         PickaxeBlocksTooltip.register();
         com.aleks.ancientsmod.client.wiki.InteractiveItemTooltip.register();
+        RollRanges.register(); // after the wiki tooltip: its Alt snapshot keeps the ranges
         GangPingInput.register();
         com.aleks.ancientsmod.client.melee.MeleeHoldInput.register();
         GangPingRenderer.register();
