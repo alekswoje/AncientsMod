@@ -16,6 +16,9 @@ public final class MiningTreeClient {
 
     private static HunterTreeLayoutPayload layout;
     private static HunterTreeStatePayload state;
+    /** Auto-spend preset from the last state: -1 off, 0..3 Energy/XP/Money/Mixed, or {@link #AUTO_UNKNOWN}. */
+    public static final int AUTO_UNKNOWN = -2;
+    private static int autoPreset = AUTO_UNKNOWN;
 
     private static int asmVersion = -1;
     private static int asmCount;
@@ -27,6 +30,7 @@ public final class MiningTreeClient {
 
     public static HunterTreeLayoutPayload layout() { return layout; }
     public static HunterTreeStatePayload state() { return state; }
+    public static int autoPreset() { return autoPreset; }
 
     public static void onChunk(int version, int index, int count, byte[] chunk) {
         if (count < 1 || count > Protocol.HUNTER_TREE_MAX_CHUNKS || index < 0 || index >= count || chunk == null) return;
@@ -61,11 +65,21 @@ public final class MiningTreeClient {
         }
     }
 
-    public static void onState(HunterTreeStatePayload next) {
+    public static void onState(HunterTreeStatePayload next, int auto) {
         state = next;
+        autoPreset = auto;
         if (!next.open() || layout == null) return;
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc == null) return;
+        // Mod tree screens off (Advanced settings): tell the server this view closed and ask for
+        // the vanilla dialog a player without the mod gets. A read-only view of someone else's
+        // tree has no command to re-ask with, so it still opens here.
+        if (!com.aleks.ancientsmod.client.FeatureToggles.isTreeScreensEnabled() && !next.readOnly()) {
+            com.aleks.ancientsmod.net.NetworkHandler.sendMiningTreeAction(4, 0);
+            String cmd = next.activePreset() > 0 ? "miningtree dialog ascendancy" : "miningtree dialog";
+            mc.execute(() -> { if (mc.player != null) mc.player.networkHandler.sendChatCommand(cmd); });
+            return;
+        }
         mc.execute(() -> {
             if (mc.currentScreen instanceof MiningTreeScreen screen) screen.resetView();
             else mc.setScreen(new MiningTreeScreen(mc.currentScreen));

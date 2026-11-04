@@ -65,6 +65,13 @@ public final class HunterTreeClient {
         if (!next.open() || layout == null) return;
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc == null) return;
+        // Mod tree screens off (Advanced settings): close this view server-side and ask for the
+        // vanilla dialog instead. Read-only views of someone else's tree still open here.
+        if (!com.aleks.ancientsmod.client.FeatureToggles.isTreeScreensEnabled() && !next.readOnly()) {
+            com.aleks.ancientsmod.net.NetworkHandler.sendHunterTreeAction(4, 0);
+            mc.execute(() -> { if (mc.player != null) mc.player.networkHandler.sendChatCommand("hunter dialog"); });
+            return;
+        }
         mc.execute(() -> {
             if (!(mc.currentScreen instanceof HunterTreeScreen)) mc.setScreen(new HunterTreeScreen(mc.currentScreen));
         });

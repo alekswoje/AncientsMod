@@ -41,7 +41,7 @@ public final class MiningTreeScreen extends Screen {
     private static final int ICON_W = 21, ICON_H = 17, KINDS = 23;
     private static final int COL_W = 104, COL_X = 12, PLAQUE_W = 80, PLAQUE_H = 13;
     private static final int P_TAB = 0, P_TAB_SEL = 1, P_RESPEC = 2, P_RESPEC_ARMED = 3, P_OPEN = 4;
-    private static final int ACTION_TAKE = 0, ACTION_REFUND = 1, ACTION_RESPEC = 2, ACTION_PRESET = 3, ACTION_CLOSED = 4;
+    private static final int ACTION_TAKE = 0, ACTION_REFUND = 1, ACTION_RESPEC = 2, ACTION_PRESET = 3, ACTION_CLOSED = 4, ACTION_AUTO = 6;
     private static final float MIN_ZOOM = 0.3f, MAX_ZOOM = 3f;
     private static final long CONFIRM_MS = 5000;
 
@@ -275,7 +275,16 @@ public final class MiningTreeScreen extends Screen {
 
     // ── Column ─────────────────────────────────────────────────────────────
 
-    private static final int PRESET_Y = 62, STATS_Y = 174, RESPEC_Y = 190, STAT_ROWS_Y = 210;
+    private static final int PRESET_Y = 62, STATS_Y = 174, RESPEC_Y = 190, AUTO_Y = 206, STAT_ROWS_Y = 226;
+    /** Auto-spend presets in server order (MiningTreeAutoSpend.Preset); the plaque cycles Off then these. */
+    private static final String[] AUTO = {"Energy", "XP", "Money", "Mixed"};
+    private static final String[] AUTO_BLURB = {"Most energy on your pickaxe.", "Level up faster.",
+            "More ore to sell.", "A bit of everything: ore, energy and XP."};
+
+    /** The Auto plaque shows on the mining view when the server sent a preset. */
+    private static boolean autoShown(HunterTreeStatePayload s) {
+        return !s.readOnly() && s.activePreset() == 0 && MiningTreeClient.autoPreset() != MiningTreeClient.AUTO_UNKNOWN;
+    }
 
     /** Draws the left column; returns the tooltip for whatever in it is hovered. */
     private List<Text> drawColumn(DrawContext ctx, HunterTreeLayoutPayload l, HunterTreeStatePayload s, int mx, int my) {
@@ -313,6 +322,22 @@ public final class MiningTreeScreen extends Screen {
                         ? List.of(Text.literal("Click again to refund " + (s.activePreset() == 0 ? "ALL mining and class points (" : "your class points (") + cost + ").").formatted(Formatting.RED))
                         : List.of(Text.literal("Refund " + (s.activePreset() == 0 ? "ALL mining and class points (" : "your class points (") + cost + ").").formatted(Formatting.GOLD),
                                   Text.literal("Your class can be changed after refunding its nodes.").formatted(Formatting.GRAY));
+            }
+        }
+
+        if (autoShown(s)) {
+            int a = MiningTreeClient.autoPreset();
+            boolean on = a >= 0 && a < AUTO.length;
+            plaque(ctx, AUTO_Y, on ? P_TAB_SEL : P_TAB, "Auto: " + (on ? AUTO[a] : "Off"), on ? GOLD : CREAM);
+            if (over(mx, my, AUTO_Y)) {
+                int nextA = on ? a + 1 : 0;
+                tip = new ArrayList<>();
+                tip.add(Text.literal("Auto-spend").formatted(Formatting.AQUA));
+                tip.add(Text.literal(on ? AUTO[a] + ": " + AUTO_BLURB[a] : "Off. You spend every point yourself.").formatted(Formatting.GRAY));
+                tip.add(Text.literal("Your points spend themselves on the preset's path, now and as you level.").formatted(Formatting.GRAY));
+                tip.add(Text.literal("Click for " + (nextA < AUTO.length ? AUTO[nextA] + " (rebuilds the tree, free)" : "Off (keeps your nodes)") + ".")
+                        .formatted(Formatting.YELLOW));
+                tip.add(Text.literal("Taking or refunding a node yourself turns it off.").formatted(Formatting.DARK_GRAY));
             }
         }
 
@@ -452,6 +477,13 @@ public final class MiningTreeScreen extends Screen {
             if (over(mx, my, STATS_Y)) { statsOpen = !statsOpen; return true; }
             for (int v = 0; v < VIEWS.length; v++) if (over(mx,my,PRESET_Y + v * 16)) {
                 if (v != s.activePreset()) NetworkHandler.sendMiningTreeAction(ACTION_PRESET,v);
+                return true;
+            }
+            if (autoShown(s) && over(mx, my, AUTO_Y)) {
+                int a = MiningTreeClient.autoPreset();
+                int nextA = a >= 0 && a < AUTO.length ? a + 1 : 0;
+                // Server arg: 0 off, 1..4 a preset (the wire varint cannot be negative).
+                NetworkHandler.sendMiningTreeAction(ACTION_AUTO, nextA < AUTO.length ? nextA + 1 : 0);
                 return true;
             }
             if (!s.readOnly() && over(mx, my, RESPEC_Y)) {

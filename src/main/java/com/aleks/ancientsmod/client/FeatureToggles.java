@@ -120,6 +120,10 @@ public final class FeatureToggles {
     /** Intercept {@code /pv} (no args) and open the ME-terminal style PV view: a single grid of every stack across every unlocked PV, click to extract, drag to deposit. Off = vanilla server menu. This is the single toggle gating the mod's custom {@code /pv} screen. */
     private static volatile boolean pvTerminal = true;
 
+    /** Draw /miningtree and /hunter with the mod's full-screen tree. Off asks the server for the
+     *  vanilla dialog instead, so you see what a player without the mod sees. */
+    private static volatile boolean treeScreens = true;
+
     /** Auto-focus the PV terminal's search box the moment the terminal opens, so
      *  the player can start typing a query without clicking the field first. Only
      *  has any effect when {@link #pvTerminal} is on. */
@@ -254,6 +258,7 @@ public final class FeatureToggles {
             bugReportUi = parseBool(props.getProperty("bugReportUi"), bugReportUi);
             suggestUi = parseBool(props.getProperty("suggestUi"), suggestUi);
             pvTerminal = parseBool(props.getProperty("pvTerminal"), pvTerminal);
+            treeScreens = parseBool(props.getProperty("treeScreens"), treeScreens);
             pvTerminalAutoFocusSearch = parseBool(props.getProperty("pvTerminalAutoFocusSearch"), pvTerminalAutoFocusSearch);
             pvTerminalSortMode = clampSortMode(parseInt(props.getProperty("pvTerminalSortMode"), pvTerminalSortMode));
             cellTerminal = parseBool(props.getProperty("cellTerminal"), cellTerminal);
@@ -313,6 +318,7 @@ public final class FeatureToggles {
         props.setProperty("bugReportUi", Boolean.toString(bugReportUi));
         props.setProperty("suggestUi", Boolean.toString(suggestUi));
         props.setProperty("pvTerminal", Boolean.toString(pvTerminal));
+        props.setProperty("treeScreens", Boolean.toString(treeScreens));
         props.setProperty("pvTerminalAutoFocusSearch", Boolean.toString(pvTerminalAutoFocusSearch));
         props.setProperty("pvTerminalSortMode", Integer.toString(pvTerminalSortMode));
         props.setProperty("cellTerminal", Boolean.toString(cellTerminal));
@@ -537,6 +543,14 @@ public final class FeatureToggles {
     public static void setJewelHud(boolean value) {
         if (jewelHud == value) return;
         jewelHud = value;
+        save();
+    }
+
+    public static boolean isTreeScreensEnabled() { return treeScreens; }
+
+    public static void setTreeScreens(boolean value) {
+        if (treeScreens == value) return;
+        treeScreens = value;
         save();
     }
 

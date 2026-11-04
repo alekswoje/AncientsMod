@@ -419,8 +419,11 @@ public final class NetworkHandler {
                 }
                 case Protocol.PKT_MINING_TREE_STATE -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.HUNTER_TREE_STATE)) return;
-                    com.aleks.ancientsmod.client.mining.MiningTreeClient.onState(
-                            com.aleks.ancientsmod.net.payload.HunterTreeStatePayload.decode(buf));
+                    var miningState = com.aleks.ancientsmod.net.payload.HunterTreeStatePayload.decode(buf);
+                    // Servers from 2026-11-04 add the auto-spend preset (-1 off, 0..3) after the shared
+                    // Hunter body; older servers send nothing more, and older mods ignore the byte.
+                    int auto = buf.readableBytes() > 0 ? buf.readByte() : com.aleks.ancientsmod.client.mining.MiningTreeClient.AUTO_UNKNOWN;
+                    com.aleks.ancientsmod.client.mining.MiningTreeClient.onState(miningState, auto);
                 }                case Protocol.PKT_HUNTER_TREE_LAYOUT_CHUNK -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.HUNTER_TREE_CHUNK)) return;
                     int version = buf.readInt();

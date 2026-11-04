@@ -63,6 +63,8 @@ public final class AdvancedSettingsScreen extends WidgetSettingsScreen {
                 FeatureToggles::isPvTerminalAutoFocusSearchEnabled, FeatureToggles::setPvTerminalAutoFocusSearch);
         addToggle("Energy calculator on /energycalc",
                 FeatureToggles::isEnergyCalcUiEnabled, FeatureToggles::setEnergyCalcUi);
+        addToggle("Mod tree screens on /miningtree and /hunter",
+                FeatureToggles::isTreeScreensEnabled, FeatureToggles::setTreeScreens);
 
         addSection("Screenshots");
         addToggle("Copy screenshots to clipboard",
