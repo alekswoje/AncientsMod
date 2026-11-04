@@ -147,9 +147,6 @@ public final class FeatureToggles {
      *  two terminals can hold different orders. */
     private static volatile int cellTermSortMode = 0;
 
-    /** Intercept {@code /loottables} (and its {@code /loot} alias) and open the mod's searchable loot browser instead of the server chest GUI. Off = vanilla server menu. */
-    private static volatile boolean lootBrowser = true;
-
     /** Intercept a bare {@code /energycalc} and open the mod's gear-energy screen. {@code /energycalc <level>} always goes to the server. */
     private static volatile boolean energyCalcUi = true;
 
@@ -261,7 +258,6 @@ public final class FeatureToggles {
             pvTerminalSortMode = clampSortMode(parseInt(props.getProperty("pvTerminalSortMode"), pvTerminalSortMode));
             cellTerminal = parseBool(props.getProperty("cellTerminal"), cellTerminal);
             cellTermSortMode = clampSortMode(parseInt(props.getProperty("cellTermSortMode"), cellTermSortMode));
-            lootBrowser = parseBool(props.getProperty("lootBrowser"), lootBrowser);
             energyCalcUi = parseBool(props.getProperty("energyCalcUi"), energyCalcUi);
             zoom = parseBool(props.getProperty("zoom"), zoom);
             zoomFovPercent = clampZoomFovPercent(parseInt(props.getProperty("zoomFovPercent"), zoomFovPercent));
@@ -321,7 +317,6 @@ public final class FeatureToggles {
         props.setProperty("pvTerminalSortMode", Integer.toString(pvTerminalSortMode));
         props.setProperty("cellTerminal", Boolean.toString(cellTerminal));
         props.setProperty("cellTermSortMode", Integer.toString(cellTermSortMode));
-        props.setProperty("lootBrowser", Boolean.toString(lootBrowser));
         props.setProperty("energyCalcUi", Boolean.toString(energyCalcUi));
         props.setProperty("zoom", Boolean.toString(zoom));
         props.setProperty("zoomFovPercent", Integer.toString(zoomFovPercent));
@@ -662,14 +657,6 @@ public final class FeatureToggles {
     public static int cycleCellTermSortMode() {
         setCellTermSortMode(cellTermSortMode + 1);
         return cellTermSortMode;
-    }
-
-    public static boolean isLootBrowserEnabled() { return lootBrowser; }
-
-    public static void setLootBrowser(boolean value) {
-        if (lootBrowser == value) return;
-        lootBrowser = value;
-        save();
     }
 
     public static boolean isEnergyCalcUiEnabled() { return energyCalcUi; }

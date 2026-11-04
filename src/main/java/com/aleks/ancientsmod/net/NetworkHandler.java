@@ -7,7 +7,6 @@ import com.aleks.ancientsmod.client.RiftTexturePackManager;
 import com.aleks.ancientsmod.client.ServerAllowlist;
 import com.aleks.ancientsmod.client.bugreport.BugReportClient;
 import com.aleks.ancientsmod.client.cellterm.CellTermClient;
-import com.aleks.ancientsmod.client.loot.LootClient;
 import com.aleks.ancientsmod.client.pv.PvClient;
 import com.aleks.ancientsmod.client.suggest.SuggestClient;
 import com.aleks.ancientsmod.client.nametag.NametagClient;
@@ -476,29 +475,6 @@ public final class NetworkHandler {
                     com.aleks.ancientsmod.net.payload.EnergyReferencePayload p =
                             com.aleks.ancientsmod.net.payload.EnergyReferencePayload.decode(buf);
                     com.aleks.ancientsmod.client.energycalc.EnergyReferenceState.update(p);
-                }
-                case Protocol.PKT_LOOT_SNAPSHOT_CHUNK -> {
-                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.LOOT_CHUNK)) return;
-                    int version = buf.readInt();
-                    int chunkIndex = buf.readVarInt();
-                    int chunkCount = buf.readVarInt();
-                    int len = buf.readVarInt();
-                    if (chunkCount < 1 || chunkCount > Protocol.LOOT_MAX_CHUNKS) return;
-                    if (chunkIndex < 0 || chunkIndex >= chunkCount) return;
-                    if (len < 0 || len > Protocol.MAX_LOOT_CHUNK_BYTES) return;
-                    if (buf.readableBytes() < len) return;
-                    byte[] chunk = new byte[len];
-                    buf.readBytes(chunk);
-                    LootClient.onSnapshotChunk(version, chunkIndex, chunkCount, chunk);
-                }
-                case Protocol.PKT_LOOT_LUCK -> {
-                    if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.LOOT_LUCK)) return;
-                    int milli = buf.readVarInt();
-                    // Clamp defensively; the value is purely cosmetic (drives the
-                    // "with luck" drop-rate display in the loot browser).
-                    if (milli < 0) milli = 0;
-                    if (milli > 10_000_000) milli = 10_000_000;
-                    LootClient.onLuck(milli / 1000.0);
                 }
                 case Protocol.PKT_POWERBALL -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.POWERBALL)) return;
@@ -1181,32 +1157,6 @@ public final class NetworkHandler {
             sendBuf(buf);
         } catch (Throwable t) {
             AncientsMod.LOGGER.debug("send pv shift-click failed", t);
-        }
-    }
-
-    // ── Loot browser sends ───────────────────────────────────────────────────
-
-    /** "Player ran /loottables — send me the catalog." Single-byte payload; the
-     *  server registers the player as a viewer and replies with chunked
-     *  {@link Protocol#PKT_LOOT_SNAPSHOT_CHUNK} packets. */
-    public static void sendLootRequest() {
-        if (!ServerAllowlist.isAllowed()) return;
-        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
-        try {
-            ClientPlayNetworking.send(new RawPayload(new byte[] { Protocol.PKT_LOOT_REQ }));
-        } catch (Throwable t) {
-            AncientsMod.LOGGER.debug("send loot request failed", t);
-        }
-    }
-
-    /** "I closed the loot browser." Server stops pushing reload/discovery refreshes. */
-    public static void sendLootClose() {
-        if (!ServerAllowlist.isAllowed()) return;
-        if (!ClientPlayNetworking.canSend(RawPayload.ID)) return;
-        try {
-            ClientPlayNetworking.send(new RawPayload(new byte[] { Protocol.PKT_LOOT_CLOSE }));
-        } catch (Throwable t) {
-            AncientsMod.LOGGER.debug("send loot close failed", t);
         }
     }
 

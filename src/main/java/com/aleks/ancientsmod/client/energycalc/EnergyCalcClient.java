@@ -15,7 +15,7 @@ import java.util.Locale;
  * {@code /energycalc <targetLevel>} does something the client genuinely cannot —
  * it walks the whole per-level cost curve from the server config — so anything
  * with arguments passes straight through and still answers in chat. Same
- * bare-command-only rule as {@code PvClient} and {@code LootClient}.
+ * bare-command-only rule as {@code PvClient}.
  *
  * <p>The screen reads the player's own items for its live rows, and requests the
  * server-priced gear/pickaxe reference table ({@code PKT_ENERGY_REFERENCE_REQ}) for the

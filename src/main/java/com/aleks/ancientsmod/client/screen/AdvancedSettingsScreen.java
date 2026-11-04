@@ -61,8 +61,6 @@ public final class AdvancedSettingsScreen extends WidgetSettingsScreen {
                 FeatureToggles::isPvTerminalEnabled, FeatureToggles::setPvTerminal);
         addToggle("Auto-focus PV terminal search",
                 FeatureToggles::isPvTerminalAutoFocusSearchEnabled, FeatureToggles::setPvTerminalAutoFocusSearch);
-        addToggle("Loot browser on /loottables",
-                FeatureToggles::isLootBrowserEnabled, FeatureToggles::setLootBrowser);
         addToggle("Energy calculator on /energycalc",
                 FeatureToggles::isEnergyCalcUiEnabled, FeatureToggles::setEnergyCalcUi);
 

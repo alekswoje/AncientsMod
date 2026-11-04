@@ -333,7 +333,7 @@ public final class Protocol {
 
     /**
      * S2C — one chunk of a PV bundle too large to fit a single {@link #PKT_PV_BUNDLE}
-     * packet. Same scheme as {@link #PKT_LOOT_SNAPSHOT_CHUNK}: the server splits the body
+     * packet. Same chunked scheme the old loot snapshot used: the server splits the body
      * (everything a single PKT_PV_BUNDLE carries after its type byte) into ordered chunks;
      * the mod reassembles by {@code version} and decodes the reassembled body with the same
      * {@link com.aleks.ancientsmod.net.payload.PvBundlePayload} decoder. The server only
@@ -793,28 +793,8 @@ public final class Protocol {
     /** Min mod handshake minor whose client can drive the rename GUI (S2C 58-60, C2S 149-150). */
     public static final int NAMETAG_PROTOCOL_MINOR = 5;
 
-    /**
-     * One chunk of the loot-browser catalog snapshot (server → mod), pushed in
-     * response to {@link #PKT_LOOT_REQ} and again on {@code /loottablesplit
-     * reload} or a fresh discovery. The full body is split into ordered chunks;
-     * the mod reassembles by {@code version} and decodes once the last chunk
-     * arrives. Wire per chunk:
-     * {@code int version; varint chunkIndex; varint chunkCount; varint len; byte[len] body}.
-     * Bounded by {@link #MAX_LOOT_CHUNK_BYTES} per packet, {@link #MAX_LOOT_SNAPSHOT_BYTES} total.
-     * NB: byte 25 was PKT_FULLBRIGHT_BLACKLIST on the season2 branch, so the loot
-     * snapshot is renumbered 25 → 31 here to match the season2 plugin. Public
-     * master uses 25.
-     */
-    public static final byte PKT_LOOT_SNAPSHOT_CHUNK = 31;
-
-    /**
-     * Server → client: the viewer's current total loot-luck percent (×1000,
-     * varint), pushed right after each loot snapshot so the loot browser can
-     * render luck-adjusted drop rates (mirrors the server chest GUI's "With
-     * luck" line). Byte 45 is free on master/dev/season2, so unlike the loot
-     * snapshot chunk it carries the same id on every scheme.
-     */
-    public static final byte PKT_LOOT_LUCK = 45;
+    // 31 and 45 were the loot browser snapshot chunk and loot-luck push (removed
+    // with /loottables). Do not reuse.
 
     /**
      * Server → client: the set of custom item textures this player has turned
@@ -1382,17 +1362,7 @@ public final class Protocol {
      */
     public static final byte PKT_PV_PVSEE_CLOSE = (byte) 134;
 
-    /**
-     * Player ran {@code /loottables} (or its {@code /loot} alias) on a modded
-     * client. The mod intercepts the command and sends this (no payload — the
-     * server identifies the player from the connection); the server registers
-     * the player as a loot-browser viewer and replies with a chunked
-     * {@link #PKT_LOOT_SNAPSHOT_CHUNK} catalog.
-     */
-    public static final byte PKT_LOOT_REQ = (byte) 131;
-    /** Player closed the mod loot browser. Server deregisters them so reload /
-     *  discovery pushes stop. No payload. */
-    public static final byte PKT_LOOT_CLOSE = (byte) 132;
+    // 131 and 132 were the loot browser request / close (removed with /loottables). Do not reuse.
 
     /** C2S — report whether the mod renders Powerball client-side (1=on, 0=off).
      *  When on, the server suppresses the server-side ItemDisplay + trail for
@@ -1513,20 +1483,6 @@ public final class Protocol {
     public static final int MAX_PV_BUNDLE_CHUNK_BYTES = 32_768;
     /** Max chunks a single PV bundle may declare (1 MiB / 24 KiB, with headroom). */
     public static final int PV_BUNDLE_MAX_CHUNKS = 80;
-    /** Max bytes for a single {@link #PKT_LOOT_SNAPSHOT_CHUNK} packet. */
-    public static final int MAX_LOOT_CHUNK_BYTES = 32_768;
-    /** Hard cap on the reassembled loot snapshot body — guards against a
-     *  malicious server claiming a huge chunk count to OOM the client. */
-    public static final int MAX_LOOT_SNAPSHOT_BYTES = 1_048_576;
-
-    // --- Loot browser bounds (validated post-decode) ---
-    /** Max chunks a single snapshot may declare (1 MB / 16 KB, with headroom). */
-    public static final int LOOT_MAX_CHUNKS = 80;
-    public static final int LOOT_MAX_STRINGS = 8_192;
-    public static final int LOOT_MAX_STRING_CHARS = 256;
-    public static final int LOOT_MAX_CATEGORIES = 32;
-    public static final int LOOT_MAX_TABLES = 512;
-    public static final int LOOT_MAX_ENTRIES_PER_TABLE = 256;
 
     // --- PV bundle bounds ---
     // Set well above the current server-side cap so future bumps don't break
@@ -1628,14 +1584,7 @@ public final class Protocol {
      *  aren't dropped (a dropped bundle leaves the terminal grid looking like
      *  items vanished until reopen). Still bounded against a misbehaving server. */
     public static final int RATE_PV_BUNDLE_PER_SEC = 20;
-    /** Loot snapshot is on-demand but multi-chunk; allow a burst for the chunks
-     *  of one snapshot to arrive back-to-back without tripping the limiter. */
-    public static final int RATE_LOOT_CHUNK_PER_SEC = 80;
-    /** Loot-luck push (one per snapshot/reload) — a small cap is plenty and
-     *  caps a misbehaving server's ability to spam the cheap handler. */
-    public static final int RATE_LOOT_LUCK_PER_SEC = 10;
-    /** PV bundle chunks (for oversized vaults) arrive as a back-to-back burst, same as
-     *  the loot snapshot — allow the whole bundle's chunks through in one window. */
+    /** PV bundle chunks (for oversized vaults) arrive as a back-to-back burst — allow the whole bundle's chunks through in one window. */
     public static final int RATE_PV_CHUNK_PER_SEC = 80;
     /** Cell-terminal bundle pushes — one per server-side open, plus one per
      *  extract/deposit refresh. Same human-click-rate reasoning as the PV bundle. */

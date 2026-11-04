@@ -25,3 +25,5 @@
 ## Updates & Installation
 
 ## Quality of Life
+
+- Removed the loot browser, since /loottables no longer exists on the server.

@@ -81,7 +81,6 @@ public final class AncientsModClient implements ClientModInitializer {
         com.aleks.ancientsmod.client.bugreport.BugReportShot.register();
         SuggestClient.register();
         PvClient.register();
-        com.aleks.ancientsmod.client.loot.LootClient.register();
         com.aleks.ancientsmod.client.energycalc.EnergyCalcClient.register();
         UpdateInstaller.init();
 
@@ -105,12 +104,7 @@ public final class AncientsModClient implements ClientModInitializer {
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             ServerAllowlist.onJoin(client.getCurrentServerEntry());
             AutoRejoinManager.onJoin(client.getCurrentServerEntry());
-            // Drop any loot catalog cached from a previous backend before the
-            // player can reopen /loot here. Without this, hopping to a server
-            // whose loot packets are renumbered (season2 vs master) renders the
-            // prior server's stale snapshot, since the fresh one never arrives.
-            com.aleks.ancientsmod.client.loot.LootClient.reset();
-            // Same for the jewel sockets. The allowlist covers the whole
+            // Drop the jewel sockets from the previous backend. The allowlist covers the whole
             // network, so without this the HUD and the inventory sockets kept
             // drawing the last backend's jewels on the hub — which has no
             // jewel system at all — and would have shown dev's sockets after
@@ -244,7 +238,6 @@ public final class AncientsModClient implements ClientModInitializer {
             BugReportClient.reset();
             SuggestClient.reset();
             com.aleks.ancientsmod.client.wiki.InteractiveItemTooltip.reset();
-            com.aleks.ancientsmod.client.loot.LootClient.reset();
             com.aleks.ancientsmod.client.hud.JewelState.clear();
             com.aleks.ancientsmod.client.hud.MiningCompState.clear();
             com.aleks.ancientsmod.client.hud.ExpeditionMapState.clear();
@@ -268,7 +261,6 @@ public final class AncientsModClient implements ClientModInitializer {
             BugReportClient.tick();
             SuggestClient.tick();
             PvClient.tick();
-            com.aleks.ancientsmod.client.loot.LootClient.tick();
             AutoRejoinManager.tick(client);
             // Drop pings whose source world the player has since left. The
             // server only forwards meteor/gang pings to players currently in
