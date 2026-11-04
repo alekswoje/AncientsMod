@@ -9,6 +9,7 @@ import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ChatScreen;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.input.CharInput;
 import net.minecraft.client.input.KeyInput;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.OrderedText;
@@ -55,6 +56,9 @@ public final class MiningTreeScreen extends Screen {
     private static boolean statsOpen = true;
 
     private final @Nullable Screen parent;
+    /** The search text survives closing and reopening within a session, like the view. */
+    private static String lastQuery = "";
+    private final TreeSearch search = new TreeSearch("The Seam");
     private HunterTreeLayoutPayload adjFor;
     private int[][] adj;
 
@@ -70,7 +74,7 @@ public final class MiningTreeScreen extends Screen {
     }
 
     private static final String[] VIEWS = {"Mining", "Kobaloi", "Horologist", "Telchine", "Prospector", "Reservoir", "Overdrive"};
-    @Override protected void init() { resetView(); }
+    @Override protected void init() { resetView(); addSearchField(); }
 
     public void resetView() {
         camX = camY = 0;
@@ -108,6 +112,11 @@ public final class MiningTreeScreen extends Screen {
     @Override
     public void renderBackground(DrawContext ctx, int mouseX, int mouseY, float delta) {
         // The sky covers the whole screen; no world blur behind it.
+    }
+
+    private void addSearchField() {
+        this.addDrawableChild(search.createField(this.textRenderer, COL_X, this.height - 52, PLAQUE_W, lastQuery,
+                q -> lastQuery = q));
     }
 
     // ── Geometry ───────────────────────────────────────────────────────────
@@ -238,6 +247,7 @@ public final class MiningTreeScreen extends Screen {
     }
 
     private void drawNodes(DrawContext ctx, HunterTreeLayoutPayload l, HunterTreeStatePayload s, int hovered) {
+        boolean[] found = search.active() ? search.matches(l) : null;
         for (int i = 0; i < l.nodes().size(); i++) {
             var n = l.nodes().get(i);
             int icon = Math.max(0, Math.min(KINDS - 1, n.icon()));
@@ -253,6 +263,7 @@ public final class MiningTreeScreen extends Screen {
                 if (dx > 1 && Math.abs(dy) < radius-1) ctx.fill(cx-dx+1,cy+dy,cx+dx,cy+dy+1,
                     st == 0 ? 0xFF000000 | color : st == 1 ? 0xFF000000 | ((color & 0xFEFEFE) >>> 1) : 0xFF202633);
             }
+            if (found != null && i < found.length && found[i]) TreeSearch.ring(ctx, cx, cy, halfW(icon), halfH(icon), zoom);
             if (i == hovered) {
                 int hw = halfW(icon) + 1, hh = halfH(icon) + 1;
                 ctx.fill(cx - hw, cy - hh, cx + hw + 1, cy + hh + 1, 0x30FFF6C8);
@@ -349,7 +360,7 @@ public final class MiningTreeScreen extends Screen {
         if (statsOpen) {
             int ry = STAT_ROWS_Y;
             for (int i = 0; i < l.stats().size() && i < s.statValue().length; i++) {
-                if (ry > this.height - 34) break;
+                if (ry > this.height - 64) break;
                 var stat = l.stats().get(i);
                 float v = s.statValue()[i], cap = s.statCap()[i];
                 ctx.fill(COL_X + 3, ry + 2, COL_X + 10, ry + 9, 0xFF000000 | stat.rgb());
@@ -365,8 +376,15 @@ public final class MiningTreeScreen extends Screen {
                 ry += 11;
             }
         }
-        ctx.drawText(this.textRenderer, "Drag to move", COL_X + 2, this.height - 30, DIM, true);
-        ctx.drawText(this.textRenderer, "Scroll to zoom", COL_X + 2, this.height - 20, DIM, true);
+        if (search.active()) {
+            int found = search.count(l);
+            ctx.drawText(this.textRenderer, found == 0 ? "No matches" : found + (found == 1 ? " match" : " matches"),
+                    COL_X + 2, this.height - 34, found == 0 ? 0xFFFF8A7A : 0xFF7CF0FF, true);
+            if (found > 0) ctx.drawText(this.textRenderer, "Enter: next", COL_X + 2, this.height - 22, DIM, true);
+        } else {
+            ctx.drawText(this.textRenderer, "Drag to move", COL_X + 2, this.height - 34, DIM, true);
+            ctx.drawText(this.textRenderer, "Scroll to zoom", COL_X + 2, this.height - 22, DIM, true);
+        }
         return tip;
     }
 
@@ -498,6 +516,10 @@ public final class MiningTreeScreen extends Screen {
             }
         }
         if (inTree(mx, my)) {
+            if (search.focused()) {
+                search.field.setFocused(false);
+                this.setFocused(null);
+            }
             pressed = true;
             dragging = false;
             pressX = mx;
@@ -567,6 +589,23 @@ public final class MiningTreeScreen extends Screen {
 
     @Override
     public boolean keyPressed(KeyInput input) {
+        if (input.key() == GLFW.GLFW_KEY_F && input.hasCtrlOrCmd()) {
+            focusSearch();
+            search.field.setCursorToEnd(false);
+            search.field.setSelectionStart(0);
+            return true;
+        }
+        if ((input.key() == GLFW.GLFW_KEY_ENTER || input.key() == GLFW.GLFW_KEY_KP_ENTER) && search.active()) {
+            jumpToNextMatch();
+            return true;
+        }
+        if (search.focused()) {
+            if (input.key() == GLFW.GLFW_KEY_ESCAPE && !search.field.getText().isEmpty()) {
+                search.field.setText("");
+                return true;
+            }
+            return super.keyPressed(input);
+        }
         if (input.key() == GLFW.GLFW_KEY_SPACE || input.key() == GLFW.GLFW_KEY_HOME) {
             camX = 0;
             camY = 0;
@@ -574,6 +613,31 @@ public final class MiningTreeScreen extends Screen {
             return true;
         }
         return super.keyPressed(input);
+    }
+
+    @Override
+    public boolean charTyped(CharInput input) {
+        // Typing a letter anywhere on the screen starts a search, as in PoE.
+        if (!search.focused() && Character.isLetterOrDigit(input.codepoint()) && (input.modifiers() & GLFW.GLFW_MOD_CONTROL) == 0) focusSearch();
+        return super.charTyped(input);
+    }
+
+    private void focusSearch() {
+        this.setFocused(search.field);
+        search.field.setFocused(true);
+    }
+
+    /** Centre the view on the next node the search matches, zooming in if the view is far out. */
+    private void jumpToNextMatch() {
+        HunterTreeLayoutPayload l = MiningTreeClient.layout();
+        if (l == null) return;
+        int i = search.next(l);
+        if (i < 0) return;
+        var n = l.nodes().get(i);
+        camX = n.px();
+        camY = n.py();
+        zoom = Math.max(zoom, 1f);
+        clampCamera();
     }
 
     /** Keep at least part of the tree in view. */

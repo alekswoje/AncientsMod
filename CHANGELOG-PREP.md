@@ -16,6 +16,8 @@
 
 ## UI & Screens
 
+- The Hunter and mining tree screens have a **search box**. Type a word like "speed" or a node's name and every match lights up; press Enter to jump from one match to the next. Ctrl+F or just start typing to search.
+
 ## Input & Keybinds
 
 ## Networking & Server Integration
