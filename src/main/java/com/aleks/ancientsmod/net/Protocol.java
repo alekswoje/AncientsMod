@@ -80,6 +80,9 @@ public final class Protocol {
     /** S2C: the viewer's Hunter tree state ({@code HunterTreeStatePayload}); flag bit 0
      *  opens the tree screen. Minor 11. */
     public static final byte PKT_HUNTER_TREE_STATE = 68;
+    /** S2C: which level the vanilla XP bar holds. {@code byte style}: 0 mining, 1 Hunter.
+     *  The Hunter level draws the bar and its number purple ({@code XpBarStyle}). */
+    public static final byte PKT_XP_BAR_STYLE = 71;
     /** Map 5 mining/ascendancy, independent of Hunter; minor 12. */
     public static final byte PKT_MINING_TREE_LAYOUT_CHUNK = 69;
     public static final byte PKT_MINING_TREE_STATE = 70;

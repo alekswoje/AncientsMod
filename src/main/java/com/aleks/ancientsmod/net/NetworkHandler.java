@@ -162,6 +162,11 @@ public final class NetworkHandler {
                     GangRosterPayload p = GangRosterPayload.decode(buf);
                     GangRoster.update(p);
                 }
+                case Protocol.PKT_XP_BAR_STYLE -> {
+                    // Not rate-limited: one byte, last write wins, like PKT_JEWEL_SLOTS.
+                    if (buf.readableBytes() < 1) return;
+                    com.aleks.ancientsmod.client.hud.XpBarStyle.set(buf.readByte() == 1);
+                }
                 case Protocol.PKT_DUEL_STATE -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.DUEL_STATE)) return;
                     DuelStatePayload p = DuelStatePayload.decode(buf);

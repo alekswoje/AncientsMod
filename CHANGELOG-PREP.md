@@ -11,6 +11,7 @@
 ## HUDs
 
 - New Expedition map in the top right shows the whole Expedition, the packs left to clear (yellow when a Rare is with them) and the boss arena. Press M to hide or show it.
+- The XP bar and its number turn purple while they show your Hunter level, so you can tell it apart from your mining level.
 
 ## Rendering & Visuals
 

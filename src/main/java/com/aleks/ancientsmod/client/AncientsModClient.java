@@ -104,6 +104,8 @@ public final class AncientsModClient implements ClientModInitializer {
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             ServerAllowlist.onJoin(client.getCurrentServerEntry());
             AutoRejoinManager.onJoin(client.getCurrentServerEntry());
+            // The backend we land on says again whether the bar is the Hunter level.
+            com.aleks.ancientsmod.client.hud.XpBarStyle.reset();
             // Drop the jewel sockets from the previous backend. The allowlist covers the whole
             // network, so without this the HUD and the inventory sockets kept
             // drawing the last backend's jewels on the hub — which has no
@@ -233,6 +235,7 @@ public final class AncientsModClient implements ClientModInitializer {
             GangPingManager.reset();
             GangRoster.reset();
             DuelState.reset();
+            com.aleks.ancientsmod.client.hud.XpBarStyle.reset();
             MeteoriteState.reset();
             com.aleks.ancientsmod.client.buffs.BuffSnapshotState.clear();
             BugReportClient.reset();

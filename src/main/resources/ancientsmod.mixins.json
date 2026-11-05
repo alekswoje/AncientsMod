@@ -29,7 +29,9 @@
     "client.TextFieldSelectionAccessor",
     "client.ChatEmojiSuggestorMixin",
     "client.ChatHudEmojiMixin",
-    "client.EmojiFontMixin"
+    "client.EmojiFontMixin",
+    "client.ExperienceBarHunterMixin",
+    "client.InGameHudHunterLevelMixin"
   ],
   "injectors": {
     "defaultRequire": 1
