@@ -288,8 +288,10 @@ public final class JewelSockets {
             }
             // Server-authored lore, colours intact — the tier badge is
             // colour-coded, so repainting the line one flat green loses it.
+            // The server puts the grey roll ranges on these lines; like an item
+            // tooltip they show only while Alt is held.
             for (String stat : slot.statLines()) {
-                lines.add(LegacyText.parse(stat));
+                lines.add(RollRanges.unlessAlt(LegacyText.parse(stat)));
             }
             if (!slot.loreLines().isEmpty()) {
                 lines.add(Text.empty());

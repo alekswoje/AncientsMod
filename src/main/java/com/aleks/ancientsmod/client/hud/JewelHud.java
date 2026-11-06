@@ -215,7 +215,8 @@ public final class JewelHud extends HudElement {
             // included) and STAT_COLOR is only the fallback.
             boolean requirement = line.startsWith("Slot ");
             ctx.drawText(fr, requirement ? Text.literal(line)
-                            : com.aleks.ancientsmod.client.LegacyText.parse(line),
+                            : com.aleks.ancientsmod.client.RollRanges.unlessAlt(
+                                    com.aleks.ancientsmod.client.LegacyText.parse(line)),
                     0, y, requirement ? CAPTION_COLOR : STAT_COLOR, true);
             y += 9;
         }

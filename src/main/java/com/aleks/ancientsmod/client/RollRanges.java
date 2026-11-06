@@ -44,6 +44,13 @@ public final class RollRanges {
         });
     }
 
+    /** The line without its range runs, or the line itself when Alt is held. */
+    public static Text unlessAlt(Text line) {
+        if (isAltDown()) return line;
+        Text stripped = strip(line);
+        return stripped != null ? stripped : line;
+    }
+
     /** The line without its range runs, or null when it has none. */
     static Text strip(Text line) {
         boolean[] changed = {false};
