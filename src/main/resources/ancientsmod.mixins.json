@@ -20,6 +20,7 @@
     "client.HandledScreenSlotOverlayMixin",
     "client.HandledScreenTooltipSuppressMixin",
     "client.HoveredTooltipPositionerMixin",
+    "client.InGameOverlayRendererLowFireMixin",
     "client.LivingEntityRendererMixin",
     "client.MiningResumeMixin",
     "client.ParticleManagerMufflerMixin",

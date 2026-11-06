@@ -70,6 +70,8 @@ public final class SettingsScreen extends WidgetSettingsScreen {
                 FeatureToggles::isExpeditionMinimapEnabled, FeatureToggles::setExpeditionMinimap);
         addToggle("Saturation on hunger bar",
                 FeatureToggles::isSaturationOverlayEnabled, FeatureToggles::setSaturationOverlay);
+        addToggle("Low fire overlay",
+                FeatureToggles::isLowFireEnabled, FeatureToggles::setLowFire);
         addToggle("Meteorite count on block",
                 FeatureToggles::isMeteoriteHudEnabled, FeatureToggles::setMeteoriteHud);
         addAction("Edit HUD positions", () -> {

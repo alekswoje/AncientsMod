@@ -102,6 +102,9 @@ public final class FeatureToggles {
     /** Draw a slim saturation strip above the vanilla hunger bar. Off by default — extra HUD clutter. */
     private static volatile boolean saturationOverlay = false;
 
+    /** Draw the on-fire screen overlay low so flames no longer cover the view. On by default. */
+    private static volatile boolean lowFire = true;
+
     /** Show the mining-speed summary line at the top of the {@code /buffs} screen. */
     private static volatile boolean buffsMiningSpeed = true;
 
@@ -252,6 +255,7 @@ public final class FeatureToggles {
             jewelHud = parseBool(props.getProperty("jewelHud"), jewelHud);
             jewelSockets = parseBool(props.getProperty("jewelSockets"), jewelSockets);
             saturationOverlay = parseBool(props.getProperty("saturationOverlay"), saturationOverlay);
+            lowFire = parseBool(props.getProperty("lowFire"), lowFire);
             buffsMiningSpeed = parseBool(props.getProperty("buffsMiningSpeed"), buffsMiningSpeed);
             buffsDailyBonus = parseBool(props.getProperty("buffsDailyBonus"), buffsDailyBonus);
             updateAlert = parseBool(props.getProperty("updateAlert"), updateAlert);
@@ -312,6 +316,7 @@ public final class FeatureToggles {
         props.setProperty("jewelHud", Boolean.toString(jewelHud));
         props.setProperty("jewelSockets", Boolean.toString(jewelSockets));
         props.setProperty("saturationOverlay", Boolean.toString(saturationOverlay));
+        props.setProperty("lowFire", Boolean.toString(lowFire));
         props.setProperty("buffsMiningSpeed", Boolean.toString(buffsMiningSpeed));
         props.setProperty("buffsDailyBonus", Boolean.toString(buffsDailyBonus));
         props.setProperty("updateAlert", Boolean.toString(updateAlert));
@@ -567,6 +572,14 @@ public final class FeatureToggles {
     public static void setSaturationOverlay(boolean value) {
         if (saturationOverlay == value) return;
         saturationOverlay = value;
+        save();
+    }
+
+    public static boolean isLowFireEnabled() { return lowFire; }
+
+    public static void setLowFire(boolean value) {
+        if (lowFire == value) return;
+        lowFire = value;
         save();
     }
 

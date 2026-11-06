@@ -28,18 +28,26 @@ import java.util.Locale;
  * sends where each node goes; links inside a wheel draw as arcs around it, the rest straight.
  * No names are drawn on the tree (owner 2026-10-15). Drawn with
  * the Hunter screen's shared frame art (dusk sky, bronze frame and gold links), exported by
- * {@code _draw_hunter_gui.py --mod-out}, so the two views look the same. The server stays the
+ * {@code _draw_hunter_gui.py --mod-out}, so the two views look the same; the node icons are
+ * {@code gui/mining/nodes.png} from {@code _draw_mining_mod_icons.py}, in the Hunter icon style. The server stays the
  * authority: clicks go out as {@link NetworkHandler#sendMiningTreeAction} and the screen
  * redraws from whatever state comes back.
  */
 public final class MiningTreeScreen extends Screen {
 
+    private static final Identifier NODES = Identifier.of("ancientsmod", "textures/gui/mining/nodes.png");
+    private static final Identifier GLOW = Identifier.of("ancientsmod", "textures/gui/mining/nodes_glow.png");
     private static final Identifier SKY = tex("sky");
     private static final Identifier FRAME = tex("frame");
     private static final Identifier PLAQUES = tex("plaques");
     private static final Identifier TITLE = tex("title");
 
-    private static final int ICON_W = 21, ICON_H = 17, KINDS = 23;
+    /** nodes.png rows, drawn by {@code _draw_mining_mod_icons.py}: one per symbol, columns taken/available/locked. */
+    private static final int ICON_W = 21, ICON_H = 17, ROWS = 51;
+    private static final int ROW_SEAM = 0, ROW_SMALL = 1, ROW_MAJOR = 12, ROW_EFFECT = 23, ROW_KEYSTONE = 28,
+            ROW_CREST = 33, ROW_CLASS_MINOR = 39, ROW_CLASS_MAJOR = 45, STAT_COUNT = 11;
+    private static final String[] EFFECTS = {"Insight", "Ripple", "Ore Wisps", "Rockfall", "Echo Swing"};
+    private static final String[] KEYSTONES = {"Heavy Hand", "Charged Core", "Gem Seeker", "Haste"};
     private static final int COL_W = 104, COL_X = 12, PLAQUE_W = 80, PLAQUE_H = 13;
     private static final int P_TAB = 0, P_TAB_SEL = 1, P_RESPEC = 2, P_RESPEC_ARMED = 3, P_OPEN = 4;
     private static final int ACTION_TAKE = 0, ACTION_REFUND = 1, ACTION_RESPEC = 2, ACTION_PRESET = 3, ACTION_CLOSED = 4, ACTION_AUTO = 6;
@@ -61,6 +69,9 @@ public final class MiningTreeScreen extends Screen {
     private final TreeSearch search = new TreeSearch("The Seam");
     private HunterTreeLayoutPayload adjFor;
     private int[][] adj;
+    private HunterTreeLayoutPayload rowsFor;
+    private int rowsView = -1;
+    private int[] rows;
 
     private boolean pressed, dragging;
     private double pressX, pressY;
@@ -127,14 +138,45 @@ public final class MiningTreeScreen extends Screen {
     private float toWorldY(double my) { return (float) ((my - originY()) / zoom + camY); }
     private boolean inTree(double mx, double my) { return mx > COL_W + 2 && mx < this.width - 6 && my > 6 && my < this.height - 6; }
 
-    private static int halfW(int icon) {
-        if (icon == 0 || (icon >= 13 && icon <= 16)) return 8;
-        if (icon == 17 || icon == 18) return 10;
-        if (icon >= 7 && icon <= 12 || icon >= 21) return 6;
+    /** Half the drawn icon's width for a nodes.png row: small 11, major 13, notable 17, keystone 21. */
+    private static int halfW(int row) {
+        if (row >= ROW_KEYSTONE && row < ROW_CREST) return 10;
+        if (row == ROW_SEAM || row >= ROW_EFFECT && row < ROW_CLASS_MINOR) return 8;
+        if (row >= ROW_MAJOR && row < ROW_EFFECT || row >= ROW_CLASS_MAJOR) return 6;
         return 5;
     }
 
-    private static int halfH(int icon) { return Math.min(8, halfW(icon)); }
+    private static int halfH(int row) { return Math.min(8, halfW(row)); }
+
+    /** Each node's nodes.png row for this view, worked out once per layout. */
+    private int[] rows(HunterTreeLayoutPayload l, int view) {
+        if (rowsFor == l && rowsView == view) return rows;
+        int[] out = new int[l.nodes().size()];
+        for (int i = 0; i < out.length; i++) {
+            var n = l.nodes().get(i);
+            String name = n.ability() >= 0 && n.ability() < l.abilities().size() ? l.abilities().get(n.ability()).name() : "";
+            int stat = Math.max(0, Math.min(STAT_COUNT - 1, n.stat()));
+            int cls = Math.max(0, Math.min(5, view - 1));
+            out[i] = switch (n.kind()) {
+                case 0 -> view == 0 ? ROW_SEAM : ROW_CREST + cls;
+                case 1 -> ROW_SMALL + stat;
+                case 2 -> ROW_MAJOR + stat;
+                case 4 -> ROW_KEYSTONE + indexOf(KEYSTONES, name, KEYSTONES.length);
+                default -> view > 0 ? (n.icon() == 1 ? ROW_CLASS_MINOR : ROW_CLASS_MAJOR) + cls
+                        : ROW_EFFECT + Math.max(0, indexOf(EFFECTS, name, 0));
+            };
+            out[i] = Math.max(0, Math.min(ROWS - 1, out[i]));
+        }
+        rowsFor = l;
+        rowsView = view;
+        rows = out;
+        return out;
+    }
+
+    private static int indexOf(String[] names, String name, int missing) {
+        for (int i = 0; i < names.length; i++) if (names[i].equals(name)) return i;
+        return missing;
+    }
 
     // ── State ──────────────────────────────────────────────────────────────
 
@@ -178,7 +220,9 @@ public final class MiningTreeScreen extends Screen {
             super.render(ctx, mouseX, mouseY, delta);
             return;
         }
-        int hovered = inTree(mouseX, mouseY) && !dragging ? nodeAt(l, toWorldX(mouseX), toWorldY(mouseY)) : -1;
+        int[] rows = rows(l, s.activePreset());
+        int hovered = inTree(mouseX, mouseY) && !dragging ? nodeAt(l, rows, toWorldX(mouseX), toWorldY(mouseY)) : -1;
+        float vx0 = toWorldX(COL_W) - 12, vy0 = toWorldY(0) - 12, vx1 = toWorldX(this.width) + 12, vy1 = toWorldY(this.height) + 12;
 
         ctx.enableScissor(COL_W + 2, 6, this.width - 6, this.height - 6);
         ctx.getMatrices().pushMatrix();
@@ -186,8 +230,8 @@ public final class MiningTreeScreen extends Screen {
         ctx.getMatrices().scale(zoom, zoom);
         ctx.getMatrices().translate(-camX, -camY);
         try {
-            drawEdges(ctx, l, s);
-            drawNodes(ctx, l, s, hovered);
+            drawEdges(ctx, l, s, vx0, vy0, vx1, vy1);
+            drawNodes(ctx, l, s, rows, hovered, vx0, vy0, vx1, vy1);
         } finally {
             ctx.getMatrices().popMatrix();
             ctx.disableScissor();
@@ -201,7 +245,8 @@ public final class MiningTreeScreen extends Screen {
         if (tip != null && !tip.isEmpty()) ctx.drawTooltip(this.textRenderer, tip, mouseX, mouseY);
     }
 
-    private void drawEdges(DrawContext ctx, HunterTreeLayoutPayload l, HunterTreeStatePayload s) {
+    private void drawEdges(DrawContext ctx, HunterTreeLayoutPayload l, HunterTreeStatePayload s,
+                           float vx0, float vy0, float vx1, float vy1) {
         boolean frontier = s.points() > 0 && !s.readOnly();
         for (int i = 0; i < l.edgeA().length; i++) {
             int a = l.edgeA()[i], b = l.edgeB()[i];
@@ -209,7 +254,13 @@ public final class MiningTreeScreen extends Screen {
             int st = ta && tb ? 0 : (ta || tb) && frontier ? 1 : 2;
             var na = l.nodes().get(a);
             var nb = l.nodes().get(b);
-            if (na.wheel() && nb.wheel() && Math.abs(na.cx() - nb.cx()) < 0.5 && Math.abs(na.cy() - nb.cy()) < 0.5) {
+            boolean arc = na.wheel() && nb.wheel() && Math.abs(na.cx() - nb.cx()) < 0.5 && Math.abs(na.cy() - nb.cy()) < 0.5;
+            // Off-screen links cost as much to draw as visible ones; an arc stays inside its wheel's circle.
+            float r = arc ? (float) Math.hypot(na.px() - na.cx(), na.py() - na.cy()) : 0;
+            float ex0 = arc ? na.cx() - r : Math.min(na.px(), nb.px()), ex1 = arc ? na.cx() + r : Math.max(na.px(), nb.px());
+            float ey0 = arc ? na.cy() - r : Math.min(na.py(), nb.py()), ey1 = arc ? na.cy() + r : Math.max(na.py(), nb.py());
+            if (ex1 < vx0 || ex0 > vx1 || ey1 < vy0 || ey0 > vy1) continue;
+            if (arc) {
                 // Same wheel: an arc around its centre, the short way.
                 float cx = na.cx(), cy = na.cy();
                 double ra = Math.hypot(na.px() - cx, na.py() - cy);
@@ -246,37 +297,31 @@ public final class MiningTreeScreen extends Screen {
         ctx.getMatrices().popMatrix();
     }
 
-    private void drawNodes(DrawContext ctx, HunterTreeLayoutPayload l, HunterTreeStatePayload s, int hovered) {
+    private void drawNodes(DrawContext ctx, HunterTreeLayoutPayload l, HunterTreeStatePayload s, int[] rows, int hovered,
+                           float vx0, float vy0, float vx1, float vy1) {
         boolean[] found = search.active() ? search.matches(l) : null;
         for (int i = 0; i < l.nodes().size(); i++) {
             var n = l.nodes().get(i);
-            int icon = Math.max(0, Math.min(KINDS - 1, n.icon()));
+            if (n.px() < vx0 || n.px() > vx1 || n.py() < vy0 || n.py() > vy1) continue;
+            int row = rows[i];
             int st = nodeState(l, s, i);
             int cx = Math.round(n.px()), cy = Math.round(n.py());
             int x = cx - ICON_W / 2, y = cy - ICON_H / 2;
-            int radius = n.kind() == 4 ? 9 : n.kind() == 0 ? 8 : n.kind() == 1 || n.icon() == 1 ? 4 : 6;
-            int color = n.stat() >= 0 ? l.stats().get(n.stat()).rgb() : n.kind() == 4 ? 0xFFCA62 : 0xC899ED;
-            int rim = st == 0 ? 0xFFFFE6A0 : st == 1 ? 0xFFB8C7DA : 0xFF4C5362;
-            for (int dy = -radius; dy <= radius; dy++) {
-                int dx = n.kind() == 4 ? radius - Math.abs(dy) : (int)Math.sqrt(radius * radius - dy * dy);
-                ctx.fill(cx-dx,cy+dy,cx+dx+1,cy+dy+1,rim);
-                if (dx > 1 && Math.abs(dy) < radius-1) ctx.fill(cx-dx+1,cy+dy,cx+dx,cy+dy+1,
-                    st == 0 ? 0xFF000000 | color : st == 1 ? 0xFF000000 | ((color & 0xFEFEFE) >>> 1) : 0xFF202633);
-            }
-            if (i == hovered) TreeSearch.discGlow(ctx, cx, cy, radius, n.kind() == 4, TreeSearch.HOVER);
-            else if (found != null && i < found.length && found[i]) TreeSearch.discGlow(ctx, cx, cy, radius, n.kind() == 4, TreeSearch.matchColor());
+            ctx.drawTexture(RenderPipelines.GUI_TEXTURED, NODES, x, y, st * ICON_W, row * ICON_H,
+                    ICON_W, ICON_H, ICON_W * 3, ICON_H * ROWS);
+            if (i == hovered) TreeSearch.glow(ctx, GLOW, ROWS, row, cx, cy, TreeSearch.HOVER);
+            else if (found != null && i < found.length && found[i]) TreeSearch.glow(ctx, GLOW, ROWS, row, cx, cy, TreeSearch.matchColor());
             if (i == armedRefund && armedRefundUntil > System.currentTimeMillis()) {
-                int hw = halfW(icon) + 2;
-                ctx.fill(cx - hw, cy + halfH(icon) + 2, cx + hw + 1, cy + halfH(icon) + 3, 0xFFFF6A5A);
+                int hw = halfW(row) + 2;
+                ctx.fill(cx - hw, cy + halfH(row) + 2, cx + hw + 1, cy + halfH(row) + 3, 0xFFFF6A5A);
             }
         }
     }
 
-    private int nodeAt(HunterTreeLayoutPayload l, float wx, float wy) {
+    private int nodeAt(HunterTreeLayoutPayload l, int[] rows, float wx, float wy) {
         for (int i = 0; i < l.nodes().size(); i++) {
             var n = l.nodes().get(i);
-            int icon = Math.max(0, Math.min(KINDS - 1, n.icon()));
-            if (Math.abs(wx - Math.round(n.px())) <= halfW(icon) + 0.5f && Math.abs(wy - Math.round(n.py())) <= halfH(icon) + 0.5f) return i;
+            if (Math.abs(wx - Math.round(n.px())) <= halfW(rows[i]) + 0.5f && Math.abs(wy - Math.round(n.py())) <= halfH(rows[i]) + 0.5f) return i;
         }
         return -1;
     }
@@ -361,13 +406,15 @@ public final class MiningTreeScreen extends Screen {
                 var stat = l.stats().get(i);
                 float v = s.statValue()[i], cap = s.statCap()[i];
                 ctx.fill(COL_X + 3, ry + 2, COL_X + 10, ry + 9, 0xFF000000 | stat.rgb());
-                int col = v <= 0 ? DIM : v >= cap - 1e-6f ? GOLD : CREAM;
+                // The server sends cap 0: the mining tree has no cap since 2026-11-03.
+                boolean capped = cap > 0 && v >= cap - 1e-6f;
+                int col = v <= 0 ? DIM : capped ? GOLD : CREAM;
                 ctx.drawText(this.textRenderer, percent(v), COL_X + 14, ry + 1, col, true);
                 if (mx >= COL_X && mx < COL_X + PLAQUE_W && my >= ry && my < ry + 11) {
                     tip = new ArrayList<>();
                     tip.add(Text.literal(stat.name()).styled(st -> st.withColor(stat.rgb())));
                     tip.add(Text.literal(percent(v) + " " + stat.description()).formatted(Formatting.GRAY));
-                    tip.add(Text.literal("Base tree cap " + percent(cap) + (v > 0 && v >= cap - 1e-6f ? " (reached)" : ""))
+                    if (cap > 0) tip.add(Text.literal("Base tree cap " + percent(cap) + (capped ? " (reached)" : ""))
                             .formatted(Formatting.DARK_GRAY));
                 }
                 ry += 11;
@@ -551,7 +598,7 @@ public final class MiningTreeScreen extends Screen {
         HunterTreeLayoutPayload l = MiningTreeClient.layout();
         HunterTreeStatePayload s = MiningTreeClient.state();
         if (l == null || s == null || s.readOnly()) return true;
-        int i = nodeAt(l, toWorldX(click.x()), toWorldY(click.y()));
+        int i = nodeAt(l, rows(l, s.activePreset()), toWorldX(click.x()), toWorldY(click.y()));
         if (i < 0 || l.nodes().get(i).kind() == 0) return true;
         int st = nodeState(l, s, i);
         var node = l.nodes().get(i);

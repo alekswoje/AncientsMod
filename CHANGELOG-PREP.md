@@ -15,9 +15,12 @@
 
 ## Rendering & Visuals
 
+- New **Low fire overlay** setting (on by default) draws the on-fire flames low on your screen so you can still see. Turn it off in the settings screen for vanilla fire.
+
 ## UI & Screens
 
 - The Hunter and mining tree screens have a **search box**. Type a word like "speed" or a node's name and every match lights up; press Enter to jump from one match to the next. Ctrl+F or just start typing to search.
+- The mining tree screen shows an icon for every node again and no longer lags when you zoom out over the whole tree.
 
 ## Input & Keybinds
 
