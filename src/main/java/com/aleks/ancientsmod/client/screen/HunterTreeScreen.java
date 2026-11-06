@@ -35,6 +35,7 @@ import java.util.Locale;
 public final class HunterTreeScreen extends Screen {
 
     private static final Identifier NODES = tex("nodes");
+    private static final Identifier GLOW = tex("nodes_glow");
     private static final Identifier SKY = tex("sky");
     private static final Identifier FRAME = tex("frame");
     private static final Identifier PLAQUES = tex("plaques");
@@ -240,11 +241,8 @@ public final class HunterTreeScreen extends Screen {
             int x = cx - ICON_W / 2, y = cy - ICON_H / 2;
             ctx.drawTexture(RenderPipelines.GUI_TEXTURED, NODES, x, y, st * ICON_W, icon * ICON_H,
                     ICON_W, ICON_H, ICON_W * 3, ICON_H * KINDS);
-            if (found != null && i < found.length && found[i]) TreeSearch.ring(ctx, cx, cy, halfW(icon), halfH(icon), zoom);
-            if (i == hovered) {
-                int hw = halfW(icon) + 1, hh = halfH(icon) + 1;
-                ctx.fill(cx - hw, cy - hh, cx + hw + 1, cy + hh + 1, 0x30FFF6C8);
-            }
+            if (i == hovered) TreeSearch.glow(ctx, GLOW, KINDS, icon, cx, cy, TreeSearch.HOVER);
+            else if (found != null && i < found.length && found[i]) TreeSearch.glow(ctx, GLOW, KINDS, icon, cx, cy, TreeSearch.matchColor());
             if (i == armedRefund && armedRefundUntil > System.currentTimeMillis()) {
                 int hw = halfW(icon) + 2;
                 ctx.fill(cx - hw, cy + halfH(icon) + 2, cx + hw + 1, cy + halfH(icon) + 3, 0xFFFF6A5A);
@@ -317,8 +315,8 @@ public final class HunterTreeScreen extends Screen {
                 if (mx >= COL_X && mx < COL_X + PLAQUE_W && my >= ry && my < ry + 11) {
                     tip = new ArrayList<>();
                     tip.add(Text.literal(stat.name()).styled(st -> st.withColor(stat.rgb())));
-                    tip.add(Text.literal(percent(v).substring(1) + " " + stat.description()).formatted(Formatting.GRAY));
-                    tip.add(Text.literal("Max " + percent(cap).substring(1) + (v > 0 && v >= cap - 1e-6f ? " (reached)" : ""))
+                    tip.add(Text.literal(percent(v) + " " + stat.description()).formatted(Formatting.GRAY));
+                    tip.add(Text.literal("Max " + percent(cap) + (v > 0 && v >= cap - 1e-6f ? " (reached)" : ""))
                             .formatted(Formatting.DARK_GRAY));
                 }
                 ry += 11;
@@ -435,7 +433,8 @@ public final class HunterTreeScreen extends Screen {
     static String percent(float fraction) {
         double pct = fraction * 100.0;
         long whole = Math.round(pct);
-        return Math.abs(pct - whole) < 0.05 ? "+" + whole + "%" : String.format(Locale.US, "+%.1f%%", pct);
+        // No leading "+": "+N%" reads as adding to the base value, not an increased/more modifier.
+        return Math.abs(pct - whole) < 0.05 ? whole + "%" : String.format(Locale.US, "%.1f%%", pct);
     }
 
     static String money(long v) {

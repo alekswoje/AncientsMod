@@ -4,6 +4,8 @@ import com.aleks.ancientsmod.net.payload.HunterTreeLayoutPayload;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.widget.TextFieldWidget;
+import net.minecraft.client.gl.RenderPipelines;
+import net.minecraft.util.Identifier;
 import net.minecraft.text.Text;
 
 import java.util.Locale;
@@ -95,18 +97,61 @@ final class TreeSearch {
         return -1;
     }
 
-    /** A pulsing ring around a matched node, drawn in tree space; thickness holds steady across zoom. */
-    static void ring(DrawContext ctx, int cx, int cy, int hw, int hh, float zoom) {
-        int t = Math.max(1, Math.round(1.5f / zoom));
-        int pad = 2 + t;
+    /** Search matches: cyan, pulsing. */
+    static int matchColor() {
         double phase = (System.currentTimeMillis() % 1200L) / 1200.0 * Math.PI * 2;
-        int alpha = 150 + (int) (95 * (0.5 + 0.5 * Math.sin(phase)));
-        int col = (alpha << 24) | 0x7CF0FF;
-        int x0 = cx - hw - pad, x1 = cx + hw + pad + 1, y0 = cy - hh - pad, y1 = cy + hh + pad + 1;
-        ctx.fill(x0, y0, x1, y0 + t, col);
-        ctx.fill(x0, y1 - t, x1, y1, col);
-        ctx.fill(x0, y0 + t, x0 + t, y1 - t, col);
-        ctx.fill(x1 - t, y0 + t, x1, y1 - t, col);
+        int alpha = 150 + (int) (105 * (0.5 + 0.5 * Math.sin(phase)));
+        return (alpha << 24) | 0x7CF0FF;
+    }
+
+    /** Hovered node: cream, steady. */
+    static final int HOVER = 0xFFFFF6C8;
+
+    private static final int CELL_W = 21, CELL_H = 17, PAD = 2, GLOW_W = CELL_W + 2 * PAD, GLOW_H = CELL_H + 2 * PAD;
+
+    /**
+     * An outline that hugs the icon drawn at row {@code row} of a node atlas, in tree space. {@code tex}
+     * is that atlas's outline sheet from {@code scripts/node_glow.py}: one white ring per row, which
+     * {@code color} tints.
+     */
+    static void glow(DrawContext ctx, Identifier tex, int rows, int row, int cx, int cy, int color) {
+        ctx.drawTexture(RenderPipelines.GUI_TEXTURED, tex, cx - CELL_W / 2 - PAD, cy - CELL_H / 2 - PAD,
+                0, row * GLOW_H, GLOW_W, GLOW_H, GLOW_W, GLOW_H * rows, color);
+    }
+
+    /** The same outline around a drawn disc (or diamond) node of {@code radius}, for screens without icon art. */
+    static void discGlow(DrawContext ctx, int cx, int cy, int radius, boolean diamond, int color) {
+        int size = radius + 3, span = 2 * size + 1;
+        boolean[] in = new boolean[span * span];
+        for (int dy = -radius; dy <= radius; dy++) {
+            int dx = diamond ? radius - Math.abs(dy) : (int) Math.sqrt(radius * radius - dy * dy);
+            for (int x = -dx; x <= dx; x++) in[(dy + size) * span + x + size] = true;
+        }
+        boolean[] ring1 = grow(in, span, false);
+        boolean[] inner = new boolean[in.length];
+        for (int i = 0; i < in.length; i++) inner[i] = in[i] || ring1[i];
+        boolean[] ring2 = grow(inner, span, true);
+        int faint = (((color >>> 24) * 90 / 255) << 24) | (color & 0xFFFFFF);
+        for (int y = 0; y < span; y++) for (int x = 0; x < span; x++) {
+            int i = y * span + x;
+            if (ring1[i]) ctx.fill(cx + x - size, cy + y - size, cx + x - size + 1, cy + y - size + 1, color);
+            else if (ring2[i]) ctx.fill(cx + x - size, cy + y - size, cx + x - size + 1, cy + y - size + 1, faint);
+        }
+    }
+
+    /** Cells just outside {@code m}: 4-neighbour, or 8-neighbour with {@code diag}. */
+    private static boolean[] grow(boolean[] m, int span, boolean diag) {
+        boolean[] out = new boolean[m.length];
+        for (int y = 0; y < span; y++) for (int x = 0; x < span; x++) {
+            if (m[y * span + x]) continue;
+            search:
+            for (int dy = -1; dy <= 1; dy++) for (int dx = -1; dx <= 1; dx++) {
+                if ((dx == 0 && dy == 0) || (!diag && dx != 0 && dy != 0)) continue;
+                int nx = x + dx, ny = y + dy;
+                if (nx >= 0 && ny >= 0 && nx < span && ny < span && m[ny * span + nx]) { out[y * span + x] = true; break search; }
+            }
+        }
+        return out;
     }
 
     private String[] texts(HunterTreeLayoutPayload l) {

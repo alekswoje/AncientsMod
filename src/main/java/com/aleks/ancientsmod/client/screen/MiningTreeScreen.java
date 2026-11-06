@@ -263,11 +263,8 @@ public final class MiningTreeScreen extends Screen {
                 if (dx > 1 && Math.abs(dy) < radius-1) ctx.fill(cx-dx+1,cy+dy,cx+dx,cy+dy+1,
                     st == 0 ? 0xFF000000 | color : st == 1 ? 0xFF000000 | ((color & 0xFEFEFE) >>> 1) : 0xFF202633);
             }
-            if (found != null && i < found.length && found[i]) TreeSearch.ring(ctx, cx, cy, halfW(icon), halfH(icon), zoom);
-            if (i == hovered) {
-                int hw = halfW(icon) + 1, hh = halfH(icon) + 1;
-                ctx.fill(cx - hw, cy - hh, cx + hw + 1, cy + hh + 1, 0x30FFF6C8);
-            }
+            if (i == hovered) TreeSearch.discGlow(ctx, cx, cy, radius, n.kind() == 4, TreeSearch.HOVER);
+            else if (found != null && i < found.length && found[i]) TreeSearch.discGlow(ctx, cx, cy, radius, n.kind() == 4, TreeSearch.matchColor());
             if (i == armedRefund && armedRefundUntil > System.currentTimeMillis()) {
                 int hw = halfW(icon) + 2;
                 ctx.fill(cx - hw, cy + halfH(icon) + 2, cx + hw + 1, cy + halfH(icon) + 3, 0xFFFF6A5A);
@@ -369,8 +366,8 @@ public final class MiningTreeScreen extends Screen {
                 if (mx >= COL_X && mx < COL_X + PLAQUE_W && my >= ry && my < ry + 11) {
                     tip = new ArrayList<>();
                     tip.add(Text.literal(stat.name()).styled(st -> st.withColor(stat.rgb())));
-                    tip.add(Text.literal(percent(v).substring(1) + " " + stat.description()).formatted(Formatting.GRAY));
-                    tip.add(Text.literal("Base tree cap " + percent(cap).substring(1) + (v > 0 && v >= cap - 1e-6f ? " (reached)" : ""))
+                    tip.add(Text.literal(percent(v) + " " + stat.description()).formatted(Formatting.GRAY));
+                    tip.add(Text.literal("Base tree cap " + percent(cap) + (v > 0 && v >= cap - 1e-6f ? " (reached)" : ""))
                             .formatted(Formatting.DARK_GRAY));
                 }
                 ry += 11;
@@ -472,7 +469,8 @@ public final class MiningTreeScreen extends Screen {
     static String percent(float fraction) {
         double pct = fraction * 100.0;
         long whole = Math.round(pct);
-        return Math.abs(pct - whole) < 0.05 ? "+" + whole + "%" : String.format(Locale.US, "+%.1f%%", pct);
+        // No leading "+": "+N%" reads as adding to the base value, not an increased/more modifier.
+        return Math.abs(pct - whole) < 0.05 ? whole + "%" : String.format(Locale.US, "%.1f%%", pct);
     }
 
     static String money(long v) {
