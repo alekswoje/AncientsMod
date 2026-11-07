@@ -306,10 +306,11 @@ public final class HunterTreeScreen extends Screen {
             for (int i = 0; i < l.stats().size() && i < s.statValue().length; i++) {
                 if (ry > this.height - 64) break;
                 var stat = l.stats().get(i);
-                final int statIndex = i;
-                if ((i == 2 || i == 3) && l.nodes().stream().noneMatch(n -> n.stat() == statIndex)) continue;
                 float v = s.statValue()[i], cap = s.statCap()[i];
-                ctx.drawTexture(RenderPipelines.GUI_TEXTURED, STATS, COL_X + 2, ry, i * 9, 0, 9, 9, 9 * 8, 9);
+                // A stat nothing on this tree raises (Spoils, Plunder, Insight on the Map 5 tree) has no row.
+                if (Math.abs(v) < 1e-6f && !onTree(l, i)) continue;
+                int icon = statIcon(i);
+                if (icon >= 0) ctx.drawTexture(RenderPipelines.GUI_TEXTURED, STATS, COL_X + 2, ry, icon * 9, 0, 9, 9, 9 * STAT_ICONS, 9);
                 int col = v <= 0 ? DIM : v >= cap - 1e-6f ? GOLD : CREAM;
                 ctx.drawText(this.textRenderer, percent(v), COL_X + 14, ry + 1, col, true);
                 if (mx >= COL_X && mx < COL_X + PLAQUE_W && my >= ry && my < ry + 11) {
@@ -332,6 +333,34 @@ public final class HunterTreeScreen extends Screen {
             ctx.drawText(this.textRenderer, "Scroll to zoom", COL_X + 2, this.height - 22, DIM, true);
         }
         return tip;
+    }
+
+    /** Icons in gui/hunter/stats.png, HunterStat ordinals 0..7. */
+    private static final int STAT_ICONS = 8;
+
+    /**
+     * A stat's stats.png icon. Flight and Marksman have no art of their own yet and borrow
+     * Alacrity's and Predation's, as the server's dialog does (HunterDialogArt.statMini);
+     * anything newer draws no icon rather than sampling past the texture.
+     */
+    static int statIcon(int stat) {
+        if (stat >= 0 && stat < STAT_ICONS) return stat;
+        return switch (stat) {
+            case 8 -> 7; // Flight -> Alacrity
+            case 9 -> 0; // Marksman -> Predation
+            default -> -1;
+        };
+    }
+
+    /** True when a node raises stat {@code i}: a stat node, or an ability whose text names it (Tailwind's Marksman). */
+    private static boolean onTree(HunterTreeLayoutPayload l, int i) {
+        String name = l.stats().get(i).name();
+        for (var n : l.nodes()) {
+            if (n.stat() == i) return true;
+            if (n.ability() < 0 || n.ability() >= l.abilities().size()) continue;
+            for (String line : l.abilities().get(n.ability()).lines()) if (line.contains(name)) return true;
+        }
+        return false;
     }
 
     private void plaque(DrawContext ctx, int y, int row, String label, int color) {

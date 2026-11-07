@@ -46,7 +46,19 @@ public final class MiningTreeScreen extends Screen {
     private static final int ICON_W = 21, ICON_H = 17, ROWS = 51;
     private static final int ROW_SEAM = 0, ROW_SMALL = 1, ROW_MAJOR = 12, ROW_EFFECT = 23, ROW_KEYSTONE = 28,
             ROW_CREST = 33, ROW_CLASS_MINOR = 39, ROW_CLASS_MAJOR = 45, STAT_COUNT = 11;
+    /** The effect rows nodes.png draws, in order. */
     private static final String[] EFFECTS = {"Insight", "Ripple", "Ore Wisps", "Rockfall", "Echo Swing"};
+    /**
+     * Effects with no sprite of their own borrow the one the server's dialog draws
+     * (PrisonsCore MiningEffect.artGlyph), so the mod, the dialog and the site agree.
+     */
+    private static final java.util.Map<String, String> EFFECT_ART = java.util.Map.of(
+            "Hot Rubble", "Ripple", "Jewel Burst", "Ripple", "Lesson in the Rock", "Insight", "Shardfall", "Rockfall");
+    /**
+     * The keystone rows nodes.png draws, in order, then the generic row. Only Heavy Hand is still
+     * on the tree; the other three rows are the removed Charged Core, Gem Seeker and Haste, so
+     * Bottomless, Kiln Heart and Deep Cut draw the generic row until they get art of their own.
+     */
     private static final String[] KEYSTONES = {"Heavy Hand", "Charged Core", "Gem Seeker", "Haste"};
     private static final int COL_W = 104, COL_X = 12, PLAQUE_W = 80, PLAQUE_H = 13;
     private static final int P_TAB = 0, P_TAB_SEL = 1, P_RESPEC = 2, P_RESPEC_ARMED = 3, P_OPEN = 4;
@@ -62,6 +74,8 @@ public final class MiningTreeScreen extends Screen {
     /** Fit each selected tree initially; drag and zoom then remain local to this screen. */
     private float camX = 0, camY = 0, zoom = 0.6f;
     private static boolean statsOpen = true;
+    /** The auto-spend choices are open in place of the stat rows: one click per preset, no cycling. */
+    private boolean autoMenu;
 
     private final @Nullable Screen parent;
     /** The search text survives closing and reopening within a session, like the view. */
@@ -163,7 +177,7 @@ public final class MiningTreeScreen extends Screen {
                 case 2 -> ROW_MAJOR + stat;
                 case 4 -> ROW_KEYSTONE + indexOf(KEYSTONES, name, KEYSTONES.length);
                 default -> view > 0 ? (n.icon() == 1 ? ROW_CLASS_MINOR : ROW_CLASS_MAJOR) + cls
-                        : ROW_EFFECT + Math.max(0, indexOf(EFFECTS, name, 0));
+                        : ROW_EFFECT + Math.max(0, indexOf(EFFECTS, EFFECT_ART.getOrDefault(name, name), 0));
             };
             out[i] = Math.max(0, Math.min(ROWS - 1, out[i]));
         }
@@ -372,25 +386,43 @@ public final class MiningTreeScreen extends Screen {
             if (over(mx, my, RESPEC_Y)) {
                 String cost = s.respecCost() <= 0 ? "free" : "$" + money(s.respecCost());
                 tip = armed
-                        ? List.of(Text.literal("Click again to refund " + (s.activePreset() == 0 ? "ALL mining and class points (" : "your class points (") + cost + ").").formatted(Formatting.RED))
-                        : List.of(Text.literal("Refund " + (s.activePreset() == 0 ? "ALL mining and class points (" : "your class points (") + cost + ").").formatted(Formatting.GOLD),
-                                  Text.literal("Your class can be changed after refunding its nodes.").formatted(Formatting.GRAY));
+                        ? List.of(Text.literal("Click again to refund " + (s.activePreset() == 0 ? "ALL mining and ascendancy points (" : "your ascendancy points (") + cost + ").").formatted(Formatting.RED))
+                        : List.of(Text.literal("Refund " + (s.activePreset() == 0 ? "ALL mining and ascendancy points (" : "your ascendancy points (") + cost + ").").formatted(Formatting.GOLD),
+                                  Text.literal(s.activePreset() == 0 ? "To change class only, use Respec on a class page."
+                                          : "Then you can pick a different class.").formatted(Formatting.GRAY));
             }
         }
 
         if (autoShown(s)) {
             int a = MiningTreeClient.autoPreset();
             boolean on = a >= 0 && a < AUTO.length;
-            plaque(ctx, AUTO_Y, on ? P_TAB_SEL : P_TAB, "Auto: " + (on ? AUTO[a] : "Off"), on ? GOLD : CREAM);
+            plaque(ctx, AUTO_Y, on || autoMenu ? P_TAB_SEL : P_TAB, "Auto: " + (on ? AUTO[a] : "Off"), on ? GOLD : CREAM);
             if (over(mx, my, AUTO_Y)) {
-                int nextA = on ? a + 1 : 0;
                 tip = new ArrayList<>();
                 tip.add(Text.literal("Auto-spend").formatted(Formatting.AQUA));
                 tip.add(Text.literal(on ? AUTO[a] + ": " + AUTO_BLURB[a] : "Off. You spend every point yourself.").formatted(Formatting.GRAY));
                 tip.add(Text.literal("Your points spend themselves on the preset's path, now and as you level.").formatted(Formatting.GRAY));
-                tip.add(Text.literal("Click for " + (nextA < AUTO.length ? AUTO[nextA] + " (rebuilds the tree, free)" : "Off (keeps your nodes)") + ".")
-                        .formatted(Formatting.YELLOW));
+                tip.add(Text.literal(autoMenu ? "Click to close the choices." : "Click to choose.").formatted(Formatting.YELLOW));
                 tip.add(Text.literal("Taking or refunding a node yourself turns it off.").formatted(Formatting.DARK_GRAY));
+            }
+            if (autoMenu) {
+                for (int c = 0; c <= AUTO.length; c++) {
+                    int cy = STAT_ROWS_Y + c * 16;
+                    boolean cur = c == 0 ? !on : a == c - 1;
+                    plaque(ctx, cy, cur ? P_TAB_SEL : P_TAB, c == 0 ? "Off" : AUTO[c - 1], cur ? GOLD : CREAM);
+                    if (over(mx, my, cy)) {
+                        tip = new ArrayList<>();
+                        if (c == 0) {
+                            tip.add(Text.literal("Off").formatted(Formatting.AQUA));
+                            tip.add(Text.literal("Keep your nodes. New points wait for you.").formatted(Formatting.GRAY));
+                        } else {
+                            tip.add(Text.literal(AUTO[c - 1]).formatted(Formatting.AQUA));
+                            tip.add(Text.literal(AUTO_BLURB[c - 1]).formatted(Formatting.GRAY));
+                            tip.add(cur ? Text.literal("Your preset now.").formatted(Formatting.GREEN)
+                                    : Text.literal("Rebuilds your mining tree on this path, free. Your class stays.").formatted(Formatting.YELLOW));
+                        }
+                    }
+                }
             }
         }
 
@@ -399,7 +431,7 @@ public final class MiningTreeScreen extends Screen {
             for (int i=0;i<l.stats().size() && i<s.statValue().length;i++)
                 tip.add(Text.literal(l.stats().get(i).name() + ": " + percent(s.statValue()[i])).formatted(Formatting.GRAY));
         }
-        if (statsOpen) {
+        if (statsOpen && !(autoMenu && autoShown(s))) {
             int ry = STAT_ROWS_Y;
             for (int i = 0; i < l.stats().size() && i < s.statValue().length; i++) {
                 if (ry > this.height - 64) break;
@@ -504,13 +536,28 @@ public final class MiningTreeScreen extends Screen {
             boolean armed = armedRefund == i && armedRefundUntil > System.currentTimeMillis();
             tip.add(Text.literal((armed ? "Click again to refund 1 point (" : "Click to refund 1 point (") + cost + ").")
                     .formatted(Formatting.YELLOW));
+        } else if (classLocked(s)) {
+            // Another class's page: the one-class rule locks it, not a missing path.
+            String line = s.xpLine();
+            String cls = line.substring("Refund ".length(), line.length() - " to switch class".length());
+            tip.add(Text.literal("Your ascendancy points are in " + cls + ". Refund them to switch.").formatted(Formatting.DARK_GRAY));
         } else if (st == 1) {
-            tip.add(s.points() > 0 ? Text.literal("Click to take (1 point)").formatted(Formatting.YELLOW)
+            tip.add(s.points() > 0 ? Text.literal(s.activePreset() > 0 ? "Click to take (1 ascendancy point)" : "Click to take (1 point)")
+                            .formatted(Formatting.YELLOW)
                     : Text.literal("No points left").formatted(Formatting.RED));
         } else {
             tip.add(Text.literal("Take a connected node first").formatted(Formatting.DARK_GRAY));
         }
         return tip;
+    }
+
+    /**
+     * A class page whose class the player's points are not in. The server's header line for that
+     * page reads "Refund &lt;class&gt; to switch class" (PrisonsCore MiningTreeModBridge.stateBody).
+     */
+    private static boolean classLocked(HunterTreeStatePayload s) {
+        return s.activePreset() > 0 && s.xpLine() != null && s.xpLine().startsWith("Refund ")
+                && s.xpLine().endsWith("to switch class");
     }
 
     static String percent(float fraction) {
@@ -543,11 +590,20 @@ public final class MiningTreeScreen extends Screen {
                 return true;
             }
             if (autoShown(s) && over(mx, my, AUTO_Y)) {
-                int a = MiningTreeClient.autoPreset();
-                int nextA = a >= 0 && a < AUTO.length ? a + 1 : 0;
-                // Server arg: 0 off, 1..4 a preset (the wire varint cannot be negative).
-                NetworkHandler.sendMiningTreeAction(ACTION_AUTO, nextA < AUTO.length ? nextA + 1 : 0);
+                autoMenu = !autoMenu;
                 return true;
+            }
+            if (autoShown(s) && autoMenu) {
+                for (int k = 0; k <= AUTO.length; k++) {
+                    if (!over(mx, my, STAT_ROWS_Y + k * 16)) continue;
+                    int a = MiningTreeClient.autoPreset();
+                    int current = a >= 0 && a < AUTO.length ? a + 1 : 0;
+                    // Server arg: 0 off, 1..4 a preset (the wire varint cannot be negative). One
+                    // click is one rebuild: no stepping through every preset on the way.
+                    if (k != current) NetworkHandler.sendMiningTreeAction(ACTION_AUTO, k);
+                    autoMenu = false;
+                    return true;
+                }
             }
             if (!s.readOnly() && over(mx, my, RESPEC_Y)) {
                 long now = System.currentTimeMillis();
