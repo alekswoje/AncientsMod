@@ -273,7 +273,7 @@ public final class JewelSockets {
         List<Text> lines = new ArrayList<>();
         if (slot.isLocked()) {
             lines.add(Text.literal("Locked Jewel Socket").formatted(Formatting.RED));
-            lines.add(Text.literal("Unlocks at Prestige " + slot.requiredPrestige())
+            lines.add(Text.literal("Unlocks at Ascension " + slot.requiredPrestige())
                     .formatted(Formatting.GRAY));
         } else if (slot.isFilled()) {
             // Server-authored name. Rebuilding it here from rarity + type named
