@@ -33,7 +33,7 @@ public final class JewelHud extends HudElement {
 
     /** Draw the slots stacked vertically instead of in a row. */
     public static final String KEY_VERTICAL = "jewel_vertical";
-    /** Show the "Prestige N" caption under locked slots. */
+    /** Show the "Ascension N" caption under locked slots. */
     public static final String KEY_SHOW_REQUIREMENT = "jewel_show_requirement";
     /** Show the stat lines of socketed jewels next to the slots. */
     public static final String KEY_SHOW_STATS = "jewel_show_stats";
@@ -155,7 +155,7 @@ public final class JewelHud extends HudElement {
         for (int i = 0; i < slots.size(); i++) {
             JewelSlotsPayload.Slot slot = slots.get(i);
             if (slot.isLocked() && showRequirement()) {
-                out.add("Slot " + (i + 1) + ": Prestige " + slot.requiredPrestige());
+                out.add("Slot " + (i + 1) + ": Ascension " + slot.requiredPrestige());
             } else if (slot.isFilled() && showStats()) {
                 for (String line : slot.statLines()) out.add(line);
             }
@@ -238,7 +238,9 @@ public final class JewelHud extends HudElement {
             ctx.fill(cx, cy, cx + 16, cy + 16, LOCK_SHADE);
             drawPadlock(ctx, cx + 5, cy + 4);
             if (slot.requiredPrestige() > 0) {
-                String tag = "P" + slot.requiredPrestige();
+                // "A2", never "P2": P# is pickaxe prestige (the gear overlay's badge),
+                // and requiredPrestige is the player's Ascension.
+                String tag = "A" + slot.requiredPrestige();
                 ctx.drawText(fr, Text.literal(tag),
                         cx + 16 - fr.getWidth(tag), cy + 8, LOCK_COLOR, true);
             }
