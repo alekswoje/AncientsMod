@@ -37,6 +37,8 @@ public final class MiningTreeScreen extends Screen {
 
     private static final Identifier NODES = Identifier.of("ancientsmod", "textures/gui/mining/nodes.png");
     private static final Identifier GLOW = Identifier.of("ancientsmod", "textures/gui/mining/nodes_glow.png");
+    /** One 9x9 icon per MiningStat ordinal, drawn by tools/draw_mining_stat_icons.py. */
+    private static final Identifier STAT_ICONS = Identifier.of("ancientsmod", "textures/gui/mining/stats.png");
     private static final Identifier SKY = tex("sky");
     private static final Identifier FRAME = tex("frame");
     private static final Identifier PLAQUES = tex("plaques");
@@ -437,7 +439,8 @@ public final class MiningTreeScreen extends Screen {
                 if (ry > this.height - 64) break;
                 var stat = l.stats().get(i);
                 float v = s.statValue()[i], cap = s.statCap()[i];
-                ctx.fill(COL_X + 3, ry + 2, COL_X + 10, ry + 9, 0xFF000000 | stat.rgb());
+                if (i < STAT_COUNT) ctx.drawTexture(RenderPipelines.GUI_TEXTURED, STAT_ICONS, COL_X + 2, ry, i * 9, 0, 9, 9, 9 * STAT_COUNT, 9);
+                else ctx.fill(COL_X + 3, ry + 2, COL_X + 10, ry + 9, 0xFF000000 | stat.rgb());
                 // The server sends cap 0: the mining tree has no cap since 2026-11-03.
                 boolean capped = cap > 0 && v >= cap - 1e-6f;
                 int col = v <= 0 ? DIM : capped ? GOLD : CREAM;
