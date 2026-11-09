@@ -64,7 +64,7 @@ public final class MiningTreeScreen extends Screen {
     private static final String[] KEYSTONES = {"Heavy Hand", "Charged Core", "Gem Seeker", "Haste"};
     private static final int COL_W = 104, COL_X = 12, PLAQUE_W = 80, PLAQUE_H = 13;
     private static final int P_TAB = 0, P_TAB_SEL = 1, P_RESPEC = 2, P_RESPEC_ARMED = 3, P_OPEN = 4;
-    private static final int ACTION_TAKE = 0, ACTION_REFUND = 1, ACTION_RESPEC = 2, ACTION_PRESET = 3, ACTION_CLOSED = 4, ACTION_AUTO = 6;
+    private static final int ACTION_TAKE = 0, ACTION_REFUND = 1, ACTION_RESPEC = 2, ACTION_PRESET = 3, ACTION_CLOSED = 4, ACTION_AUTO = 6, ACTION_BUILD = 7;
     private static final float MIN_ZOOM = 0.3f, MAX_ZOOM = 3f;
     private static final long CONFIRM_MS = 5000;
 
@@ -78,6 +78,8 @@ public final class MiningTreeScreen extends Screen {
     private static boolean statsOpen = true;
     /** The auto-spend choices are open in place of the stat rows: one click per preset, no cycling. */
     private boolean autoMenu;
+    /** The saved build choices are open in place of the stat rows (ANCT-927). */
+    private boolean buildMenu;
 
     private final @Nullable Screen parent;
     /** The search text survives closing and reopening within a session, like the view. */
@@ -344,7 +346,7 @@ public final class MiningTreeScreen extends Screen {
 
     // ── Column ─────────────────────────────────────────────────────────────
 
-    private static final int PRESET_Y = 62, STATS_Y = 174, RESPEC_Y = 190, AUTO_Y = 206, STAT_ROWS_Y = 226;
+    private static final int PRESET_Y = 62, STATS_Y = 174, RESPEC_Y = 190, AUTO_Y = 206, BUILD_Y = 222, STAT_ROWS_Y = 242;
     /** Auto-spend presets in server order (MiningTreeAutoSpend.Preset); the plaque cycles Off then these. */
     private static final String[] AUTO = {"Energy", "XP", "Money", "Mixed"};
     private static final String[] AUTO_BLURB = {"Most energy on your pickaxe.", "Level up faster.",
@@ -353,6 +355,17 @@ public final class MiningTreeScreen extends Screen {
     /** The Auto plaque shows on the mining view when the server sent a preset. */
     private static boolean autoShown(HunterTreeStatePayload s) {
         return !s.readOnly() && s.activePreset() == 0 && MiningTreeClient.autoPreset() != MiningTreeClient.AUTO_UNKNOWN;
+    }
+
+    /** The Build plaque shows on your own tree when the server sent builds. */
+    private static boolean buildsShown(HunterTreeStatePayload s) {
+        return !s.readOnly() && MiningTreeClient.builds() != null && MiningTreeClient.builds().count() > 0;
+    }
+
+    private static String buildLine(MiningTreeClient.Builds b, int i) {
+        if (i >= b.unlocked()) return "Locked";
+        int a = b.autos()[i];
+        return b.spent()[i] + " nodes" + (a >= 0 && a < AUTO.length ? ", auto " + AUTO[a] : "");
     }
 
     /** Draws the left column; returns the tooltip for whatever in it is hovered. */
@@ -428,12 +441,39 @@ public final class MiningTreeScreen extends Screen {
             }
         }
 
+        if (buildsShown(s)) {
+            MiningTreeClient.Builds b = MiningTreeClient.builds();
+            plaque(ctx, BUILD_Y, buildMenu ? P_TAB_SEL : P_TAB, "Build " + (b.active() + 1), b.unlocked() > 1 ? GOLD : CREAM);
+            if (over(mx, my, BUILD_Y)) {
+                tip = new ArrayList<>();
+                tip.add(Text.literal("Saved builds").formatted(Formatting.AQUA));
+                tip.add(Text.literal("Each build keeps its own nodes, class and auto-spend.").formatted(Formatting.GRAY));
+                if (!b.hint().isEmpty()) tip.add(Text.literal(b.hint()).formatted(Formatting.DARK_GRAY));
+                tip.add(Text.literal(buildMenu ? "Click to close the builds." : "Click to choose.").formatted(Formatting.YELLOW));
+            }
+            if (buildMenu) {
+                for (int c = 0; c < b.count(); c++) {
+                    int cy = STAT_ROWS_Y + c * 16;
+                    boolean cur = c == b.active(), locked = c >= b.unlocked();
+                    plaque(ctx, cy, cur ? P_TAB_SEL : P_TAB, "Build " + (c + 1), cur ? GOLD : locked ? DIM : CREAM);
+                    if (over(mx, my, cy)) {
+                        tip = new ArrayList<>();
+                        tip.add(Text.literal("Build " + (c + 1)).formatted(Formatting.AQUA));
+                        tip.add(Text.literal(buildLine(b, c)).formatted(Formatting.GRAY));
+                        tip.add(cur ? Text.literal("Your build now.").formatted(Formatting.GREEN)
+                                : locked ? Text.literal(b.hint()).formatted(Formatting.DARK_GRAY)
+                                : Text.literal("Click to switch. Free.").formatted(Formatting.YELLOW));
+                    }
+                }
+            }
+        }
+
         if (over(mx,my,STATS_Y)) {
             tip = new ArrayList<>();
             for (int i=0;i<l.stats().size() && i<s.statValue().length;i++)
                 tip.add(Text.literal(l.stats().get(i).name() + ": " + percent(s.statValue()[i])).formatted(Formatting.GRAY));
         }
-        if (statsOpen && !(autoMenu && autoShown(s))) {
+        if (statsOpen && !(autoMenu && autoShown(s)) && !(buildMenu && buildsShown(s))) {
             int ry = STAT_ROWS_Y;
             for (int i = 0; i < l.stats().size() && i < s.statValue().length; i++) {
                 if (ry > this.height - 64) break;
@@ -594,7 +634,23 @@ public final class MiningTreeScreen extends Screen {
             }
             if (autoShown(s) && over(mx, my, AUTO_Y)) {
                 autoMenu = !autoMenu;
+                buildMenu = false;
                 return true;
+            }
+            if (buildsShown(s) && over(mx, my, BUILD_Y)) {
+                buildMenu = !buildMenu;
+                autoMenu = false;
+                return true;
+            }
+            if (buildsShown(s) && buildMenu) {
+                MiningTreeClient.Builds b = MiningTreeClient.builds();
+                for (int k = 0; k < b.count(); k++) {
+                    if (!over(mx, my, STAT_ROWS_Y + k * 16)) continue;
+                    // Locked builds still go to the server, which answers with how to unlock them.
+                    if (k != b.active()) NetworkHandler.sendMiningTreeAction(ACTION_BUILD, k);
+                    buildMenu = false;
+                    return true;
+                }
             }
             if (autoShown(s) && autoMenu) {
                 for (int k = 0; k <= AUTO.length; k++) {

@@ -23,6 +23,7 @@
 - The mining tree screen shows an icon for every node again and no longer lags when you zoom out over the whole tree.
 - The mining tree's Auto button opens a list of Off, Energy, XP, Money and Mixed, and one click picks one.
 - The mining tree's stat list has an icon for each stat instead of a coloured square.
+- The mining tree screen has a Build button. It lists your saved builds, and one click switches to another.
 - Tree screens say why a node of another ascendancy class is locked, and the Hunter stat strip hides stats nothing on your tree raises.
 - Locked jewel sockets read Ascension and A# instead of Prestige and P#.
 

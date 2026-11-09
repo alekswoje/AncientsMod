@@ -428,7 +428,21 @@ public final class NetworkHandler {
                     // Servers from 2026-11-04 add the auto-spend preset (-1 off, 0..3) after the shared
                     // Hunter body; older servers send nothing more, and older mods ignore the byte.
                     int auto = buf.readableBytes() > 0 ? buf.readByte() : com.aleks.ancientsmod.client.mining.MiningTreeClient.AUTO_UNKNOWN;
-                    com.aleks.ancientsmod.client.mining.MiningTreeClient.onState(miningState, auto);
+                    // Servers from 2026-11-09 then send the saved builds (ANCT-927); older ones stop here.
+                    com.aleks.ancientsmod.client.mining.MiningTreeClient.Builds builds = null;
+                    if (buf.readableBytes() >= 3) {
+                        try {
+                            int active = buf.readByte(), unlocked = buf.readByte();
+                            int count = Math.max(0, Math.min(8, buf.readByte()));
+                            int[] spent = new int[count], autos = new int[count];
+                            for (int b = 0; b < count; b++) { spent[b] = buf.readVarInt(); autos[b] = buf.readByte(); }
+                            String hint = buf.readString(256);
+                            builds = new com.aleks.ancientsmod.client.mining.MiningTreeClient.Builds(active, unlocked, spent, autos, hint);
+                        } catch (Throwable t) {
+                            builds = null;
+                        }
+                    }
+                    com.aleks.ancientsmod.client.mining.MiningTreeClient.onState(miningState, auto, builds);
                 }                case Protocol.PKT_HUNTER_TREE_LAYOUT_CHUNK -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.HUNTER_TREE_CHUNK)) return;
                     int version = buf.readInt();
