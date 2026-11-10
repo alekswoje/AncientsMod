@@ -31,8 +31,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * Screenshot for the server's /bugreport dialog. When the player sends
- * {@code /bugreport}, the mod announces a shot (so the dialog offers an
+ * Screenshot for the server's /bugreport and /suggest dialogs. When the player sends
+ * either command, the mod announces a shot (so the dialog offers an
  * "attach screenshot" toggle), grabs the next frame of the world before the HUD,
  * chat and screens are drawn (see {@code GameRendererBugReportShotMixin}), and
  * streams it to the server as a JPEG. The server keeps or drops it depending on
@@ -50,7 +50,7 @@ public final class BugReportShot {
         return thread;
     });
 
-    /** A dialog opening this soon after /bugreport is the report form. Its title is
+    /** A dialog opening this soon after /bugreport or /suggest is that form. Its title is
      *  drawn glyph art, so timing is the reliable way to recognise it. */
     private static final long FOCUS_WINDOW_MS = 10_000L;
 
@@ -61,7 +61,7 @@ public final class BugReportShot {
     public static void register() {
         ClientSendMessageEvents.ALLOW_COMMAND.register(command -> {
             String name = command.strip().split("\\s+", 2)[0];
-            if (name.equalsIgnoreCase("bugreport")) arm();
+            if (name.equalsIgnoreCase("bugreport") || name.equalsIgnoreCase("suggest")) arm();
             return true;
         });
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
