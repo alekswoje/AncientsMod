@@ -27,6 +27,7 @@
 - The mining tree screen has a Build button. It lists your saved builds, and one click switches to another.
 - Tree screens say why a node of another ascendancy class is locked, and the Hunter stat strip hides stats nothing on your tree raises.
 - Locked jewel sockets read Ascension and A# instead of Prestige and P#.
+- The mining tree screen shows the class tabs only once you reach Ascension 1.
 
 ## Input & Keybinds
 

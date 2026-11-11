@@ -103,6 +103,14 @@ public final class MiningTreeScreen extends Screen {
     }
 
     private static final String[] VIEWS = {"Mining", "Kobaloi", "Horologist", "Telchine", "Prospector", "Reservoir", "Overdrive"};
+
+    /**
+     * View tabs to draw. The server sends 1 (Mining only) before Ascension 1, so the class tabs
+     * don't exist until the player can put points in them; 7 once they can.
+     */
+    private static int viewCount(HunterTreeStatePayload s) {
+        return Math.max(1, Math.min(VIEWS.length, s.presetsUnlocked()));
+    }
     @Override protected void init() { resetView(); addSearchField(); }
 
     public void resetView() {
@@ -388,7 +396,7 @@ public final class MiningTreeScreen extends Screen {
         }
 
         boolean ro = s.readOnly();
-        for (int v = 0; v < VIEWS.length; v++) {
+        for (int v = 0; v < viewCount(s); v++) {
             plaque(ctx, PRESET_Y + v * 16, s.activePreset() == v ? P_TAB_SEL : P_TAB,
                 VIEWS[v], s.activePreset() == v ? GOLD : CREAM);
             if (over(mx,my,PRESET_Y + v * 16)) tip = List.of(Text.literal(
@@ -628,7 +636,7 @@ public final class MiningTreeScreen extends Screen {
         double mx = click.x(), my = click.y();
         if (click.button() == 0 && s != null) {
             if (over(mx, my, STATS_Y)) { statsOpen = !statsOpen; return true; }
-            for (int v = 0; v < VIEWS.length; v++) if (over(mx,my,PRESET_Y + v * 16)) {
+            for (int v = 0; v < viewCount(s); v++) if (over(mx,my,PRESET_Y + v * 16)) {
                 if (v != s.activePreset()) NetworkHandler.sendMiningTreeAction(ACTION_PRESET,v);
                 return true;
             }
