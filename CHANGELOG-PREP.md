@@ -48,3 +48,4 @@
 - Roll ranges like (4-6) on gear and jewels show only while you hold **Alt**.
 - Tooltip collapse and wiki links work with the new gear lore layout.
 - Removed the loot browser, since /loottables no longer exists on the server.
+- The Hunter tree shows Armour nodes as flat Armour.

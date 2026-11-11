@@ -21,7 +21,22 @@ public record HunterTreeLayoutPayload(int rings, List<Node> nodes, int[] edgeA, 
     /** {@code kind}: 0 start, 1 small, 2 major, 3 notable, 4 keystone. */
     public record Node(int x, int y, float px, float py, boolean wheel, float cx, float cy,
                        int kind, int icon, int stat, int ability) {}
-    public record Stat(String name, String description, int rgb, float small, float major) {}
+    /**
+     * {@code scale} and {@code unit} say how a value is shown: {@code value x scale + unit}. A server
+     * that predates the display section sends neither, so a stat reads as a percent (100, "%").
+     */
+    public record Stat(String name, String description, int rgb, float small, float major, float scale, String unit) {
+        public Stat(String name, String description, int rgb, float small, float major) {
+            this(name, description, rgb, small, major, 100f, "%");
+        }
+
+        /** "7.5", "20%": a whole number when it is one, else one decimal, then the unit. No leading "+". */
+        public String format(float value) {
+            double v = value * (double) scale;
+            long whole = Math.round(v);
+            return (Math.abs(v - whole) < 0.05 ? String.valueOf(whole) : String.format(java.util.Locale.US, "%.1f", v)) + unit;
+        }
+    }
     public record Ability(String name, boolean keystone, List<String> lines) {}
     public record Label(String name, float px, float py) {}
 
@@ -63,7 +78,34 @@ public record HunterTreeLayoutPayload(int rings, List<Node> nodes, int[] edgeA, 
         int l = bounded(buf.readVarInt(), Protocol.MAX_HUNTER_TREE_NAMES);
         List<Label> labels = new ArrayList<>(l);
         for (int i = 0; i < l; i++) labels.add(new Label(str(buf), buf.readFloat(), buf.readFloat()));
+        stats = readDisplay(buf, stats);
         return new HunterTreeLayoutPayload(rings, nodes, a, b, stats, abilities, labels);
+    }
+
+    /**
+     * Optional trailing section (servers from 2026-11-11 on): per stat the name and description
+     * to show, the display scale and unit. The format number stays 3: a mod that predates this
+     * stops reading after the labels and keeps the legacy name/description fields above, which
+     * the server still fills with text that reads right next to a percent. A missing or broken
+     * section leaves the stats as they were.
+     */
+    private static List<Stat> readDisplay(PacketByteBuf buf, List<Stat> stats) {
+        if (!buf.isReadable()) return stats;
+        try {
+            int d = bounded(buf.readVarInt(), Protocol.MAX_HUNTER_TREE_NAMES);
+            List<Stat> out = new ArrayList<>(stats);
+            for (int i = 0; i < d; i++) {
+                String name = str(buf), desc = str(buf);
+                float scale = buf.readFloat();
+                String unit = buf.readString(8);
+                if (i >= out.size() || !Float.isFinite(scale)) continue;
+                Stat o = out.get(i);
+                out.set(i, new Stat(name, desc, o.rgb(), o.small(), o.major(), scale, unit));
+            }
+            return out;
+        } catch (RuntimeException e) {
+            return stats;
+        }
     }
 
     static String str(PacketByteBuf buf) {

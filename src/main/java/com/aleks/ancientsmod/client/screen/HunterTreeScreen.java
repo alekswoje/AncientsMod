@@ -312,12 +312,12 @@ public final class HunterTreeScreen extends Screen {
                 int icon = statIcon(i);
                 if (icon >= 0) ctx.drawTexture(RenderPipelines.GUI_TEXTURED, STATS, COL_X + 2, ry, icon * 9, 0, 9, 9, 9 * STAT_ICONS, 9);
                 int col = v <= 0 ? DIM : v >= cap - 1e-6f ? GOLD : CREAM;
-                ctx.drawText(this.textRenderer, percent(v), COL_X + 14, ry + 1, col, true);
+                ctx.drawText(this.textRenderer, stat.format(v), COL_X + 14, ry + 1, col, true);
                 if (mx >= COL_X && mx < COL_X + PLAQUE_W && my >= ry && my < ry + 11) {
                     tip = new ArrayList<>();
                     tip.add(Text.literal(stat.name()).styled(st -> st.withColor(stat.rgb())));
-                    tip.add(Text.literal(percent(v) + " " + stat.description()).formatted(Formatting.GRAY));
-                    tip.add(Text.literal("Max " + percent(cap) + (v > 0 && v >= cap - 1e-6f ? " (reached)" : ""))
+                    tip.add(Text.literal(stat.format(v) + " " + stat.description()).formatted(Formatting.GRAY));
+                    tip.add(Text.literal("Max " + stat.format(cap) + (v > 0 && v >= cap - 1e-6f ? " (reached)" : ""))
                             .formatted(Formatting.DARK_GRAY));
                 }
                 ry += 11;
@@ -429,7 +429,7 @@ public final class HunterTreeScreen extends Screen {
                 if (stat == null) return tip;
                 tip.add(Text.literal((n.kind() == 2 ? "Greater " : "") + stat.name()).styled(st -> st.withColor(stat.rgb())));
                 float v = n.kind() == 2 ? stat.major() : stat.small();
-                MutableText line = Text.literal(percent(v) + " ").styled(st -> st.withColor(stat.rgb()));
+                MutableText line = Text.literal(stat.format(v) + " ").styled(st -> st.withColor(stat.rgb()));
                 tip.add(line.append(Text.literal(stat.description()).formatted(Formatting.GRAY)));
             }
             default -> {
