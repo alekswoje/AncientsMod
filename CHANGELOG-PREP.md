@@ -15,6 +15,7 @@
 
 ## Rendering & Visuals
 
+- Meteors and meteorite showers no longer show a beam or play a ping sound. The Meteorite shower pings setting is gone.
 - New **Low fire overlay** setting (on by default) draws the on-fire flames low on your screen so you can still see. Turn it off in the settings screen for vanilla fire.
 
 ## UI & Screens

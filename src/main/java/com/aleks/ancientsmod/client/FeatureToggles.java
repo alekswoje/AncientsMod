@@ -66,8 +66,6 @@ public final class FeatureToggles {
     private static volatile boolean miningRushPings = true;
     private static volatile boolean excavationEffects = true;
 
-    /** Show a world-space beam + label where a meteorite shower came down (same look as meteor pings). Off = no beam; the chat announcement still fires. */
-    private static volatile boolean meteoriteShowerPings = true;
 
     /** Show a world-space beam + label on an open Erebus Tear (same look as meteor pings). Off = no beam; the chat announcement still fires. */
     private static volatile boolean tearPings = true;
@@ -243,7 +241,6 @@ public final class FeatureToggles {
             meteoriteHud = parseBool(props.getProperty("meteoriteHud"), meteoriteHud);
             miningRushPings = parseBool(props.getProperty("miningRushPings"), miningRushPings);
             excavationEffects = parseBool(props.getProperty("excavationEffects"), excavationEffects);
-            meteoriteShowerPings = parseBool(props.getProperty("meteoriteShowerPings"), meteoriteShowerPings);
             tearPings = parseBool(props.getProperty("tearPings"), tearPings);
             eventsHud = parseBool(props.getProperty("eventsHud"), eventsHud);
             cooldownsHud = parseBool(props.getProperty("cooldownsHud"), cooldownsHud);
@@ -304,7 +301,6 @@ public final class FeatureToggles {
         props.setProperty("meteoriteHud", Boolean.toString(meteoriteHud));
         props.setProperty("miningRushPings", Boolean.toString(miningRushPings));
         props.setProperty("excavationEffects", Boolean.toString(excavationEffects));
-        props.setProperty("meteoriteShowerPings", Boolean.toString(meteoriteShowerPings));
         props.setProperty("tearPings", Boolean.toString(tearPings));
         props.setProperty("eventsHud", Boolean.toString(eventsHud));
         props.setProperty("cooldownsHud", Boolean.toString(cooldownsHud));
@@ -463,14 +459,6 @@ public final class FeatureToggles {
     public static void setMiningRushPings(boolean value) {
         if (miningRushPings == value) return;
         miningRushPings = value;
-        save();
-    }
-
-    public static boolean isMeteoriteShowerPingsEnabled() { return meteoriteShowerPings; }
-
-    public static void setMeteoriteShowerPings(boolean value) {
-        if (meteoriteShowerPings == value) return;
-        meteoriteShowerPings = value;
         save();
     }
 

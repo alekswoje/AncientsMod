@@ -113,8 +113,6 @@ public final class SettingsScreen extends WidgetSettingsScreen {
                 FeatureToggles::isExcavationEffectsEnabled, FeatureToggles::setExcavationEffects);
         addToggle("Mining rush pings",
                 FeatureToggles::isMiningRushPingsEnabled, FeatureToggles::setMiningRushPings);
-        addToggle("Meteorite shower pings",
-                FeatureToggles::isMeteoriteShowerPingsEnabled, FeatureToggles::setMeteoriteShowerPings);
         addToggle("Erebus tear pings",
                 FeatureToggles::isTearPingsEnabled, FeatureToggles::setTearPings);
         addToggle("Rift texture pack",

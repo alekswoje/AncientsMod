@@ -126,8 +126,9 @@ public final class NetworkHandler {
                 }
                 case Protocol.PKT_METEOR_PING -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.METEOR_PING)) return;
-                    MeteorPingPayload p = MeteorPingPayload.decode(buf);
-                    GangPingManager.onMeteorPing(p);
+                    // Meteor beams are gone (owner, 2026-11-10). Still decode so the
+                    // frame is consumed, then drop it; older plugins keep sending it.
+                    MeteorPingPayload.decode(buf);
                 }
                 case Protocol.PKT_MINING_RUSH_PING -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.MINING_RUSH_PING)) return;
@@ -141,9 +142,8 @@ public final class NetworkHandler {
                 }
                 case Protocol.PKT_METEORITE_SHOWER_PING -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.METEORITE_SHOWER_PING)) return;
-                    com.aleks.ancientsmod.net.payload.MeteoriteShowerPingPayload p =
-                            com.aleks.ancientsmod.net.payload.MeteoriteShowerPingPayload.decode(buf);
-                    GangPingManager.onMeteoriteShowerPing(p);
+                    // Shower beams are gone too (owner, 2026-11-10): decode and drop.
+                    com.aleks.ancientsmod.net.payload.MeteoriteShowerPingPayload.decode(buf);
                 }
                 case Protocol.PKT_TEAR_PING -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.TEAR_PING)) return;
