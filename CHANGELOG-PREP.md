@@ -20,6 +20,9 @@
 
 ## UI & Screens
 
+- **Hunter tree screen.** `/hunter` opens a full-screen tree. Drag to move, scroll to zoom, click a node to take it and click again to confirm.
+- **Mining and Ascendancy tree screens.** `/miningtree` opens a full-screen tree with its own point pools for mining and for each Ascendancy class.
+- New **Mod tree screens** toggle in Advanced settings. Turn it off to get the plain server menu for `/hunter` and `/miningtree` instead.
 - The Hunter and mining tree screens have a **search box**. Type a word like "speed" or a node's name and every match lights up; press Enter to jump from one match to the next. Ctrl+F or just start typing to search.
 - The mining tree screen shows an icon for every node again and no longer lags when you zoom out over the whole tree.
 - The mining tree's Auto button opens a list of Off, Energy, XP, Money and Mixed, and one click picks one.
@@ -31,6 +34,8 @@
 
 ## Input & Keybinds
 
+- Hold left click to keep swinging a sword or axe at monsters in front of you.
+
 ## Networking & Server Integration
 
 - `/bugreport` can now attach a screenshot of what you were looking at. The dialog shows a toggle, and the shot leaves out your HUD and chat. Bind **Report a Bug** in Controls to do it with one key, and the description box is ready to type in when the window opens.
@@ -40,4 +45,6 @@
 
 ## Quality of Life
 
+- Roll ranges like (4-6) on gear and jewels show only while you hold **Alt**.
+- Tooltip collapse and wiki links work with the new gear lore layout.
 - Removed the loot browser, since /loottables no longer exists on the server.
