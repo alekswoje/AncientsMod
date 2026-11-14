@@ -34,8 +34,8 @@ public final class ExpeditionMinimapHud extends HudElement {
     public static final String KEY_SIZE = "size";
     /** 100 = {@link #BASE_BLOCKS_PER_PX} blocks per GUI pixel; higher is closer. */
     public static final String KEY_ZOOM = "zoom";
-    private static final int DEFAULT_SIZE = 110;
-    private static final float BASE_BLOCKS_PER_PX = 1.5f;
+    private static final int DEFAULT_SIZE = 130;
+    private static final float BASE_BLOCKS_PER_PX = 2.25f;
     /** Texture side cap in real pixels (a 240 px HUD at GUI scale 4 would otherwise be 960). */
     private static final int MAX_RES = 384;
     private static final Identifier TEXTURE = Identifier.of("ancientsmod", "dynamic/expedition_map");
