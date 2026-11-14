@@ -14,8 +14,6 @@
 
 ## UI & Screens
 
-- Refunding a free node on the Hunter or Mining tree takes one click instead of two.
-
 ## Input & Keybinds
 
 ## Networking & Server Integration
