@@ -584,7 +584,7 @@ public final class MiningTreeScreen extends Screen {
         } else if (st == 0) {
             tip.add(Text.literal("Taken").formatted(Formatting.GREEN));
             String cost = s.refundCost() <= 0 ? "free" : "$" + money(s.refundCost());
-            boolean armed = armedRefund == i && armedRefundUntil > System.currentTimeMillis();
+            boolean armed = s.refundCost() > 0 && armedRefund == i && armedRefundUntil > System.currentTimeMillis();
             tip.add(Text.literal((armed ? "Click again to refund 1 point (" : "Click to refund 1 point (") + cost + ").")
                     .formatted(Formatting.YELLOW));
         } else if (classLocked(s)) {
@@ -733,7 +733,8 @@ public final class MiningTreeScreen extends Screen {
         if (st == 1 && s.points() > 0) {
             NetworkHandler.sendMiningTreeAction(ACTION_TAKE, i);
         } else if (st == 0) {
-            if (armedRefund == i && armedRefundUntil > now) {
+            // A free refund goes through on one click; a paid one still asks twice.
+            if (s.refundCost() <= 0 || (armedRefund == i && armedRefundUntil > now)) {
                 armedRefund = -1;
                 NetworkHandler.sendMiningTreeAction(ACTION_REFUND, i);
             } else {
