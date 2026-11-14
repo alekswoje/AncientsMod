@@ -273,8 +273,11 @@ public final class JewelSockets {
         List<Text> lines = new ArrayList<>();
         if (slot.isLocked()) {
             lines.add(Text.literal("Locked Jewel Socket").formatted(Formatting.RED));
-            lines.add(Text.literal("Unlocks at Ascension " + slot.requiredPrestige())
-                    .formatted(Formatting.GRAY));
+            // Only an Ascension socket names a level; the fifth socket has none to name.
+            if (slot.requiredPrestige() > 0) {
+                lines.add(Text.literal("Unlocks at Ascension " + slot.requiredPrestige())
+                        .formatted(Formatting.GRAY));
+            }
         } else if (slot.isFilled()) {
             // Server-authored name. Rebuilding it here from rarity + type named
             // a unique "Divine Aetheric Jewel"; the fallback stays only for an
@@ -494,9 +497,12 @@ public final class JewelSockets {
 
             // A dot per filled socket, so a glance tells you which loadouts
             // actually hold something without opening anything.
+            // Four dots sit at a 4 px pitch; a page of five closes up to 3 px so the
+            // fifth stays inside the 18 px tab.
             int filled = page.filled();
+            int pitch = filled > 4 ? 3 : 4;
             for (int d = 0; d < filled; d++) {
-                int dx = x + 3 + d * 4;
+                int dx = x + 3 + d * pitch;
                 ctx.fill(dx, y + TAB_H - 3, dx + 2, y + TAB_H - 2, text);
             }
         }

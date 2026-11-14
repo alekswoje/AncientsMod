@@ -17,9 +17,11 @@ import java.util.List;
  * the decode reads a fixed width per page.
  *
  * <p>That width is NOT on the wire, and it is not a constant either: a server
- * writes as many pairs as it believes this client reads, so one that predates
- * the fourth socket writes {@link Protocol#LEGACY_MAX_JEWEL_SLOTS} to a client
- * that can handle {@link Protocol#MAX_JEWEL_SLOTS}. Reading one pair too many
+ * writes as many pairs as it believes this client reads and this account has,
+ * so one that predates the fourth socket writes {@link
+ * Protocol#LEGACY_MAX_JEWEL_SLOTS}, a current one writes {@link
+ * Protocol#PRESTIGE_JEWEL_SLOTS}, and one whose account has the fifth socket
+ * writes {@link Protocol#MAX_JEWEL_SLOTS}. Reading one pair too many
  * or too few does not just lose a jewel — the next page's name is read out of
  * the middle of this one, so the whole tab strip comes out as garbage. Hence
  * the trial decode below rather than a hardcoded bound.
@@ -47,14 +49,25 @@ public record JewelLoadoutsPayload(int activePage, List<Page> pages) {
      * width will not also happen to finish on the last byte.
      */
     public static JewelLoadoutsPayload decode(PacketByteBuf buf) {
+        return decode(buf, JewelState.socketWireWidth());
+    }
+
+    /**
+     * @param firstGuess the width to try first: what the last socket packet carried.
+     *                   The other widths a server can use are tried after it, widest first.
+     */
+    static JewelLoadoutsPayload decode(PacketByteBuf buf, int firstGuess) {
         int start = buf.readerIndex();
-        int width = JewelState.socketWireWidth();
-        Decoded best = attempt(buf, start, width);
+        Decoded best = attempt(buf, start, firstGuess);
         if (best == null || best.leftover() > 0) {
-            int fallback = width == Protocol.MAX_JEWEL_SLOTS
-                    ? Protocol.LEGACY_MAX_JEWEL_SLOTS : Protocol.MAX_JEWEL_SLOTS;
-            Decoded other = attempt(buf, start, fallback);
-            if (other != null && other.leftover() == 0) best = other;
+            for (int width = Protocol.MAX_JEWEL_SLOTS; width >= Protocol.LEGACY_MAX_JEWEL_SLOTS; width--) {
+                if (width == firstGuess) continue;
+                Decoded other = attempt(buf, start, width);
+                if (other != null && other.leftover() == 0) {
+                    best = other;
+                    break;
+                }
+            }
         }
         if (best == null) {
             // Unreadable either way. Throwing leaves the tabs showing what the

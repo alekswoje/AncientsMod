@@ -502,12 +502,20 @@ public final class Protocol {
      */
     public static final byte PKT_JEWEL_SLOTS = 51;
     /**
-     * Sockets this client can read. Grew 3 → 4 with the prestige-1 socket; a
-     * server that has not been told this client is on
-     * {@link #PROTOCOL_MINOR} 8 still sends {@link #LEGACY_MAX_JEWEL_SLOTS},
-     * so this is a ceiling, never a count.
+     * Sockets this client can read. Grew 3 → 4 with the prestige-1 socket and
+     * 4 → 5 with the setting socket ({@link #PROTOCOL_MINOR} 13); a server
+     * sends fewer to a client it has not been told can read more, and five
+     * only to an account that has the fifth socket, so this is a ceiling,
+     * never a count.
      */
-    public static final int MAX_JEWEL_SLOTS = 4;
+    public static final int MAX_JEWEL_SLOTS = 5;
+    /**
+     * The four sockets that open with Ascension, which is what a server sends
+     * every account that has not opened a fifth. Also the tell {@code
+     * ServerVocabulary} reads, and the first width {@code JewelLoadoutsPayload}
+     * tries before any socket packet has arrived.
+     */
+    public static final int PRESTIGE_JEWEL_SLOTS = 4;
     /**
      * What every server sent before the fourth socket, and what one that
      * predates it still sends. The loadout packet has no width field, so its
@@ -1115,8 +1123,15 @@ public final class Protocol {
      *  {@link #PKT_HUNTER_TREE_STATE} S2C / {@link #PKT_HUNTER_TREE_ACTION} C2S). Below this
      *  {@code /hunter} opens the server's dialog. Must match the plugin's
      *  {@code PrisonsModChannel.HUNTER_TREE_PROTOCOL_MINOR}.
+     *  Minor 12 = client draws the full-screen Mining tree. Must match the plugin's
+     *  {@code PrisonsModChannel.MINING_TREE_PROTOCOL_MINOR}.
+     *  Minor 13 = client reads a fifth jewel socket in {@link #PKT_JEWEL_SLOTS} and a
+     *  fifth name/model pair per page in {@link #PKT_JEWEL_LOADOUTS}. The server sends
+     *  five only to an account that has opened the fifth socket; everyone else, and
+     *  every client below this, keeps getting four. Must match the plugin's
+     *  {@code PrisonsModChannel.JEWEL_SETTING_PROTOCOL_MINOR}.
      */
-    public static final int PROTOCOL_MINOR = 12;
+    public static final int PROTOCOL_MINOR = 13;
     /**
      * Client request: "I want to ping this world-space point for my gang."
      * Payload carries only coordinates + a hold-flag. Server authenticates the

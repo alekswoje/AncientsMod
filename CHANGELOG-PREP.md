@@ -14,6 +14,8 @@
 
 ## UI & Screens
 
+- The jewel sockets beside your inventory, the jewel HUD and the loadout tabs show a **fifth jewel socket** once your account has one.
+
 ## Input & Keybinds
 
 ## Networking & Server Integration

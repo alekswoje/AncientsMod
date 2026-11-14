@@ -36,14 +36,15 @@ public final class JewelState {
      * no width field of its own.
      *
      * <p>Before anything has arrived this answers {@link
-     * Protocol#MAX_JEWEL_SLOTS}: a server that knows this client's protocol
-     * minor writes four, and an older one always writes three, which
-     * {@code JewelLoadoutsPayload} detects for itself rather than depending on
-     * the two packets arriving in order.
+     * Protocol#PRESTIGE_JEWEL_SLOTS}: a server that knows this client's protocol
+     * minor writes four for most accounts, five for one with the fifth socket,
+     * and an older one always writes three. {@code JewelLoadoutsPayload} works
+     * out which for itself rather than depending on the two packets arriving
+     * in order.
      */
     public static int socketWireWidth() {
         List<JewelSlotsPayload.Slot> current = slots;
-        return current.isEmpty() ? Protocol.MAX_JEWEL_SLOTS : current.size();
+        return current.isEmpty() ? Protocol.PRESTIGE_JEWEL_SLOTS : current.size();
     }
 
     /** True until the server has pushed anything (vanilla-ish servers, pre-join). */

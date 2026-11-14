@@ -154,7 +154,7 @@ public final class JewelHud extends HudElement {
         List<JewelSlotsPayload.Slot> slots = slots();
         for (int i = 0; i < slots.size(); i++) {
             JewelSlotsPayload.Slot slot = slots.get(i);
-            if (slot.isLocked() && showRequirement()) {
+            if (slot.isLocked() && showRequirement() && slot.requiredPrestige() > 0) {
                 out.add("Slot " + (i + 1) + ": Ascension " + slot.requiredPrestige());
             } else if (slot.isFilled() && showStats()) {
                 for (String line : slot.statLines()) out.add(line);

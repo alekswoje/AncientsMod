@@ -19,7 +19,7 @@ import java.util.Set;
  * <ol>
  *   <li>Jewel socket count at join. The fourth jewel socket landed on {@code
  *       dev} alongside the rename, and the plugin only sends four sockets
- *       ({@link Protocol#MAX_JEWEL_SLOTS}) to a client on {@link
+ *       ({@link Protocol#PRESTIGE_JEWEL_SLOTS}) to a client on {@link
  *       Protocol#PROTOCOL_MINOR} 8+ once the server itself knows about them —
  *       an un-renamed server always sends three. The count is the server's to
  *       state (not gated by the player's own prestige), so it is a real
@@ -53,7 +53,9 @@ public final class ServerVocabulary {
 
     /** Fed from {@code JewelState.update} with the slot count of every {@code PKT_JEWEL_SLOTS} push. */
     public static void noteJewelSlotCount(int slotCount) {
-        if (slotCount >= Protocol.MAX_JEWEL_SLOTS) {
+        // Four, not this client's ceiling: the ceiling grew to five with the fifth socket, and
+        // a renamed server still sends four to nearly everyone.
+        if (slotCount >= Protocol.PRESTIGE_JEWEL_SLOTS) {
             newGeneration = true;
         }
     }
