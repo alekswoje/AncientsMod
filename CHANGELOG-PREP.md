@@ -14,8 +14,6 @@
 
 ## UI & Screens
 
-- The locked fifth jewel socket says it opens with an **Empty Setting**.
-
 ## Input & Keybinds
 
 ## Networking & Server Integration
