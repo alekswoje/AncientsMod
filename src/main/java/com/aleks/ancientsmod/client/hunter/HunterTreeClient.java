@@ -17,6 +17,12 @@ public final class HunterTreeClient {
     private static HunterTreeLayoutPayload layout;
     private static HunterTreeStatePayload state;
 
+    /** Auto-spend plan from the last state: -1 off, 0..3 Damage/Defense/Speed/Mixed, or {@link #AUTO_UNKNOWN}. */
+    public static final int AUTO_UNKNOWN = -2;
+    private static int autoPlan = AUTO_UNKNOWN;
+    /** Each preset's plan (-1 off), empty when the server sent none. */
+    private static int[] presetAutos = new int[0];
+
     private static int asmVersion = -1;
     private static int asmCount;
     private static int asmReceived;
@@ -27,6 +33,8 @@ public final class HunterTreeClient {
 
     public static HunterTreeLayoutPayload layout() { return layout; }
     public static HunterTreeStatePayload state() { return state; }
+    public static int autoPlan() { return autoPlan; }
+    public static int presetAuto(int preset) { return preset >= 0 && preset < presetAutos.length ? presetAutos[preset] : -1; }
 
     public static void onChunk(int version, int index, int count, byte[] chunk) {
         if (count < 1 || count > Protocol.HUNTER_TREE_MAX_CHUNKS || index < 0 || index >= count || chunk == null) return;
@@ -61,6 +69,12 @@ public final class HunterTreeClient {
     }
 
     public static void onState(HunterTreeStatePayload next) {
+        onState(next, AUTO_UNKNOWN, new int[0]);
+    }
+
+    public static void onState(HunterTreeStatePayload next, int auto, int[] autos) {
+        autoPlan = auto;
+        presetAutos = autos == null ? new int[0] : autos;
         state = next;
         if (!next.open() || layout == null) return;
         MinecraftClient mc = MinecraftClient.getInstance();
@@ -80,6 +94,8 @@ public final class HunterTreeClient {
     public static void clear() {
         layout = null;
         state = null;
+        autoPlan = AUTO_UNKNOWN;
+        presetAutos = new int[0];
         reset();
     }
 

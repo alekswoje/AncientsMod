@@ -459,8 +459,22 @@ public final class NetworkHandler {
                 }
                 case Protocol.PKT_HUNTER_TREE_STATE -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.HUNTER_TREE_STATE)) return;
-                    com.aleks.ancientsmod.client.hunter.HunterTreeClient.onState(
-                            com.aleks.ancientsmod.net.payload.HunterTreeStatePayload.decode(buf));
+                    var hunterState = com.aleks.ancientsmod.net.payload.HunterTreeStatePayload.decode(buf);
+                    // Servers from 2026-11-15 add the auto-spend plan (-1 off, 0..3) and each preset's
+                    // plan after the body; older servers send nothing more, and older mods ignore it.
+                    int hunterAuto = com.aleks.ancientsmod.client.hunter.HunterTreeClient.AUTO_UNKNOWN;
+                    int[] hunterAutos = new int[0];
+                    if (buf.readableBytes() > 0) {
+                        hunterAuto = buf.readByte();
+                        if (buf.readableBytes() > 0) {
+                            int count = Math.max(0, Math.min(8, buf.readByte()));
+                            if (buf.readableBytes() >= count) {
+                                hunterAutos = new int[count];
+                                for (int b = 0; b < count; b++) hunterAutos[b] = buf.readByte();
+                            }
+                        }
+                    }
+                    com.aleks.ancientsmod.client.hunter.HunterTreeClient.onState(hunterState, hunterAuto, hunterAutos);
                 }
                 case Protocol.PKT_EXPEDITION_MAP_CLEAR -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.EXPEDITION_MARKERS)) return;

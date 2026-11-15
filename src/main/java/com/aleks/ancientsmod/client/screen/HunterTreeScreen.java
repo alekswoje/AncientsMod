@@ -45,7 +45,7 @@ public final class HunterTreeScreen extends Screen {
     private static final int ICON_W = 21, ICON_H = 17, KINDS = 23;
     private static final int COL_W = 104, COL_X = 12, PLAQUE_W = 80, PLAQUE_H = 13;
     private static final int P_TAB = 0, P_TAB_SEL = 1, P_RESPEC = 2, P_RESPEC_ARMED = 3, P_OPEN = 4;
-    private static final int ACTION_TAKE = 0, ACTION_REFUND = 1, ACTION_RESPEC = 2, ACTION_PRESET = 3, ACTION_CLOSED = 4;
+    private static final int ACTION_TAKE = 0, ACTION_REFUND = 1, ACTION_RESPEC = 2, ACTION_PRESET = 3, ACTION_CLOSED = 4, ACTION_AUTO = 6;
     private static final float MIN_ZOOM = 0.3f, MAX_ZOOM = 3f;
     private static final long CONFIRM_MS = 5000;
 
@@ -57,6 +57,8 @@ public final class HunterTreeScreen extends Screen {
     /** The view survives closing and reopening within a session. */
     private static float camX = 0, camY = 0, zoom = 1f;
     private static boolean statsOpen = true;
+    /** The auto-spend choices are open in place of the stat rows: one click per plan. */
+    private boolean autoMenu;
 
     private final @Nullable Screen parent;
     /** The search text survives closing and reopening within a session, like the view. */
@@ -261,7 +263,21 @@ public final class HunterTreeScreen extends Screen {
 
     // ── Column ─────────────────────────────────────────────────────────────
 
-    private static final int PRESET_Y = 62, STATS_Y = 78, RESPEC_Y = 94, STAT_ROWS_Y = 116;
+    private static final int PRESET_Y = 62, STATS_Y = 78, RESPEC_Y = 94, AUTO_Y = 110, STAT_ROWS_Y = 116;
+    /** Auto-spend plans in server order (HunterTreeAutoSpend.Plan). */
+    private static final String[] AUTO = {"Damage", "Defense", "Speed", "Mixed"};
+    private static final String[] AUTO_BLURB = {"Hit harder.", "Armour and leech. Harder to kill.",
+            "Move faster, attack faster.", "A bit of everything: damage, armour, leech and speed."};
+
+    /** The Auto plaque shows on your own tree when the server sent a plan. */
+    private static boolean autoShown(HunterTreeStatePayload s) {
+        return !s.readOnly() && HunterTreeClient.autoPlan() != HunterTreeClient.AUTO_UNKNOWN;
+    }
+
+    /** Where the stat rows (or the auto choices) start: under the Auto plaque when it shows. */
+    private static int statRowsY(HunterTreeStatePayload s) {
+        return autoShown(s) ? AUTO_Y + 22 : STAT_ROWS_Y;
+    }
 
     /** Draws the left column; returns the tooltip for whatever in it is hovered. */
     private List<Text> drawColumn(DrawContext ctx, HunterTreeLayoutPayload l, HunterTreeStatePayload s, int mx, int my) {
@@ -301,8 +317,41 @@ public final class HunterTreeScreen extends Screen {
             }
         }
 
-        if (statsOpen) {
-            int ry = STAT_ROWS_Y;
+        if (autoShown(s)) {
+            int a = HunterTreeClient.autoPlan();
+            boolean on = a >= 0 && a < AUTO.length;
+            plaque(ctx, AUTO_Y, on || autoMenu ? P_TAB_SEL : P_TAB, "Auto: " + (on ? AUTO[a] : "Off"), on ? GOLD : CREAM);
+            if (over(mx, my, AUTO_Y)) {
+                tip = new ArrayList<>();
+                tip.add(Text.literal("Auto-spend").formatted(Formatting.AQUA));
+                tip.add(Text.literal(on ? AUTO[a] + ": " + AUTO_BLURB[a] : "Off. You spend every point yourself.").formatted(Formatting.GRAY));
+                tip.add(Text.literal("Your points spend themselves on the plan's path, now and as you level.").formatted(Formatting.GRAY));
+                tip.add(Text.literal(autoMenu ? "Click to close the choices." : "Click to choose.").formatted(Formatting.YELLOW));
+                tip.add(Text.literal("Taking or refunding a node yourself turns it off.").formatted(Formatting.DARK_GRAY));
+            }
+            if (autoMenu) {
+                for (int c = 0; c <= AUTO.length; c++) {
+                    int cy = statRowsY(s) + c * 16;
+                    boolean cur = c == 0 ? !on : a == c - 1;
+                    plaque(ctx, cy, cur ? P_TAB_SEL : P_TAB, c == 0 ? "Off" : AUTO[c - 1], cur ? GOLD : CREAM);
+                    if (over(mx, my, cy)) {
+                        tip = new ArrayList<>();
+                        if (c == 0) {
+                            tip.add(Text.literal("Off").formatted(Formatting.AQUA));
+                            tip.add(Text.literal("Keep your nodes. New points wait for you.").formatted(Formatting.GRAY));
+                        } else {
+                            tip.add(Text.literal(AUTO[c - 1]).formatted(Formatting.AQUA));
+                            tip.add(Text.literal(AUTO_BLURB[c - 1]).formatted(Formatting.GRAY));
+                            tip.add(cur ? Text.literal("Your plan now.").formatted(Formatting.GREEN)
+                                    : Text.literal("Rebuilds this preset on this path, free.").formatted(Formatting.YELLOW));
+                        }
+                    }
+                }
+            }
+        }
+
+        if (statsOpen && !(autoMenu && autoShown(s))) {
+            int ry = statRowsY(s);
             for (int i = 0; i < l.stats().size() && i < s.statValue().length; i++) {
                 if (ry > this.height - 64) break;
                 var stat = l.stats().get(i);
@@ -376,12 +425,17 @@ public final class HunterTreeScreen extends Screen {
         return mx >= COL_X && mx < COL_X + PLAQUE_W && my >= y && my < y + PLAQUE_H;
     }
 
+    private static String autoNote(int preset) {
+        int a = HunterTreeClient.presetAuto(preset);
+        return a >= 0 && a < AUTO.length ? ", auto " + AUTO[a] : "";
+    }
+
     private static List<Text> presetTip(HunterTreeStatePayload s) {
         List<Text> tip = new ArrayList<>();
         tip.add(Text.literal("Tree presets").formatted(Formatting.GOLD));
         for (int i = 0; i < s.presetSpent().length; i++) {
-            if (i == s.activePreset()) tip.add(Text.literal("> Preset " + (i + 1) + ": " + s.presetSpent()[i] + " nodes (active)").formatted(Formatting.GREEN));
-            else if (i < s.presetsUnlocked()) tip.add(Text.literal("  Preset " + (i + 1) + ": " + s.presetSpent()[i] + " nodes").formatted(Formatting.GRAY));
+            if (i == s.activePreset()) tip.add(Text.literal("> Preset " + (i + 1) + ": " + s.presetSpent()[i] + " nodes" + autoNote(i) + " (active)").formatted(Formatting.GREEN));
+            else if (i < s.presetsUnlocked()) tip.add(Text.literal("  Preset " + (i + 1) + ": " + s.presetSpent()[i] + " nodes" + autoNote(i)).formatted(Formatting.GRAY));
             else tip.add(Text.literal("  Preset " + (i + 1) + ": locked").formatted(Formatting.DARK_GRAY));
         }
         tip.add(Text.literal("Each preset is its own tree with all your points.").formatted(Formatting.GRAY));
@@ -486,7 +540,19 @@ public final class HunterTreeScreen extends Screen {
         HunterTreeStatePayload s = HunterTreeClient.state();
         double mx = click.x(), my = click.y();
         if (click.button() == 0 && s != null) {
-            if (over(mx, my, STATS_Y)) { statsOpen = !statsOpen; return true; }
+            if (over(mx, my, STATS_Y)) { statsOpen = !statsOpen; autoMenu = false; return true; }
+            if (autoShown(s) && over(mx, my, AUTO_Y)) { autoMenu = !autoMenu; return true; }
+            if (autoShown(s) && autoMenu) {
+                for (int k = 0; k <= AUTO.length; k++) {
+                    if (!over(mx, my, statRowsY(s) + k * 16)) continue;
+                    int a = HunterTreeClient.autoPlan();
+                    int current = a >= 0 && a < AUTO.length ? a + 1 : 0;
+                    // Server arg: 0 off, 1..4 a plan. One click is one rebuild.
+                    if (k != current) NetworkHandler.sendHunterTreeAction(ACTION_AUTO, k);
+                    autoMenu = false;
+                    return true;
+                }
+            }
             if (!s.readOnly() && over(mx, my, PRESET_Y)) {
                 if (s.presetsUnlocked() > 1) NetworkHandler.sendHunterTreeAction(ACTION_PRESET, (s.activePreset() + 1) % s.presetsUnlocked());
                 else NetworkHandler.sendHunterTreeAction(ACTION_PRESET, 0);
