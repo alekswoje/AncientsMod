@@ -311,14 +311,17 @@ public final class HunterTreeScreen extends Screen {
                 if (Math.abs(v) < 1e-6f && !onTree(l, i)) continue;
                 int icon = statIcon(i);
                 if (icon >= 0) ctx.drawTexture(RenderPipelines.GUI_TEXTURED, STATS, COL_X + 2, ry, icon * 9, 0, 9, 9, 9 * STAT_ICONS, 9);
-                int col = v <= 0 ? DIM : v >= cap - 1e-6f ? GOLD : CREAM;
+                int col = v <= 0 ? DIM : cap > 0 && v >= cap - 1e-6f ? GOLD : CREAM;
                 ctx.drawText(this.textRenderer, stat.format(v), COL_X + 14, ry + 1, col, true);
                 if (mx >= COL_X && mx < COL_X + PLAQUE_W && my >= ry && my < ry + 11) {
                     tip = new ArrayList<>();
                     tip.add(Text.literal(stat.name()).styled(st -> st.withColor(stat.rgb())));
                     tip.add(Text.literal(stat.format(v) + " " + stat.description()).formatted(Formatting.GRAY));
-                    tip.add(Text.literal("Max " + stat.format(cap) + (v > 0 && v >= cap - 1e-6f ? " (reached)" : ""))
-                            .formatted(Formatting.DARK_GRAY));
+                    // An uncapped stat (Predation) comes as infinity, or 0 from an older server: no Max line.
+                    if (cap > 0 && Float.isFinite(cap)) {
+                        tip.add(Text.literal("Max " + stat.format(cap) + (v > 0 && v >= cap - 1e-6f ? " (reached)" : ""))
+                                .formatted(Formatting.DARK_GRAY));
+                    }
                 }
                 ry += 11;
             }
