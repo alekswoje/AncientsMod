@@ -273,10 +273,12 @@ public final class JewelSockets {
         List<Text> lines = new ArrayList<>();
         if (slot.isLocked()) {
             lines.add(Text.literal("Locked Jewel Socket").formatted(Formatting.RED));
-            // Only an Ascension socket names a level; the fifth socket has none to name.
+            // An Ascension socket names its level; the fifth socket names the item that opens it.
             if (slot.requiredPrestige() > 0) {
                 lines.add(Text.literal("Unlocks at Ascension " + slot.requiredPrestige())
                         .formatted(Formatting.GRAY));
+            } else if (index == 4) {
+                lines.add(Text.literal("Opens with an Empty Setting").formatted(Formatting.GRAY));
             }
         } else if (slot.isFilled()) {
             // Server-authored name. Rebuilding it here from rarity + type named
