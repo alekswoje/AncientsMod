@@ -13,7 +13,6 @@
 ## Rendering & Visuals
 
 ## UI & Screens
-- The Hunter tree screen has an **Auto** button: pick Damage, Defense, Speed or Mixed and your points spend themselves.
 
 ## Input & Keybinds
 
