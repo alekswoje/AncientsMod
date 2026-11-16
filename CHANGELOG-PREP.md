@@ -14,11 +14,6 @@
 
 ## UI & Screens
 
-- **Energy Calculator** (`/energycalc`): the prestige tab shows the four prestige steps with their real energy and block totals, and marks the ones your pickaxe has done.
-- **Energy Calculator**: holding a pickaxe now shows its capacity, your mining energy multiplier, your live energy per hour, and the time to the next level and prestige. Your mining tree, trims, jewels and boosters are counted.
-- **Energy Calculator**: the tax line shows your real extract tax, with mining tree nodes and Charon's Cut applied.
-- **Hunter tree**: crit chance, crit multiplier and path nodes have their own icons, and the empty Trail row is gone from the stat list.
-
 ## Input & Keybinds
 
 ## Networking & Server Integration
