@@ -42,7 +42,7 @@ public final class HunterTreeScreen extends Screen {
     private static final Identifier TITLE = tex("title");
     private static final Identifier STATS = tex("stats");
 
-    private static final int ICON_W = 21, ICON_H = 17, KINDS = 23;
+    private static final int ICON_W = 21, ICON_H = 17, KINDS = 28;
     private static final int COL_W = 104, COL_X = 12, PLAQUE_W = 80, PLAQUE_H = 13;
     private static final int P_TAB = 0, P_TAB_SEL = 1, P_RESPEC = 2, P_RESPEC_ARMED = 3, P_OPEN = 4;
     private static final int ACTION_TAKE = 0, ACTION_REFUND = 1, ACTION_RESPEC = 2, ACTION_PRESET = 3, ACTION_CLOSED = 4, ACTION_AUTO = 6;
@@ -117,8 +117,31 @@ public final class HunterTreeScreen extends Screen {
     private static int halfW(int icon) {
         if (icon == 0 || (icon >= 13 && icon <= 16)) return 8;
         if (icon == 17 || icon == 18) return 10;
+        if (icon >= 23 && icon <= 25) return 5;
         if (icon >= 7 && icon <= 12 || icon >= 21) return 6;
         return 5;
+    }
+
+    /** HunterStat ordinals the server's icon kinds have no art for (it borrows Insight, Plunder and Predation). */
+    static final int STAT_CRIT_CHANCE = 10, STAT_CRIT_MULTI = 11, STAT_PATH = 12;
+    private static final int KIND_SMALL = 1, KIND_MAJOR = 2;
+
+    /**
+     * The nodes.png row for a node. Crit chance, crit multiplier and path nodes get this mod's own
+     * rows 23..27 (glint, burst, paw print), which the server dialog cannot draw; everything else
+     * uses the server's kind.
+     */
+    static int nodeIcon(HunterTreeLayoutPayload.Node n) {
+        if (n.kind() == KIND_SMALL || n.kind() == KIND_MAJOR) {
+            boolean major = n.kind() == KIND_MAJOR;
+            switch (n.stat()) {
+                case STAT_CRIT_CHANCE: return major ? 26 : 23;
+                case STAT_CRIT_MULTI: return major ? 27 : 24;
+                case STAT_PATH: return 25;
+                default: break;
+            }
+        }
+        return Math.max(0, Math.min(KINDS - 1, n.icon()));
     }
 
     private static int halfH(int icon) { return Math.min(8, halfW(icon)); }
@@ -237,7 +260,7 @@ public final class HunterTreeScreen extends Screen {
         boolean[] found = search.active() ? search.matches(l) : null;
         for (int i = 0; i < l.nodes().size(); i++) {
             var n = l.nodes().get(i);
-            int icon = Math.max(0, Math.min(KINDS - 1, n.icon()));
+            int icon = nodeIcon(n);
             int st = nodeState(l, s, i);
             int cx = Math.round(n.px()), cy = Math.round(n.py());
             int x = cx - ICON_W / 2, y = cy - ICON_H / 2;
@@ -255,7 +278,7 @@ public final class HunterTreeScreen extends Screen {
     private int nodeAt(HunterTreeLayoutPayload l, float wx, float wy) {
         for (int i = 0; i < l.nodes().size(); i++) {
             var n = l.nodes().get(i);
-            int icon = Math.max(0, Math.min(KINDS - 1, n.icon()));
+            int icon = nodeIcon(n);
             if (Math.abs(wx - Math.round(n.px())) <= halfW(icon) + 0.5f && Math.abs(wy - Math.round(n.py())) <= halfH(icon) + 0.5f) return i;
         }
         return -1;
@@ -358,6 +381,8 @@ public final class HunterTreeScreen extends Screen {
                 float v = s.statValue()[i], cap = s.statCap()[i];
                 // A stat nothing on this tree raises (Spoils, Plunder, Insight on the Map 5 tree) has no row.
                 if (Math.abs(v) < 1e-6f && !onTree(l, i)) continue;
+                // Path nodes add into Predation, Armour and Pursuit; Trail itself is always 0.
+                if (i == STAT_PATH) continue;
                 int icon = statIcon(i);
                 if (icon >= 0) ctx.drawTexture(RenderPipelines.GUI_TEXTURED, STATS, COL_X + 2, ry, icon * 9, 0, 9, 9, 9 * STAT_ICONS, 9);
                 int col = v <= 0 ? DIM : cap > 0 && v >= cap - 1e-6f ? GOLD : CREAM;
@@ -387,19 +412,22 @@ public final class HunterTreeScreen extends Screen {
         return tip;
     }
 
-    /** Icons in gui/hunter/stats.png, HunterStat ordinals 0..7. */
-    private static final int STAT_ICONS = 8;
+    /** Icons in gui/hunter/stats.png: HunterStat ordinals 0..7, then crit chance and crit multiplier. */
+    private static final int STAT_ICONS = 10;
 
     /**
      * A stat's stats.png icon. Flight and Marksman have no art of their own yet and borrow
-     * Alacrity's and Predation's, as the server's dialog does (HunterDialogArt.statMini);
-     * anything newer draws no icon rather than sampling past the texture.
+     * Alacrity's and Predation's, as the server's dialog does (HunterDialogArt.statMini); crit
+     * chance and crit multiplier have their own (9, 10). Anything newer draws no icon rather
+     * than sampling past the texture.
      */
     static int statIcon(int stat) {
-        if (stat >= 0 && stat < STAT_ICONS) return stat;
+        if (stat >= 0 && stat < 8) return stat;
         return switch (stat) {
             case 8 -> 7; // Flight -> Alacrity
             case 9 -> 0; // Marksman -> Predation
+            case STAT_CRIT_CHANCE -> 8;
+            case STAT_CRIT_MULTI -> 9;
             default -> -1;
         };
     }
