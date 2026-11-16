@@ -185,8 +185,9 @@ public final class EnergyCalcScreen extends Screen {
                 String label = e.slotLabel + ": " + trim(s.displayName(), lvlRight - left - 8);
                 ctx.drawText(textRenderer, Text.literal(label), left, textY, GlassTheme.text(), false);
 
+                // The item stores 1, 5, 10 or 11; players know those as P1..P4.
                 String lvl = s.pickaxe() && s.prestige() > 0
-                        ? s.level() + " P" + s.prestige()
+                        ? s.level() + " P" + EnergyReferenceState.get().shownPrestige(s.prestige())
                         : Integer.toString(s.level());
                 drawRight(ctx, lvl, lvlRight, textY, GlassTheme.text());
 
@@ -209,13 +210,81 @@ public final class EnergyCalcScreen extends Screen {
         y += 6;
         GlassRender.rule(ctx, left, right, y);
         y += 6;
-        if (EnergyReferenceState.hasData()) {
-            int tax = EnergyReferenceState.get().energyTaxPercent();
+        if (!EnergyReferenceState.hasData()) {
+            drawWrapped(ctx, "Waiting for the server's cost tables…", left, y, right - left, GlassTheme.textMuted());
+            return;
+        }
+        EnergyReferencePayload ref = EnergyReferenceState.get();
+        EnergyReferencePayload.Profile profile = ref.profile();
+        if (profile == null) {
+            int tax = ref.energyTaxPercent();
             drawWrapped(ctx, "Energy tax " + tax + "%: mine " + pctDivisorNote(tax) + " to bank 1.",
                     left, y, right - left, GlassTheme.textDim());
-        } else {
-            drawWrapped(ctx, "Waiting for the server's cost tables…", left, y, right - left, GlassTheme.textMuted());
+            return;
         }
+        y = drawPickaxeBlock(ctx, ref, profile, entries, left, right, y);
+        String tax = profile.taxBasisPoints() <= 0 ? "No extract tax."
+                : "Extract tax " + profile.taxText() + "%. None in a safe zone.";
+        drawWrapped(ctx, tax, left, y, right - left, GlassTheme.textDim());
+    }
+
+    /**
+     * The held pickaxe in this player's hands: where it stops mining, what an ore pays, and how
+     * long the next level and the next prestige take at the rate being mined right now. Every
+     * number is the server's, so the mining tree, trims, jewels and boosters are in them.
+     * Returns the y below the block (unchanged when no pickaxe is held).
+     */
+    private int drawPickaxeBlock(DrawContext ctx, EnergyReferencePayload ref, EnergyReferencePayload.Profile profile,
+                                 List<Entry> entries, int left, int right, int y) {
+        Entry held = null;
+        for (Entry e : entries) {
+            if (e.stats.pickaxe() && "Held".equals(e.slotLabel)) { held = e; break; }
+        }
+        if (held == null || !profile.holdingPickaxe()) return y;
+        AncientItemStats s = held.stats;
+        int lineH = textRenderer.fontHeight + 3;
+        int half = (right - left) / 2;
+
+        // Two pairs a line: with six pieces listed above there is little height left at GUI scale 4.
+        List<String[]> pairs = new ArrayList<>();
+        pairs.add(new String[] {"Capacity", compact(profile.heldCapacity())});
+        if (profile.energyMultiplier() > 0) {
+            pairs.add(new String[] {"Mining energy", String.format(Locale.US, "%.2fx", profile.energyMultiplier())});
+        }
+        if (profile.energyPerHour() <= 0) {
+            pairs.add(new String[] {"Rate", "mine to measure"});
+        } else {
+            pairs.add(new String[] {"Rate", compact(profile.energyPerHour()) + " an hour"});
+            long shortfall = s.energyShortfall();
+            if (shortfall > 0) pairs.add(new String[] {"Next level", time(profile.secondsToGain(shortfall))});
+        }
+        for (int i = 0; i < pairs.size(); i++) {
+            String[] pair = pairs.get(i);
+            boolean measured = !"mine to measure".equals(pair[1]);
+            drawPair(ctx, pair[0], pair[1], measured ? GlassTheme.VALUE : GlassTheme.textMuted(),
+                    left + (i % 2) * half, y);
+            if (i % 2 == 1 || i == pairs.size() - 1) y += lineH;
+        }
+
+        EnergyReferencePayload.PrestigeStep next = ref.nextStep(EnergyReferenceState.pickTier(held.tierLabel), s.prestige());
+        if (next != null) {
+            long need = Math.max(0L, next.energyCost() - s.storedEnergy());
+            StringBuilder v = new StringBuilder(need == 0 ? "energy ready" : compact(need) + " to go");
+            long fills = profile.fillsFor(need);
+            if (fills > 1) v.append(", ").append(fills).append(" fills");
+            long seconds = profile.secondsToGain(need);
+            if (need > 0 && seconds > 0) v.append(", ").append(time(seconds));
+            drawPair(ctx, "Prestige " + next.prestige(), v.toString(),
+                    need == 0 ? GlassTheme.OK : GlassTheme.text(), left, y);
+            y += lineH;
+        }
+        return y + 2;
+    }
+
+    /** A muted label with its value 78 px along: wide enough for "Mining energy". */
+    private void drawPair(DrawContext ctx, String label, String value, int valueColor, int x, int y) {
+        ctx.drawText(textRenderer, Text.literal(label), x, y, GlassTheme.textMuted(), false);
+        ctx.drawText(textRenderer, Text.literal(value), x + 78, y, valueColor, false);
     }
 
     /**
@@ -230,12 +299,11 @@ public final class EnergyCalcScreen extends Screen {
         if (s.pickaxe()) {
             EnergyReferencePayload.PickTier tier = EnergyReferenceState.pickTier(e.tierLabel);
             if (tier != null) {
-                for (EnergyReferencePayload.PrestigeStep step : tier.ladder()) {
-                    if (step.prestige() == s.prestige() + 1) {
-                        drawRight(ctx, "P" + step.prestige() + " " + compact(step.energyCost()),
-                                rightX, textY, GlassTheme.VALUE);
-                        return;
-                    }
+                EnergyReferencePayload.PrestigeStep step = EnergyReferenceState.get().nextStep(tier, s.prestige());
+                if (step != null) {
+                    drawRight(ctx, "P" + step.prestige() + " " + compact(step.energyCost()),
+                            rightX, textY, GlassTheme.VALUE);
+                    return;
                 }
                 drawRight(ctx, "max P", rightX, textY, GlassTheme.OK);
                 return;
@@ -296,7 +364,7 @@ public final class EnergyCalcScreen extends Screen {
                     left, y + 3, GlassTheme.textMuted(), false);
             y += ROW_H;
         } else {
-            int tax = EnergyReferenceState.get().energyTaxPercent();
+            double tax = EnergyReferenceState.get().taxRate();
             for (EnergyReferencePayload.GearTier t : tiers) {
                 int textY = y + (ROW_H - textRenderer.fontHeight) / 2;
 
@@ -351,15 +419,28 @@ public final class EnergyCalcScreen extends Screen {
         GlassRender.rule(ctx, left, right, y);
         y += 4;
 
-        for (EnergyReferencePayload.PrestigeStep step : tier.ladder()) {
+        // The pickaxe in hand, when it is of the tier on show: the rungs it already stands on read as done.
+        EnergyReferencePayload ref = EnergyReferenceState.get();
+        MinecraftClient mc = MinecraftClient.getInstance();
+        ItemStack heldStack = mc == null || mc.player == null ? null : mc.player.getEquippedStack(EquipmentSlot.MAINHAND);
+        AncientItemStats held = AncientItemStats.of(heldStack);
+        boolean heldIsThisTier = held != null && held.pickaxe() && tier.label().equalsIgnoreCase(tierLabelOf(heldStack));
+
+        for (int i = 0; i < tier.ladder().size(); i++) {
+            EnergyReferencePayload.PrestigeStep step = tier.ladder().get(i);
             int textY = y + (ROW_H - textRenderer.fontHeight) / 2;
+            boolean done = heldIsThisTier && ref.reached(i, held.prestige());
 
             ctx.drawText(textRenderer, Text.literal("P" + step.prestige()), left, textY,
-                    GlassTheme.text(), false);
-            drawRight(ctx, compact(step.energyCost()), energyRight, textY, GlassTheme.VALUE);
+                    done ? GlassTheme.textMuted() : GlassTheme.text(), false);
+            if (done) {
+                drawRight(ctx, "done", energyRight, textY, GlassTheme.OK);
+            } else {
+                drawRight(ctx, compact(step.energyCost()), energyRight, textY, GlassTheme.VALUE);
+            }
             String ore = step.oreCount() <= 0 ? "-"
                     : compact(step.oreCount()) + " " + step.oreLabel();
-            drawRight(ctx, ore, oreRight, textY, GlassTheme.text());
+            drawRight(ctx, ore, oreRight, textY, done ? GlassTheme.textMuted() : GlassTheme.text());
 
             y += ROW_H;
         }
@@ -374,7 +455,7 @@ public final class EnergyCalcScreen extends Screen {
         ctx.drawText(textRenderer, Text.literal(" energy across " + tier.ladder().size() + " steps."),
                 lx + textRenderer.getWidth(total), y, GlassTheme.text(), false);
         y += 12;
-        drawWrapped(ctx, "Click the tier name or press ←/→ to switch tier. Ore counts are weighted; premium ores count as more than one block.",
+        drawWrapped(ctx, "Click the tier name or press ←/→ to switch tier. Blocks are the pickaxe's total, not per step. Premium ores count as more than one block.",
                 left, y, right - left, GlassTheme.textDim());
     }
 
@@ -450,10 +531,22 @@ public final class EnergyCalcScreen extends Screen {
         return EnergyReferenceState.tierLabelFor(Registries.ITEM.getId(stack.getItem()).getPath());
     }
 
-    /** Energy that must be mined to bank {@code net} after the rank's energy tax. */
-    private static long preTax(long net, int taxPercent) {
-        if (taxPercent <= 0 || taxPercent >= 100) return net;
-        return Math.round(net / (1.0 - taxPercent / 100.0));
+    /** Energy that must be mined to bank {@code net} after the extract tax (a 0..1 rate). */
+    private static long preTax(long net, double taxRate) {
+        if (taxRate <= 0 || taxRate >= 1) return net;
+        return Math.round(net / (1.0 - taxRate));
+    }
+
+    /** The two largest units of a duration: "45s", "12m", "3h 20m", "2d 19h". "-" when unknown. */
+    static String time(long seconds) {
+        if (seconds < 0) return "-";
+        if (seconds < 60) return Math.max(1, seconds) + "s";
+        long minutes = seconds / 60;
+        if (minutes < 60) return minutes + "m";
+        long hours = minutes / 60;
+        if (hours < 24) return hours + "h" + (minutes % 60 > 0 ? " " + (minutes % 60) + "m" : "");
+        long days = hours / 24;
+        return days + "d" + (hours % 24 > 0 ? " " + (hours % 24) + "h" : "");
     }
 
     private static String pctDivisorNote(int taxPercent) {

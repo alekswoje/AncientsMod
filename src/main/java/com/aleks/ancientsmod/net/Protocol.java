@@ -560,14 +560,24 @@ public final class Protocol {
      *
      * <p>Wire format after the type byte:
      * <pre>
-     *   byte    energyTaxPercent            // 0-100
+     *   byte    energyTaxPercent            // extract tax outside a safe zone, 0-100
      *   varint  gearTierCount
      *     string label; varint maxLevel; varint curveLen; varlong cumulative[curveLen]
      *   varint  pickTierCount
      *     string label
      *     varint curveLen;   { varint level; varlong cumulative }
      *     varint ladderLen;  { varint prestige; varlong energy; string oreLabel; varlong oreCount }
+     *   // Player block. Absent from a server that predates it: the packet just ends here.
+     *   varint  profileVersion              // 1
+     *   varint  taxBasisPoints              // the same tax, in hundredths of a percent
+     *   byte    flags                       // bit 0: in a safe zone; bit 1: holding a pickaxe
+     *   varlong heldCapacity
+     *   varint  energyMultiplierMilli       // x1000
+     *   varlong energyPerHour
+     *   varint  rungCount;  { varint storedLevel }   // per ladder row: 1, 5, 10, 11
      * </pre>
+     * With the player block, {@code prestige} in a ladder row is the number players see
+     * (P1..P4) and {@code energy} is the whole jump from the row before.
      */
     public static final byte PKT_ENERGY_REFERENCE = 52;
     public static final int RATE_ENERGY_REFERENCE_PER_SEC = 4;

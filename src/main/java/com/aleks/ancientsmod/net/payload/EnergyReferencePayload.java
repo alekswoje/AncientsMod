@@ -2,9 +2,11 @@ package com.aleks.ancientsmod.net.payload;
 
 import com.aleks.ancientsmod.net.Protocol;
 import net.minecraft.network.PacketByteBuf;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Decoded {@link Protocol#PKT_ENERGY_REFERENCE} — the server's gear/pickaxe energy cost
@@ -21,8 +23,86 @@ import java.util.List;
 public record EnergyReferencePayload(
         int energyTaxPercent,
         List<GearTier> gearTiers,
-        List<PickTier> pickTiers
+        List<PickTier> pickTiers,
+        /** The player block at the end of the packet. Null from a server that predates it. */
+        @Nullable Profile profile
 ) {
+
+    /**
+     * The requesting player's own numbers, each read server-side through the function the game
+     * uses, so the mining tree, trims, jewels and boosters are already in them.
+     *
+     * @param taxBasisPoints   extract tax outside a safe zone, in hundredths of a percent
+     * @param inSafeZone       standing in a safe zone when the table was sent (extracting is free there)
+     * @param holdingPickaxe   a pickaxe was in the main hand; the next three are 0 without one
+     * @param heldCapacity     energy that pickaxe holds in this player's hands
+     * @param energyMultiplier energy a hand-mined ore pays, as a multiple of the ore's base energy
+     * @param energyPerHour    live mining rate, 0 when idle
+     * @param rungStoredLevels the level a pickaxe stores on each ladder rung, in ladder order
+     *                         (1, 5, 10, 11). The item carries the stored level; players see P1..P4.
+     */
+    public record Profile(int taxBasisPoints, boolean inSafeZone, boolean holdingPickaxe,
+                          long heldCapacity, double energyMultiplier, long energyPerHour,
+                          int[] rungStoredLevels) {
+
+        /** {@code 840 -> "8.4"}, {@code 1200 -> "12"}. */
+        public String taxText() {
+            double pct = Math.round(taxBasisPoints / 10.0) / 10.0;
+            return pct == Math.rint(pct) ? Long.toString((long) pct) : String.format(Locale.US, "%.1f", pct);
+        }
+
+        /** How many times the held pickaxe fills to gather {@code energy} (0 = nothing to gather, or no pickaxe). */
+        public long fillsFor(long energy) {
+            if (energy <= 0 || heldCapacity <= 0) return 0L;
+            return (energy + heldCapacity - 1) / heldCapacity;
+        }
+
+        /** Seconds of mining at the live rate to gain {@code energy}; -1 when idle or past a year. */
+        public long secondsToGain(long energy) {
+            if (energy <= 0) return 0L;
+            if (energyPerHour <= 0) return -1L;
+            double seconds = energy * 3600.0 / energyPerHour;
+            return seconds > 365L * 86_400L ? -1L : (long) Math.ceil(seconds);
+        }
+    }
+
+    /** The extract tax as a fraction, from the precise figure when the server sent one. */
+    public double taxRate() {
+        return profile != null ? profile.taxBasisPoints() / 10_000.0 : energyTaxPercent / 100.0;
+    }
+
+    /**
+     * The prestige number players see for the level a pickaxe stores. Without the player block
+     * the server is on the old one-step-per-level ladder and the two are the same number.
+     */
+    public int shownPrestige(int stored) {
+        if (profile == null) return stored;
+        int shown = 0;
+        for (int rung : profile.rungStoredLevels()) if (stored >= rung) shown++;
+        return shown;
+    }
+
+    /** The rung a pickaxe at stored level {@code stored} prestiges to next, or null at the top. */
+    public @Nullable PrestigeStep nextStep(PickTier tier, int stored) {
+        if (tier == null) return null;
+        List<PrestigeStep> ladder = tier.ladder();
+        if (profile == null) {
+            for (PrestigeStep step : ladder) if (step.prestige() == stored + 1) return step;
+            return null;
+        }
+        int[] rungs = profile.rungStoredLevels();
+        for (int i = 0; i < rungs.length && i < ladder.size(); i++) {
+            if (rungs[i] > stored) return ladder.get(i);
+        }
+        return null;
+    }
+
+    /** True when a pickaxe at stored level {@code stored} already stands on ladder row {@code index}. */
+    public boolean reached(int index, int stored) {
+        if (profile == null) return false;
+        int[] rungs = profile.rungStoredLevels();
+        return index >= 0 && index < rungs.length && stored >= rungs[index];
+    }
 
     /**
      * @param cumulativeToLevel index {@code n} = total energy to take a fresh piece of this
@@ -56,7 +136,7 @@ public record EnergyReferencePayload(
     public record PickTier(String label, int[] curveLevels, long[] curveCumulative,
                            List<PrestigeStep> ladder) {
 
-        /** Sum of every prestige step's energy cost — the full P1..Pmax bill. */
+        /** Sum of every ladder row's energy cost: the bill for a fresh pickaxe to reach the top. */
         public long totalPrestigeEnergy() {
             long total = 0;
             for (PrestigeStep s : ladder) total += s.energyCost();
@@ -65,7 +145,7 @@ public record EnergyReferencePayload(
     }
 
     private static final EnergyReferencePayload EMPTY =
-            new EnergyReferencePayload(0, List.of(), List.of());
+            new EnergyReferencePayload(0, List.of(), List.of(), null);
 
     public boolean isEmpty() { return gearTiers.isEmpty() && pickTiers.isEmpty(); }
 
@@ -116,10 +196,35 @@ public record EnergyReferencePayload(
                 picks.add(new PickTier(label, levels, curve, ladder));
             }
 
-            return new EnergyReferencePayload(tax, List.copyOf(gear), List.copyOf(picks));
+            return new EnergyReferencePayload(tax, List.copyOf(gear), List.copyOf(picks), decodeProfile(buf));
         } catch (Exception e) {
             // Truncated or hostile packet — drop the whole table rather than render half of it.
             return EMPTY;
+        }
+    }
+
+    /**
+     * The player block after the tables. A packet that ends at the last ladder is an older
+     * server, and a block that does not parse is dropped on its own: the price tables before it
+     * are whole and still worth showing.
+     */
+    private static @Nullable Profile decodeProfile(PacketByteBuf buf) {
+        if (!buf.isReadable()) return null;
+        try {
+            int version = buf.readVarInt();
+            if (version < 1) return null;
+            int taxBp = Math.max(0, Math.min(10_000, buf.readVarInt()));
+            int flags = buf.readUnsignedByte();
+            long capacity = Math.max(0L, buf.readVarLong());
+            double multiplier = Math.max(0, buf.readVarInt()) / 1000.0;
+            long perHour = Math.max(0L, buf.readVarLong());
+            int rungCount = buf.readVarInt();
+            if (rungCount < 0 || rungCount > Protocol.ENERGY_REF_MAX_LADDER) return null;
+            int[] rungs = new int[rungCount];
+            for (int i = 0; i < rungCount; i++) rungs[i] = buf.readVarInt();
+            return new Profile(taxBp, (flags & 1) != 0, (flags & 2) != 0, capacity, multiplier, perHour, rungs);
+        } catch (Exception e) {
+            return null;
         }
     }
 
