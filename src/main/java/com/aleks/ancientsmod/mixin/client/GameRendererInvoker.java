@@ -2,6 +2,7 @@ package com.aleks.ancientsmod.mixin.client;
 
 import net.minecraft.client.render.Camera;
 import net.minecraft.client.render.GameRenderer;
+import net.minecraft.client.util.math.MatrixStack;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Invoker;
 
@@ -19,4 +20,12 @@ import org.spongepowered.asm.mixin.gen.Invoker;
 public interface GameRendererInvoker {
     @Invoker("getFov")
     float ancientsmod$getFov(Camera camera, float tickDelta, boolean changingFov);
+
+    /** Vanilla's hurt tilt, which the world projection carries on top of the basic one. */
+    @Invoker("tiltViewWhenHurt")
+    void ancientsmod$tiltViewWhenHurt(MatrixStack matrices, float tickDelta);
+
+    /** Vanilla's walk bob (only applied when the View Bobbing option is on). */
+    @Invoker("bobView")
+    void ancientsmod$bobView(MatrixStack matrices, float tickDelta);
 }

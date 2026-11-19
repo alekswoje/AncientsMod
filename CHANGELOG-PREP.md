@@ -12,6 +12,8 @@
 
 ## Rendering & Visuals
 
+- Meteorite labels and gang pings stay on their block while you walk instead of swaying with view bobbing.
+
 ## UI & Screens
 
 ## Input & Keybinds

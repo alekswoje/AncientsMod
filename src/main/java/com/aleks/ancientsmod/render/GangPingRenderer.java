@@ -23,7 +23,6 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
-import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
 /**
@@ -151,10 +150,7 @@ public final class GangPingRenderer {
         // off the beam during FOV transitions — see the class javadoc.
         float fov = ((GameRendererInvoker) (Object) client.gameRenderer)
                 .ancientsmod$getFov(camera, tickDelta, true);
-        Matrix4f proj = client.gameRenderer.getBasicProjectionMatrix(fov);
-        Quaternionf invRot = camera.getRotation().conjugate(new Quaternionf());
-        Matrix4f viewRot = new Matrix4f().rotation(invRot);
-        Matrix4f viewProj = new Matrix4f(proj).mul(viewRot);
+        Matrix4f viewProj = WorldProjection.viewProj(client, camera, fov);
 
         // Zoom mods (Zoomify / OkZoomer / Lunar / etc.) narrow the effective
         // FOV. The beam visibly grows because it's projected in 3D, but the
