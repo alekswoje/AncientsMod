@@ -14,8 +14,6 @@
 
 ## UI & Screens
 
-- An open fifth jewel socket now sits second in the inventory socket strip and the jewel HUD, so your usable sockets are together at the top.
-
 ## Input & Keybinds
 
 ## Networking & Server Integration
