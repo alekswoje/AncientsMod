@@ -26,6 +26,29 @@ public final class JewelState {
                 slots.size());
     }
 
+    /** Index of the socket an Empty Setting opens (the fifth). */
+    private static final int SETTING_SLOT = 4;
+
+    /**
+     * Row of socket {@code index} on screen. An open (or filled) setting socket is drawn second,
+     * right under socket 1, so the sockets a player can use sit together at the top and the
+     * Ascension-locked ones below. A locked setting socket stays at the bottom.
+     */
+    public static int rowOf(int index) {
+        List<JewelSlotsPayload.Slot> current = slots;
+        if (current.size() <= SETTING_SLOT || current.get(SETTING_SLOT).isLocked()) return index;
+        if (index == SETTING_SLOT) return 1;
+        return index >= 1 ? index + 1 : index;
+    }
+
+    /** Socket index drawn at {@code row}; inverse of {@link #rowOf}. */
+    public static int indexAtRow(int row) {
+        List<JewelSlotsPayload.Slot> current = slots;
+        if (current.size() <= SETTING_SLOT || current.get(SETTING_SLOT).isLocked()) return row;
+        if (row == 1) return SETTING_SLOT;
+        return row >= 2 ? row - 1 : row;
+    }
+
     public static List<JewelSlotsPayload.Slot> slots() {
         return slots;
     }

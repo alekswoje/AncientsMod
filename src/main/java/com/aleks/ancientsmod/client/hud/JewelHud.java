@@ -152,7 +152,8 @@ public final class JewelHud extends HudElement {
     private List<String> captionLines() {
         List<String> out = new java.util.ArrayList<>(4);
         List<JewelSlotsPayload.Slot> slots = slots();
-        for (int i = 0; i < slots.size(); i++) {
+        for (int r = 0; r < slots.size(); r++) {
+            int i = JewelState.indexAtRow(r);
             JewelSlotsPayload.Slot slot = slots.get(i);
             if (slot.isLocked() && showRequirement() && slot.requiredPrestige() > 0) {
                 out.add("Slot " + (i + 1) + ": Ascension " + slot.requiredPrestige());
@@ -200,10 +201,10 @@ public final class JewelHud extends HudElement {
         } else {
             drawBar(ctx, 0, 0, n);
         }
-        for (int i = 0; i < n; i++) {
-            int x = EDGE + (vertical ? 0 : i * CELL) + ITEM_INSET_X;
-            int y = (vertical ? i * SLOT : 0) + ITEM_INSET_Y;
-            drawContents(ctx, fr, slots.get(i), x, y);
+        for (int r = 0; r < n; r++) {
+            int x = EDGE + (vertical ? 0 : r * CELL) + ITEM_INSET_X;
+            int y = (vertical ? r * SLOT : 0) + ITEM_INSET_Y;
+            drawContents(ctx, fr, slots.get(JewelState.indexAtRow(r)), x, y);
         }
 
         List<String> captions = captionLines();

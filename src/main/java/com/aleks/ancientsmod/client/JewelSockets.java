@@ -197,7 +197,7 @@ public final class JewelSockets {
         if (mouseX < x || mouseX >= x + CELL) return -1;
         List<JewelSlotsPayload.Slot> slots = JewelState.slots();
         for (int i = 0; i < slots.size(); i++) {
-            int y = slotY(panel, i);
+            int y = slotY(panel, JewelState.rowOf(i));
             if (mouseY >= y && mouseY < y + CELL) return i;
         }
         return -1;
@@ -233,7 +233,7 @@ public final class JewelSockets {
 
         for (int i = 0; i < slots.size(); i++) {
             JewelSlotsPayload.Slot slot = slots.get(i);
-            int y = slotY(panel, i);
+            int y = slotY(panel, JewelState.rowOf(i));
 
             // Pack-accurate empty cell, sampled from the loaded inventory texture.
             ctx.drawTexture(RenderPipelines.GUI_TEXTURED, INVENTORY_TEXTURE,
