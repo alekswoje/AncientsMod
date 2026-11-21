@@ -437,7 +437,10 @@ public final class NetworkHandler {
                             int[] spent = new int[count], autos = new int[count];
                             for (int b = 0; b < count; b++) { spent[b] = buf.readVarInt(); autos[b] = buf.readByte(); }
                             String hint = buf.readString(256);
-                            builds = new com.aleks.ancientsmod.client.mining.MiningTreeClient.Builds(active, unlocked, spent, autos, hint);
+                            // Servers from 2026-11-20 then send each build's name ("" = default).
+                            String[] names = new String[count];
+                            for (int b = 0; b < count; b++) names[b] = buf.readableBytes() > 0 ? buf.readString(64) : "";
+                            builds = new com.aleks.ancientsmod.client.mining.MiningTreeClient.Builds(active, unlocked, spent, autos, hint, names);
                         } catch (Throwable t) {
                             builds = null;
                         }
@@ -474,7 +477,14 @@ public final class NetworkHandler {
                             }
                         }
                     }
-                    com.aleks.ancientsmod.client.hunter.HunterTreeClient.onState(hunterState, hunterAuto, hunterAutos);
+                    // Servers from 2026-11-20 then send each preset's name ("" = default).
+                    String[] hunterNames = new String[hunterState.presetSpent().length];
+                    try {
+                        for (int b = 0; b < hunterNames.length; b++) hunterNames[b] = buf.readableBytes() > 0 ? buf.readString(64) : "";
+                    } catch (Throwable t) {
+                        java.util.Arrays.fill(hunterNames, "");
+                    }
+                    com.aleks.ancientsmod.client.hunter.HunterTreeClient.onState(hunterState, hunterAuto, hunterAutos, hunterNames);
                 }
                 case Protocol.PKT_EXPEDITION_MAP_CLEAR -> {
                     if (!RATE_LIMITER.tryAcquire(RateLimiter.Kind.EXPEDITION_MARKERS)) return;

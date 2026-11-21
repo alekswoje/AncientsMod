@@ -24,8 +24,12 @@ public final class MiningTreeClient {
      * Saved builds from the last state (ANCT-927), or null from a server without them. Each build
      * is a whole tree; {@code autos[i]} is that build's auto-spend preset, -1 off.
      */
-    public record Builds(int active, int unlocked, int[] spent, int[] autos, String hint) {
+    public record Builds(int active, int unlocked, int[] spent, int[] autos, String hint, String[] names) {
         public int count() { return spent.length; }
+        /** The player's name for build {@code i} (servers from 2026-11-20), else null. */
+        public String custom(int i) { return names != null && i >= 0 && i < names.length && !names[i].isEmpty() ? names[i] : null; }
+        /** "Build 2", or the name the player gave it. */
+        public String label(int i) { String c = custom(i); return c != null ? c : "Build " + (i + 1); }
     }
     private static Builds builds;
 

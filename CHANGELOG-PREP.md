@@ -14,6 +14,8 @@
 
 ## UI & Screens
 
+- Right-click a build in the mining tree, or the preset in the Hunter tree, to rename it. Enter saves, Escape cancels, and an empty name puts the number back.
+
 ## Input & Keybinds
 
 ## Networking & Server Integration

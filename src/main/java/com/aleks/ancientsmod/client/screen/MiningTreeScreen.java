@@ -85,6 +85,7 @@ public final class MiningTreeScreen extends Screen {
     /** The search text survives closing and reopening within a session, like the view. */
     private static String lastQuery = "";
     private final TreeSearch search = new TreeSearch("The Seam");
+    private final TreeRename rename = new TreeRename("miningtree rename");
     private HunterTreeLayoutPayload adjFor;
     private int[][] adj;
     private HunterTreeLayoutPayload rowsFor;
@@ -111,7 +112,11 @@ public final class MiningTreeScreen extends Screen {
     private static int viewCount(HunterTreeStatePayload s) {
         return Math.max(1, Math.min(VIEWS.length, s.presetsUnlocked()));
     }
-    @Override protected void init() { resetView(); addSearchField(); }
+    @Override protected void init() {
+        resetView();
+        addSearchField();
+        this.addDrawableChild(rename.createField(this.textRenderer, COL_X, PLAQUE_W));
+    }
 
     public void resetView() {
         camX = camY = 0;
@@ -451,26 +456,28 @@ public final class MiningTreeScreen extends Screen {
 
         if (buildsShown(s)) {
             MiningTreeClient.Builds b = MiningTreeClient.builds();
-            plaque(ctx, BUILD_Y, buildMenu ? P_TAB_SEL : P_TAB, "Build " + (b.active() + 1), b.unlocked() > 1 ? GOLD : CREAM);
+            plaque(ctx, BUILD_Y, buildMenu ? P_TAB_SEL : P_TAB, b.label(b.active()), b.unlocked() > 1 ? GOLD : CREAM);
             if (over(mx, my, BUILD_Y)) {
                 tip = new ArrayList<>();
                 tip.add(Text.literal("Saved builds").formatted(Formatting.AQUA));
                 tip.add(Text.literal("Each build keeps its own nodes, class and auto-spend.").formatted(Formatting.GRAY));
                 if (!b.hint().isEmpty()) tip.add(Text.literal(b.hint()).formatted(Formatting.DARK_GRAY));
                 tip.add(Text.literal(buildMenu ? "Click to close the builds." : "Click to choose.").formatted(Formatting.YELLOW));
+                tip.add(Text.literal("Right-click to rename this build.").formatted(Formatting.YELLOW));
             }
             if (buildMenu) {
                 for (int c = 0; c < b.count(); c++) {
                     int cy = STAT_ROWS_Y + c * 16;
                     boolean cur = c == b.active(), locked = c >= b.unlocked();
-                    plaque(ctx, cy, cur ? P_TAB_SEL : P_TAB, "Build " + (c + 1), cur ? GOLD : locked ? DIM : CREAM);
+                    plaque(ctx, cy, cur ? P_TAB_SEL : P_TAB, b.label(c), cur ? GOLD : locked ? DIM : CREAM);
                     if (over(mx, my, cy)) {
                         tip = new ArrayList<>();
-                        tip.add(Text.literal("Build " + (c + 1)).formatted(Formatting.AQUA));
+                        tip.add(Text.literal(b.label(c)).formatted(Formatting.AQUA));
                         tip.add(Text.literal(buildLine(b, c)).formatted(Formatting.GRAY));
                         tip.add(cur ? Text.literal("Your build now.").formatted(Formatting.GREEN)
                                 : locked ? Text.literal(b.hint()).formatted(Formatting.DARK_GRAY)
                                 : Text.literal("Click to switch. Free.").formatted(Formatting.YELLOW));
+                        if (!locked) tip.add(Text.literal("Right-click to rename.").formatted(Formatting.YELLOW));
                     }
                 }
             }
@@ -518,6 +525,8 @@ public final class MiningTreeScreen extends Screen {
     private void plaque(DrawContext ctx, int y, int row, String label, int color) {
         ctx.drawTexture(RenderPipelines.GUI_TEXTURED, PLAQUES, COL_X, y, 0, row * PLAQUE_H, PLAQUE_W, PLAQUE_H,
                 PLAQUE_W, PLAQUE_H * 5);
+        // A long build or preset name is cut to fit the plaque.
+        if (this.textRenderer.getWidth(label) > PLAQUE_W - 4) label = this.textRenderer.trimToWidth(label, PLAQUE_W - 10) + "..";
         ctx.drawText(this.textRenderer, label, COL_X + (PLAQUE_W - this.textRenderer.getWidth(label)) / 2, y + 3, color, true);
     }
 
@@ -634,6 +643,27 @@ public final class MiningTreeScreen extends Screen {
     public boolean mouseClicked(Click click, boolean doubleClick) {
         HunterTreeStatePayload s = MiningTreeClient.state();
         double mx = click.x(), my = click.y();
+        if (rename.active()) {
+            if (rename.over(mx, my)) return super.mouseClicked(click, doubleClick);
+            rename.cancel();
+            this.setFocused(null);
+        }
+        if (click.button() == 1 && s != null && buildsShown(s)) {
+            MiningTreeClient.Builds b = MiningTreeClient.builds();
+            if (over(mx, my, BUILD_Y)) {
+                rename.start(b.active(), BUILD_Y, b.custom(b.active()));
+                this.setFocused(rename.field());
+                return true;
+            }
+            if (buildMenu) {
+                for (int k = 0; k < b.count() && k < b.unlocked(); k++) {
+                    if (!over(mx, my, STAT_ROWS_Y + k * 16)) continue;
+                    rename.start(k, STAT_ROWS_Y + k * 16, b.custom(k));
+                    this.setFocused(rename.field());
+                    return true;
+                }
+            }
+        }
         if (click.button() == 0 && s != null) {
             if (over(mx, my, STATS_Y)) { statsOpen = !statsOpen; return true; }
             for (int v = 0; v < viewCount(s); v++) if (over(mx,my,PRESET_Y + v * 16)) {
@@ -758,6 +788,19 @@ public final class MiningTreeScreen extends Screen {
 
     @Override
     public boolean keyPressed(KeyInput input) {
+        if (rename.active()) {
+            if (input.key() == GLFW.GLFW_KEY_ENTER || input.key() == GLFW.GLFW_KEY_KP_ENTER) {
+                rename.commit();
+                this.setFocused(null);
+                return true;
+            }
+            if (input.key() == GLFW.GLFW_KEY_ESCAPE) {
+                rename.cancel();
+                this.setFocused(null);
+                return true;
+            }
+            return super.keyPressed(input);
+        }
         if (input.key() == GLFW.GLFW_KEY_F && input.hasCtrlOrCmd()) {
             focusSearch();
             search.field.setCursorToEnd(false);
@@ -786,6 +829,7 @@ public final class MiningTreeScreen extends Screen {
 
     @Override
     public boolean charTyped(CharInput input) {
+        if (rename.active()) return super.charTyped(input);
         // Typing a letter anywhere on the screen starts a search, as in PoE.
         if (!search.focused() && Character.isLetterOrDigit(input.codepoint()) && (input.modifiers() & GLFW.GLFW_MOD_CONTROL) == 0) focusSearch();
         return super.charTyped(input);

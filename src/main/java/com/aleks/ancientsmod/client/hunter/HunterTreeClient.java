@@ -22,6 +22,8 @@ public final class HunterTreeClient {
     private static int autoPlan = AUTO_UNKNOWN;
     /** Each preset's plan (-1 off), empty when the server sent none. */
     private static int[] presetAutos = new int[0];
+    /** Each preset's player-given name, "" for the default; empty when the server sent none. */
+    private static String[] presetNames = new String[0];
 
     private static int asmVersion = -1;
     private static int asmCount;
@@ -34,6 +36,17 @@ public final class HunterTreeClient {
     public static HunterTreeLayoutPayload layout() { return layout; }
     public static HunterTreeStatePayload state() { return state; }
     public static int autoPlan() { return autoPlan; }
+    /** "Preset 2", or the name the player gave it. */
+    public static String presetLabel(int preset) {
+        String c = presetCustom(preset);
+        return c != null ? c : "Preset " + (preset + 1);
+    }
+
+    public static String presetCustom(int preset) {
+        String n = preset >= 0 && preset < presetNames.length ? presetNames[preset] : null;
+        return n == null || n.isEmpty() ? null : n;
+    }
+
     public static int presetAuto(int preset) { return preset >= 0 && preset < presetAutos.length ? presetAutos[preset] : -1; }
 
     public static void onChunk(int version, int index, int count, byte[] chunk) {
@@ -73,6 +86,11 @@ public final class HunterTreeClient {
     }
 
     public static void onState(HunterTreeStatePayload next, int auto, int[] autos) {
+        onState(next, auto, autos, new String[0]);
+    }
+
+    public static void onState(HunterTreeStatePayload next, int auto, int[] autos, String[] names) {
+        presetNames = names == null ? new String[0] : names;
         autoPlan = auto;
         presetAutos = autos == null ? new int[0] : autos;
         state = next;
@@ -96,6 +114,7 @@ public final class HunterTreeClient {
         state = null;
         autoPlan = AUTO_UNKNOWN;
         presetAutos = new int[0];
+        presetNames = new String[0];
         reset();
     }
 

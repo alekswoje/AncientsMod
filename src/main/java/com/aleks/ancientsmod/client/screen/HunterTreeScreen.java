@@ -64,6 +64,7 @@ public final class HunterTreeScreen extends Screen {
     /** The search text survives closing and reopening within a session, like the view. */
     private static String lastQuery = "";
     private final TreeSearch search = new TreeSearch("The Hunt");
+    private final TreeRename rename = new TreeRename("hunter rename");
     private HunterTreeLayoutPayload adjFor;
     private int[][] adj;
 
@@ -81,6 +82,7 @@ public final class HunterTreeScreen extends Screen {
     @Override
     protected void init() {
         addSearchField();
+        this.addDrawableChild(rename.createField(this.textRenderer, COL_X, PLAQUE_W));
     }
 
     private static Identifier tex(String name) {
@@ -323,7 +325,8 @@ public final class HunterTreeScreen extends Screen {
 
         boolean ro = s.readOnly();
         if (!ro) {
-            String preset = "Preset " + (s.activePreset() + 1) + "/" + Math.max(1, s.presetsUnlocked());
+            String custom = HunterTreeClient.presetCustom(s.activePreset());
+            String preset = custom != null ? custom : "Preset " + (s.activePreset() + 1) + "/" + Math.max(1, s.presetsUnlocked());
             plaque(ctx, PRESET_Y, P_TAB, preset, s.presetsUnlocked() > 1 ? GOLD : DIM);
             if (over(mx, my, PRESET_Y)) tip = presetTip(s);
         }
@@ -446,6 +449,8 @@ public final class HunterTreeScreen extends Screen {
     private void plaque(DrawContext ctx, int y, int row, String label, int color) {
         ctx.drawTexture(RenderPipelines.GUI_TEXTURED, PLAQUES, COL_X, y, 0, row * PLAQUE_H, PLAQUE_W, PLAQUE_H,
                 PLAQUE_W, PLAQUE_H * 5);
+        // A long build or preset name is cut to fit the plaque.
+        if (this.textRenderer.getWidth(label) > PLAQUE_W - 4) label = this.textRenderer.trimToWidth(label, PLAQUE_W - 10) + "..";
         ctx.drawText(this.textRenderer, label, COL_X + (PLAQUE_W - this.textRenderer.getWidth(label)) / 2, y + 3, color, true);
     }
 
@@ -462,11 +467,12 @@ public final class HunterTreeScreen extends Screen {
         List<Text> tip = new ArrayList<>();
         tip.add(Text.literal("Tree presets").formatted(Formatting.GOLD));
         for (int i = 0; i < s.presetSpent().length; i++) {
-            if (i == s.activePreset()) tip.add(Text.literal("> Preset " + (i + 1) + ": " + s.presetSpent()[i] + " nodes" + autoNote(i) + " (active)").formatted(Formatting.GREEN));
-            else if (i < s.presetsUnlocked()) tip.add(Text.literal("  Preset " + (i + 1) + ": " + s.presetSpent()[i] + " nodes" + autoNote(i)).formatted(Formatting.GRAY));
-            else tip.add(Text.literal("  Preset " + (i + 1) + ": locked").formatted(Formatting.DARK_GRAY));
+            if (i == s.activePreset()) tip.add(Text.literal("> " + HunterTreeClient.presetLabel(i) + ": " + s.presetSpent()[i] + " nodes" + autoNote(i) + " (active)").formatted(Formatting.GREEN));
+            else if (i < s.presetsUnlocked()) tip.add(Text.literal("  " + HunterTreeClient.presetLabel(i) + ": " + s.presetSpent()[i] + " nodes" + autoNote(i)).formatted(Formatting.GRAY));
+            else tip.add(Text.literal("  " + HunterTreeClient.presetLabel(i) + ": locked").formatted(Formatting.DARK_GRAY));
         }
         tip.add(Text.literal("Each preset is its own tree with all your points.").formatted(Formatting.GRAY));
+        tip.add(Text.literal("Right-click to rename this preset.").formatted(Formatting.YELLOW));
         if (!s.presetHint().isEmpty()) tip.add(Text.literal(s.presetHint()).formatted(Formatting.GRAY));
         if (s.presetsUnlocked() > 1) {
             tip.add(Text.literal("Click to switch to preset " + ((s.activePreset() + 1) % s.presetsUnlocked() + 1) + ".")
@@ -567,6 +573,16 @@ public final class HunterTreeScreen extends Screen {
     public boolean mouseClicked(Click click, boolean doubleClick) {
         HunterTreeStatePayload s = HunterTreeClient.state();
         double mx = click.x(), my = click.y();
+        if (rename.active()) {
+            if (rename.over(mx, my)) return super.mouseClicked(click, doubleClick);
+            rename.cancel();
+            this.setFocused(null);
+        }
+        if (click.button() == 1 && s != null && !s.readOnly() && over(mx, my, PRESET_Y)) {
+            rename.start(s.activePreset(), PRESET_Y, HunterTreeClient.presetCustom(s.activePreset()));
+            this.setFocused(rename.field());
+            return true;
+        }
         if (click.button() == 0 && s != null) {
             if (over(mx, my, STATS_Y)) { statsOpen = !statsOpen; autoMenu = false; return true; }
             if (autoShown(s) && over(mx, my, AUTO_Y)) { autoMenu = !autoMenu; return true; }
@@ -667,6 +683,19 @@ public final class HunterTreeScreen extends Screen {
 
     @Override
     public boolean keyPressed(KeyInput input) {
+        if (rename.active()) {
+            if (input.key() == GLFW.GLFW_KEY_ENTER || input.key() == GLFW.GLFW_KEY_KP_ENTER) {
+                rename.commit();
+                this.setFocused(null);
+                return true;
+            }
+            if (input.key() == GLFW.GLFW_KEY_ESCAPE) {
+                rename.cancel();
+                this.setFocused(null);
+                return true;
+            }
+            return super.keyPressed(input);
+        }
         if (input.key() == GLFW.GLFW_KEY_F && input.hasCtrlOrCmd()) {
             focusSearch();
             search.field.setCursorToEnd(false);
@@ -695,6 +724,7 @@ public final class HunterTreeScreen extends Screen {
 
     @Override
     public boolean charTyped(CharInput input) {
+        if (rename.active()) return super.charTyped(input);
         // Typing a letter anywhere on the screen starts a search, as in PoE.
         if (!search.focused() && Character.isLetterOrDigit(input.codepoint()) && (input.modifiers() & GLFW.GLFW_MOD_CONTROL) == 0) focusSearch();
         return super.charTyped(input);
