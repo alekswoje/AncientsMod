@@ -12,11 +12,7 @@
 
 ## Rendering & Visuals
 
-- The rift texture pack no longer loads twice on slower PCs when you enter the rift.
-
 ## UI & Screens
-
-- Right-click a build in the mining tree, or the preset in the Hunter tree, to rename it. Enter saves, Escape cancels, and an empty name puts the number back.
 
 ## Input & Keybinds
 
