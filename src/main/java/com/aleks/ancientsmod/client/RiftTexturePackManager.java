@@ -68,8 +68,15 @@ public final class RiftTexturePackManager {
      * white-tint pack doesn't stay enabled globally.
      */
     private static volatile long queuedExpiryMs = 0L;
-    /** Grace window before an un-entered {@link #queuedForRift} flag self-clears. */
+    /**
+     * Grace window before an un-entered {@link #queuedForRift} flag self-clears. Counted
+     * from when the reload finishes, not from the request: a slow PC can take 30 s+ to
+     * reload, and expiring mid-reload unloaded the pack right before the teleport, which
+     * then loaded it all over again inside the rift.
+     */
     private static final long QUEUED_SAFETY_MS = 30_000L;
+    /** True while a pack reload we started is still running; the grace window can't expire then. */
+    private static volatile boolean reloadInFlight = false;
     /** Resolved at runtime — Fabric prefixes built-in pack names (e.g. {@code fabric/ancientsmod/ancients_rift_pack}); we look it up by suffix. */
     private static volatile String cachedPackName = null;
 
@@ -103,7 +110,7 @@ public final class RiftTexturePackManager {
         // Safety: a preload that was requested but never resulted in actually
         // entering the rift world self-clears after a grace window, so the
         // white-tint pack can't stay enabled everywhere.
-        if (queuedForRift && !inRift && System.currentTimeMillis() > queuedExpiryMs) {
+        if (queuedForRift && !inRift && !reloadInFlight && System.currentTimeMillis() > queuedExpiryMs) {
             queuedForRift = false;
         }
         boolean should = toggleOn && (inRift || queuedForRift);
@@ -200,7 +207,12 @@ public final class RiftTexturePackManager {
         if (enable) next.add(packName); else next.remove(packName);
         mgr.setEnabledProfiles(new ArrayList<>(next));
         currentlyActive = enable;
-        CompletableFuture<Void> fut = mc.reloadResources();
+        reloadInFlight = true;
+        CompletableFuture<Void> fut = mc.reloadResources().whenComplete((v, e) -> {
+            reloadInFlight = false;
+            // Restart the grace window now that the pack is actually on screen.
+            if (queuedForRift) queuedExpiryMs = System.currentTimeMillis() + QUEUED_SAFETY_MS;
+        });
         AncientsMod.LOGGER.info("Rift pack {} ({})", enable ? "enabled" : "disabled", packName);
         return fut;
     }
