@@ -70,6 +70,14 @@ public final class Protocol {
     public static final int MAX_EXPEDITION_PACK_MARKERS = 128;
     public static final int EXPEDITION_PACK_RARE = 1;
     public static final int EXPEDITION_PACK_UNSPAWNED = 2;
+    /**
+     * Map features after the packs in {@link #PKT_EXPEDITION_MARKERS}: an older server sends none, so they are read
+     * only while bytes remain. Kinds and states match the plugin's {@code PrisonsModChannel.EXPEDITION_POI_*}.
+     */
+    public static final int MAX_EXPEDITION_POIS = 32;
+    public static final int EXPEDITION_POI_ALTAR = 1, EXPEDITION_POI_BREACH = 2, EXPEDITION_POI_FISSURE = 3;
+    public static final int EXPEDITION_POI_STATE_IDLE = 0, EXPEDITION_POI_STATE_READY = 1,
+            EXPEDITION_POI_STATE_ACTIVE = 2, EXPEDITION_POI_STATE_DONE = 3;
     public static final int RATE_EXPEDITION_MAP_CHUNK_PER_SEC = 32;
     public static final int RATE_EXPEDITION_MARKERS_PER_SEC = 8;
 

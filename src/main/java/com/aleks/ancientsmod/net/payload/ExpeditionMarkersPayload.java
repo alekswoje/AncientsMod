@@ -6,11 +6,14 @@ import net.minecraft.network.PacketByteBuf;
 import java.util.ArrayList;
 import java.util.List;
 
-/** {@link Protocol#PKT_EXPEDITION_MARKERS}: the boss arena and the packs still to clear. */
-public record ExpeditionMarkersPayload(int bossState, int bossX, int bossZ, List<Pack> packs) {
+/** {@link Protocol#PKT_EXPEDITION_MARKERS}: the boss arena, the packs still to clear and the map's features. */
+public record ExpeditionMarkersPayload(int bossState, int bossX, int bossZ, List<Pack> packs, List<Poi> pois) {
     public static final int BOSS_NONE = 0, BOSS_ALIVE = 1, BOSS_DEAD = 2;
 
     public record Pack(int x, int z, int alive, boolean rare, boolean unspawned) {}
+
+    /** A map feature (an altar, a breach, a fissure): {@code Protocol.EXPEDITION_POI_*} kind and state. */
+    public record Poi(int x, int z, int kind, int state) {}
 
     public static ExpeditionMarkersPayload decode(PacketByteBuf buf) {
         int boss = buf.readUnsignedByte();
@@ -27,6 +30,16 @@ public record ExpeditionMarkersPayload(int bossState, int bossX, int bossZ, List
             packs.add(new Pack(x, z, alive, (flags & Protocol.EXPEDITION_PACK_RARE) != 0,
                     (flags & Protocol.EXPEDITION_PACK_UNSPAWNED) != 0));
         }
-        return new ExpeditionMarkersPayload(boss, bx, bz, List.copyOf(packs));
+        List<Poi> pois = new ArrayList<>();
+        if (buf.readableBytes() > 0) {
+            int n = buf.readVarInt();
+            if (n < 0 || n > Protocol.MAX_EXPEDITION_POIS) throw new IllegalArgumentException("bad expedition features");
+            for (int i = 0; i < n; i++) {
+                int x = buf.readInt(), z = buf.readInt();
+                int kind = buf.readUnsignedByte(), state = buf.readUnsignedByte();
+                pois.add(new Poi(x, z, kind, state));
+            }
+        }
+        return new ExpeditionMarkersPayload(boss, bx, bz, List.copyOf(packs), List.copyOf(pois));
     }
 }

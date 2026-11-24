@@ -19,8 +19,9 @@ import net.minecraft.util.math.Vec3d;
 /**
  * Expedition minimap, Path of Exile map-overlay style: a round map of the whole Expedition as the
  * server drew it from above, turned so the way you face is up, with the packs still to clear (red,
- * yellow while a Rare lives, hollow where nobody has been yet) and the boss arena (a skull, dim once
- * the boss is dead, pinned to the ring while off the map). Only while the server says we are in an
+ * yellow while a Rare lives, hollow where nobody has been yet), the boss arena (a skull, dim once
+ * the boss is dead, pinned to the ring while off the map) and the map's features: altars (a flame on a
+ * plinth), breaches (a jagged crack) and Ichor fissures (a drop), each dim once spent. Only while the server says we are in an
  * Expedition ({@link ExpeditionMapState}).
  *
  * <p>Drawn on the CPU into one small texture at the screen's real pixel density (GUI scale times the
@@ -47,6 +48,10 @@ public final class ExpeditionMinimapHud extends HudElement {
     private static final int PACK_RARE = 0xFFFFD84A;
     private static final int BONE = 0xFFEDE4D0;
     private static final int EYES_ALIVE = 0xFFFF3B2B;
+    private static final int SPENT = 0xFF8A847A;
+    private static final int ALTAR_IDLE = 0xFFD2452E, ALTAR_READY = 0xFFFFD84A, ALTAR_ACTIVE = 0xFF6FE6F0;
+    private static final int BREACH_SEALED = 0xFFB27BFF, BREACH_OPEN = 0xFFFF7A2E;
+    private static final int ICHOR = 0xFFF2B33D;
 
     private NativeImageBackedTexture texture;
     private int textureRes;
@@ -218,6 +223,11 @@ public final class ExpeditionMinimapHud extends HudElement {
                     r.disc(x, y, 1.7f * k, color, 1f);
                 }
             }
+            for (ExpeditionMarkersPayload.Poi p : markers.pois()) {
+                float[] at = toLocal(p.x() + 0.5, p.z() + 0.5, px, pz, zoom, cos, sin);
+                if (Math.hypot(at[0], at[1]) > rad - 4 * k) continue;
+                feature(r, c + at[0], c + at[1], k, p.kind(), p.state());
+            }
             float[] at = toLocal(markers.bossX() + 0.5, markers.bossZ() + 0.5, px, pz, zoom, cos, sin);
             float d = (float) Math.hypot(at[0], at[1]);
             float pin = rad - 5.5f * k;
@@ -293,6 +303,50 @@ public final class ExpeditionMinimapHud extends HudElement {
         r.disc(cx + 1.05f * k, cy - 0.5f * k, 0.8f * k, eyes, a);
         float[][] gap = {{-0.2f, 1.5f}, {0.2f, 1.5f}, {0.2f, 2.6f}, {-0.2f, 2.6f}};
         r.polys(cx, cy, k, new float[][][]{gap}, 0f, DARK, 0.8f * a);
+    }
+
+    /** One map feature's icon, upright on the screen. Spent ones are grey and dim. */
+    private static void feature(Raster r, float cx, float cy, float k, int kind, int state) {
+        boolean done = state == com.aleks.ancientsmod.net.Protocol.EXPEDITION_POI_STATE_DONE;
+        float a = done ? 0.55f : 1f;
+        switch (kind) {
+            case com.aleks.ancientsmod.net.Protocol.EXPEDITION_POI_ALTAR -> {
+                // a plinth with a flame on it: red while its ring is full, gold when ready, soul blue while the dead walk
+                int flame = done ? SPENT : switch (state) {
+                    case com.aleks.ancientsmod.net.Protocol.EXPEDITION_POI_STATE_READY -> ALTAR_READY;
+                    case com.aleks.ancientsmod.net.Protocol.EXPEDITION_POI_STATE_ACTIVE -> ALTAR_ACTIVE;
+                    default -> ALTAR_IDLE;
+                };
+                float[][] base = {{-2.6f, 1.2f}, {2.6f, 1.2f}, {2.6f, 2.8f}, {-2.6f, 2.8f}};
+                float[][] fire = {{0f, -3.6f}, {1.9f, -0.6f}, {1.2f, 1.2f}, {-1.2f, 1.2f}, {-1.9f, -0.6f}};
+                r.polys(cx, cy, k, new float[][][]{base, fire}, 1.0f, DARK, 0.9f * a);
+                r.polys(cx, cy, k, new float[][][]{base}, 0f, done ? SPENT : BONE, a);
+                r.polys(cx, cy, k, new float[][][]{fire}, 0f, flame, a);
+            }
+            case com.aleks.ancientsmod.net.Protocol.EXPEDITION_POI_BREACH -> {
+                // a jagged crack: violet while sealed, fiery while open
+                int col = done ? SPENT : state == com.aleks.ancientsmod.net.Protocol.EXPEDITION_POI_STATE_ACTIVE ? BREACH_OPEN : BREACH_SEALED;
+                float[][] top = {{0.4f, -3.6f}, {1.6f, -3.6f}, {0.2f, -0.2f}, {-1.0f, -0.2f}};
+                float[][] mid = {{-1.0f, -0.6f}, {1.4f, -0.6f}, {0.6f, 0.6f}, {-0.6f, 0.6f}};
+                float[][] low = {{0.6f, 0.2f}, {-0.6f, 0.2f}, {-1.4f, 3.6f}, {-0.4f, 3.6f}};
+                r.polys(cx, cy, k, new float[][][]{top, mid, low}, 1.0f, DARK, 0.9f * a);
+                r.polys(cx, cy, k, new float[][][]{top, mid, low}, 0f, col, a);
+            }
+            case com.aleks.ancientsmod.net.Protocol.EXPEDITION_POI_FISSURE -> {
+                // a drop of Ichor
+                int col = done ? SPENT : ICHOR;
+                float[][] tip = {{0f, -3.6f}, {1.9f, 0.4f}, {-1.9f, 0.4f}};
+                r.disc(cx, cy + 0.9f * k, 3.0f * k, DARK, 0.9f * a);
+                r.polys(cx, cy, k, new float[][][]{tip}, 1.0f, DARK, 0.9f * a);
+                r.disc(cx, cy + 0.9f * k, 2.0f * k, col, a);
+                r.polys(cx, cy, k, new float[][][]{tip}, 0f, col, a);
+                r.disc(cx - 0.7f * k, cy + 0.4f * k, 0.55f * k, 0xFFFFF4D6, 0.8f * a);
+            }
+            default -> {
+                r.disc(cx, cy, 2.4f * k, DARK, 0.85f * a);
+                r.disc(cx, cy, 1.5f * k, BONE, a);
+            }
+        }
     }
 
     /** A small premultiplied RGBA canvas with anti-aliased discs, rings and polygons. */
