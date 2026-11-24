@@ -10,8 +10,6 @@
 
 ## HUDs
 
-- The Expedition minimap shows Pit Breaches (a crack, violet while sealed, orange while open) and Ichor fissures (a gold drop).
-
 ## Rendering & Visuals
 
 ## UI & Screens
