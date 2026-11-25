@@ -10,8 +10,6 @@
 
 ## HUDs
 
-- Expedition minimap: the Ichor fissure icon follows the crack's head. It is a hollow drop while dormant, a solid drop while the crack crawls, and a red spire once the maw opens and the champion is out.
-
 ## Rendering & Visuals
 
 ## UI & Screens
