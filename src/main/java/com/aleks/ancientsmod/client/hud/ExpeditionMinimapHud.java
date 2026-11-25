@@ -21,7 +21,8 @@ import net.minecraft.util.math.Vec3d;
  * server drew it from above, turned so the way you face is up, with the packs still to clear (red,
  * yellow while a Rare lives, hollow where nobody has been yet), the boss arena (a skull, dim once
  * the boss is dead, pinned to the ring while off the map) and the map's features: altars (a flame on a
- * plinth), breaches (a jagged crack) and Ichor fissures (a drop), each dim once spent. Only while the server says we are in an
+ * plinth), breaches (a jagged crack) and Ichor fissures (a drop at the crack's head, hollow while dormant, a red
+ * spire while its champion is out), each dim once spent. Only while the server says we are in an
  * Expedition ({@link ExpeditionMapState}).
  *
  * <p>Drawn on the CPU into one small texture at the screen's real pixel density (GUI scale times the
@@ -51,7 +52,7 @@ public final class ExpeditionMinimapHud extends HudElement {
     private static final int SPENT = 0xFF8A847A;
     private static final int ALTAR_IDLE = 0xFFD2452E, ALTAR_READY = 0xFFFFD84A, ALTAR_ACTIVE = 0xFF6FE6F0;
     private static final int BREACH_SEALED = 0xFFB27BFF, BREACH_OPEN = 0xFFFF7A2E;
-    private static final int ICHOR = 0xFFF2B33D;
+    private static final int ICHOR = 0xFFF2B33D, ICHOR_MAW = 0xFFFF4A3A;
 
     private NativeImageBackedTexture texture;
     private int textureRes;
@@ -333,14 +334,33 @@ public final class ExpeditionMinimapHud extends HudElement {
                 r.polys(cx, cy, k, new float[][][]{top, mid, low}, 0f, col, a);
             }
             case com.aleks.ancientsmod.net.Protocol.EXPEDITION_POI_FISSURE -> {
-                // a drop of Ichor
+                // follows the crack's head: a hollow drop while dormant, a solid drop while it crawls,
+                // a red spire once the maw is open and its champion is out, grey once spent
+                if (state == com.aleks.ancientsmod.net.Protocol.EXPEDITION_POI_STATE_BOSS) {
+                    float[][] spire = {{0f, -4.2f}, {1.1f, 2.6f}, {-1.1f, 2.6f}};
+                    float[][] left = {{-1.9f, -1.6f}, {-0.9f, 2.6f}, {-2.9f, 2.6f}};
+                    float[][] right = {{1.9f, -1.6f}, {2.9f, 2.6f}, {0.9f, 2.6f}};
+                    float[][] base = {{-3.2f, 2.2f}, {3.2f, 2.2f}, {3.2f, 3.4f}, {-3.2f, 3.4f}};
+                    r.polys(cx, cy, k, new float[][][]{spire, left, right, base}, 1.0f, DARK, 0.95f);
+                    r.polys(cx, cy, k, new float[][][]{left, right, base}, 0f, ICHOR, 1f);
+                    r.polys(cx, cy, k, new float[][][]{spire}, 0f, ICHOR_MAW, 1f);
+                    break;
+                }
+                boolean dormant = state == com.aleks.ancientsmod.net.Protocol.EXPEDITION_POI_STATE_IDLE;
                 int col = done ? SPENT : ICHOR;
                 float[][] tip = {{0f, -3.6f}, {1.9f, 0.4f}, {-1.9f, 0.4f}};
                 r.disc(cx, cy + 0.9f * k, 3.0f * k, DARK, 0.9f * a);
                 r.polys(cx, cy, k, new float[][][]{tip}, 1.0f, DARK, 0.9f * a);
                 r.disc(cx, cy + 0.9f * k, 2.0f * k, col, a);
                 r.polys(cx, cy, k, new float[][][]{tip}, 0f, col, a);
-                r.disc(cx - 0.7f * k, cy + 0.4f * k, 0.55f * k, 0xFFFFF4D6, 0.8f * a);
+                if (dormant) {
+                    // hollow: the dark core shows nobody has woken it yet
+                    float[][] core = {{0f, -1.6f}, {0.9f, 0.4f}, {-0.9f, 0.4f}};
+                    r.disc(cx, cy + 0.9f * k, 1.05f * k, DARK, 1f);
+                    r.polys(cx, cy, k, new float[][][]{core}, 0f, DARK, 1f);
+                } else {
+                    r.disc(cx - 0.7f * k, cy + 0.4f * k, 0.55f * k, 0xFFFFF4D6, 0.8f * a);
+                }
             }
             default -> {
                 r.disc(cx, cy, 2.4f * k, DARK, 0.85f * a);

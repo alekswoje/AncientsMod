@@ -77,7 +77,7 @@ public final class Protocol {
     public static final int MAX_EXPEDITION_POIS = 32;
     public static final int EXPEDITION_POI_ALTAR = 1, EXPEDITION_POI_BREACH = 2, EXPEDITION_POI_FISSURE = 3;
     public static final int EXPEDITION_POI_STATE_IDLE = 0, EXPEDITION_POI_STATE_READY = 1,
-            EXPEDITION_POI_STATE_ACTIVE = 2, EXPEDITION_POI_STATE_DONE = 3;
+            EXPEDITION_POI_STATE_ACTIVE = 2, EXPEDITION_POI_STATE_DONE = 3, EXPEDITION_POI_STATE_BOSS = 4;
     public static final int RATE_EXPEDITION_MAP_CHUNK_PER_SEC = 32;
     public static final int RATE_EXPEDITION_MARKERS_PER_SEC = 8;
 
